@@ -1,0 +1,12 @@
+# Ignore everything by default.
+*
+
+# Whitelist specific files/dirs.
+!workspace/
+!workspace/**
+!skills/
+!skills/**
+!cron/
+!cron/jobs.json
+!openclaw.json
+!.gitignore

@@ -1,0 +1,261 @@
+const express = require("express");
+const request = require("supertest");
+
+const { registerSystemRoutes } = require("../../lib/server/routes/system");
+
+const createSystemDeps = () => {
+  const deps = {
+    fs: {
+      existsSync: vi.fn(() => true),
+      readFileSync: vi.fn(() => {
+        throw new Error("no config");
+      }),
+      writeFileSync: vi.fn(),
+      mkdirSync: vi.fn(),
+      rmSync: vi.fn(),
+    },
+    readEnvFile: vi.fn(() => []),
+    writeEnvFile: vi.fn(),
+    reloadEnv: vi.fn(() => true),
+    kKnownVars: [
+      { key: "OPENAI_API_KEY", label: "OpenAI API Key", group: "models", hint: "" },
+      { key: "GITHUB_TOKEN", label: "GitHub Access Token", group: "github", hint: "" },
+    ],
+    kKnownKeys: new Set(["OPENAI_API_KEY", "GITHUB_TOKEN"]),
+    kSystemVars: new Set(["PORT", "SETUP_PASSWORD"]),
+    syncChannelConfig: vi.fn(),
+    isGatewayRunning: vi.fn(async () => true),
+    isOnboarded: vi.fn(() => true),
+    getChannelStatus: vi.fn(() => ({ telegram: "ready" })),
+    openclawVersionService: {
+      readOpenclawVersion: vi.fn(() => "1.2.3"),
+      getVersionStatus: vi.fn(async () => ({ ok: true, current: "1.2.3" })),
+      updateOpenclaw: vi.fn(async () => ({ status: 200, body: { ok: true } })),
+    },
+    clawCmd: vi.fn(async () => ({ ok: true, stdout: "" })),
+    restartGateway: vi.fn(),
+    OPENCLAW_DIR: "/tmp/openclaw",
+  };
+  return deps;
+};
+
+const createApp = (deps) => {
+  const app = express();
+  app.use(express.json());
+  registerSystemRoutes({
+    app,
+    ...deps,
+  });
+  return app;
+};
+
+describe("server/routes/system", () => {
+  it("merges known vars and custom vars on GET /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "OPENAI_API_KEY", value: "abc" },
+      { key: "PORT", value: "3000" },
+      { key: "CUSTOM_FLAG", value: "1" },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/env");
+
+    expect(res.status).toBe(200);
+    expect(res.body.vars).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          key: "OPENAI_API_KEY",
+          value: "abc",
+          source: "env_file",
+        }),
+        expect.objectContaining({
+          key: "GITHUB_TOKEN",
+          value: "",
+          source: "unset",
+        }),
+        expect.objectContaining({
+          key: "CUSTOM_FLAG",
+          value: "1",
+          group: "custom",
+        }),
+      ]),
+    );
+    expect(res.body.vars.some((entry) => entry.key === "PORT")).toBe(false);
+    expect(res.body.vars.some((entry) => entry.key === "GITHUB_WORKSPACE_REPO")).toBe(
+      false,
+    );
+    expect(res.body.restartRequired).toBe(false);
+  });
+
+  it("filters system vars and syncs channels on PUT /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.reloadEnv.mockReturnValue(true);
+    deps.readEnvFile.mockReturnValue([
+      { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+    ]);
+    const app = createApp(deps);
+
+    const payload = {
+      vars: [
+        { key: "OPENAI_API_KEY", value: "abc" },
+        { key: "PORT", value: "3000" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "changed/repo" },
+      ],
+    };
+
+    const res = await request(app).put("/api/env").send(payload);
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, changed: true, restartRequired: true });
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "abc" },
+      { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+    ]);
+    expect(deps.syncChannelConfig).toHaveBeenNthCalledWith(
+      1,
+      [
+        { key: "OPENAI_API_KEY", value: "abc" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+      ],
+      "remove",
+    );
+    expect(deps.syncChannelConfig).toHaveBeenNthCalledWith(
+      2,
+      [
+        { key: "OPENAI_API_KEY", value: "abc" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+      ],
+      "add",
+    );
+    expect(deps.restartGateway).not.toHaveBeenCalled();
+  });
+
+  it("does not restart gateway when env is unchanged", async () => {
+    const deps = createSystemDeps();
+    deps.reloadEnv.mockReturnValue(false);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "same" }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, changed: false, restartRequired: false });
+    expect(deps.restartGateway).not.toHaveBeenCalled();
+  });
+
+  it("keeps restartRequired true until gateway restart", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const firstSave = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "abc" }],
+    });
+    expect(firstSave.status).toBe(200);
+    expect(firstSave.body.restartRequired).toBe(true);
+
+    deps.reloadEnv.mockReturnValue(false);
+    const secondSave = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "abc" }],
+    });
+    expect(secondSave.status).toBe(200);
+    expect(secondSave.body).toEqual({
+      ok: true,
+      changed: false,
+      restartRequired: true,
+    });
+
+    const envBeforeRestart = await request(app).get("/api/env");
+    expect(envBeforeRestart.status).toBe(200);
+    expect(envBeforeRestart.body.restartRequired).toBe(true);
+
+    const restart = await request(app).post("/api/gateway/restart");
+    expect(restart.status).toBe(200);
+    expect(restart.body).toEqual({ ok: true });
+    expect(deps.restartGateway).toHaveBeenCalledTimes(1);
+
+    const envAfterRestart = await request(app).get("/api/env");
+    expect(envAfterRestart.status).toBe(200);
+    expect(envAfterRestart.body.restartRequired).toBe(false);
+  });
+
+  it("returns 400 when vars payload is missing", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({});
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({ ok: false, error: "Missing vars array" });
+  });
+
+  it("reports running gateway status on GET /api/status", async () => {
+    const deps = createSystemDeps();
+    deps.fs.existsSync.mockReturnValue(true);
+    deps.isGatewayRunning.mockResolvedValue(true);
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/status");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        gateway: "running",
+        configExists: true,
+        openclawVersion: "1.2.3",
+        syncCron: expect.objectContaining({
+          enabled: true,
+          schedule: "0 * * * *",
+        }),
+      }),
+    );
+  });
+
+  it("returns sync cron status on GET /api/sync-cron", async () => {
+    const deps = createSystemDeps();
+    deps.fs.readFileSync.mockReturnValueOnce(
+      JSON.stringify({ enabled: false, schedule: "*/30 * * * *" }),
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/sync-cron");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        enabled: false,
+        schedule: "*/30 * * * *",
+      }),
+    );
+  });
+
+  it("updates sync cron config on PUT /api/sync-cron", async () => {
+    const deps = createSystemDeps();
+    deps.fs.readFileSync.mockReturnValueOnce(
+      JSON.stringify({ enabled: true, schedule: "0 * * * *" }),
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/sync-cron").send({
+      enabled: true,
+      schedule: "*/15 * * * *",
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.fs.mkdirSync).toHaveBeenCalledWith("/tmp/openclaw/cron", {
+      recursive: true,
+    });
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/cron/system-sync.json",
+      expect.stringContaining('"schedule": "*/15 * * * *"'),
+    );
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/etc/cron.d/openclaw-hourly-sync",
+      expect.stringContaining('*/15 * * * * root bash "/tmp/openclaw/hourly-git-sync.sh"'),
+      expect.objectContaining({ mode: 0o644 }),
+    );
+    expect(res.body.ok).toBe(true);
+  });
+});

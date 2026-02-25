@@ -1,0 +1,56 @@
+#!/bin/bash
+# systemctl shim for Docker (no real systemd available)
+# Translates restart/stop/status into process signals so the Express wrapper handles lifecycle.
+
+ACTION=""
+UNIT=""
+for arg in "$@"; do
+  case "$arg" in
+    --user|--system|--no-pager|--quiet) ;;
+    restart|stop|start|status|enable|disable|is-active|is-enabled|daemon-reload|show) ACTION="$arg" ;;
+    *) [ -n "$ACTION" ] && [ -z "$UNIT" ] && UNIT="$arg" ;;
+  esac
+done
+
+case "$ACTION" in
+  status)
+    if [ -z "$UNIT" ]; then
+      # Bare "systemctl --user status" — systemd availability check
+      echo "● user-session"
+      echo "   Active: active (running)"
+      exit 0
+    fi
+    # Status check for a specific unit
+    if pgrep -f "openclaw gateway" >/dev/null 2>&1; then
+      echo "● ${UNIT}"
+      echo "   Active: active (running)"
+      exit 0
+    else
+      echo "● ${UNIT}"
+      echo "   Active: inactive (dead)"
+      exit 3
+    fi
+    ;;
+  is-active)
+    if pgrep -f "openclaw gateway" >/dev/null 2>&1; then
+      echo "active"
+      exit 0
+    else
+      echo "inactive"
+      exit 3
+    fi
+    ;;
+  restart|stop)
+    pkill -TERM -f "openclaw gateway" 2>/dev/null || true
+    sleep 1
+    pkill -9 -f "openclaw gateway" 2>/dev/null || true
+    rm -f /data/.openclaw/gateway.lock /data/.openclaw/gateway.pid 2>/dev/null
+    exit 0
+    ;;
+  start|enable|is-enabled|disable|daemon-reload|show)
+    exit 0
+    ;;
+  *)
+    exit 0
+    ;;
+esac

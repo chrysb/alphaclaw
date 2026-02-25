@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Setup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: '#141414',
+            border: '#222',
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    ::placeholder { color: #444 !important; opacity: 1 !important; }
+    ::-webkit-input-placeholder { color: #444 !important; }
+    ::-moz-placeholder { color: #444 !important; }
+    .scope-btn { background: #1a1a1a; color: #555; border: 1px solid #333; transition: all 0.15s; }
+    .scope-btn:hover { border-color: #555; }
+    .scope-btn.active { background: #065f46; color: #6ee7b7; border-color: #059669; }
+  </style>
+</head>
+<body class="bg-[#0a0a0a] text-gray-200 min-h-screen flex justify-center pt-12 pb-8 px-4">
+  <div id="app" class="flex justify-center w-full"></div>
+  <script type="module" src="./js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenClaw Setup</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: '#141414',
+            border: '#222',
+          }
+        }
+      }
+    }
+  </script>
+</head>
+<body class="bg-[#0a0a0a] text-gray-200 min-h-screen flex items-center justify-center p-4">
+  <div class="max-w-sm w-full">
+    <div class="flex items-center gap-3 mb-6">
+      <div class="text-4xl">🦞</div>
+      <div>
+        <h1 class="text-2xl font-semibold">OpenClaw Setup</h1>
+        <p class="text-gray-500 text-sm">Enter password to continue</p>
+      </div>
+    </div>
+    <form id="login-form" class="bg-surface border border-border rounded-xl p-4 space-y-3">
+      <input
+        id="password"
+        type="password"
+        placeholder="Password"
+        autofocus
+        class="w-full bg-black/30 border border-border rounded-lg px-3 py-2 text-sm text-gray-200 outline-none focus:border-gray-500"
+      />
+      <div id="error" class="text-red-400 text-xs hidden"></div>
+      <button type="submit" class="w-full bg-white text-black text-sm font-medium px-4 py-2 rounded-lg hover:opacity-85">
+        Continue
+      </button>
+    </form>
+  </div>
+  <script>
+    const formEl = document.getElementById('login-form');
+    const submitButtonEl = formEl.querySelector('button[type="submit"]');
+
+    const setPendingState = (isPending) => {
+      submitButtonEl.disabled = isPending;
+      submitButtonEl.classList.toggle('opacity-70', isPending);
+      submitButtonEl.classList.toggle('cursor-not-allowed', isPending);
+    };
+
+    formEl.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const password = document.getElementById('password').value;
+      const errorEl = document.getElementById('error');
+      errorEl.classList.add('hidden');
+      setPendingState(true);
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ password }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          window.location.href = '/';
+        } else {
+          if (res.status === 429) {
+            const retryAfterFromHeader = Number.parseInt(res.headers.get('retry-after') || '0', 10);
+            const retryAfterSec = Number.isFinite(data.retryAfterSec) && data.retryAfterSec > 0
+              ? data.retryAfterSec
+              : (Number.isFinite(retryAfterFromHeader) && retryAfterFromHeader > 0 ? retryAfterFromHeader : 30);
+            errorEl.textContent = `Too many attempts. Try again in ${retryAfterSec}s.`;
+          } else {
+            errorEl.textContent = data.error || 'Login failed';
+          }
+          errorEl.classList.remove('hidden');
+        }
+      } catch {
+        errorEl.textContent = 'Connection error';
+        errorEl.classList.remove('hidden');
+      } finally {
+        setPendingState(false);
+      }
+    });
+  </script>
+</body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "@chrysb/alphaclaw",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Setup UI, gateway manager, and onboarding wrapper for OpenClaw",
+  "bin": {
+    "alphaclaw": "./bin/alphaclaw.js"
+  },
+  "files": [
+    "bin/",
+    "lib/"
+  ],
+  "scripts": {
+    "start": "node bin/alphaclaw.js start",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "http-proxy": "^1.18.1",
+    "openclaw": "latest"
+  },
+  "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
+    "supertest": "^7.2.2",
+    "vitest": "^4.0.18"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}
