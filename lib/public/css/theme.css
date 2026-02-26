@@ -47,4 +47,69 @@ body::before {
 /* Google scope picker toggle buttons */
 .scope-btn { background: rgba(255,255,255,0.03); color: var(--text-muted); border: 1px solid var(--border); transition: all 0.15s; }
 .scope-btn:hover { border-color: var(--text-dim); color: var(--text); }
-.scope-btn.active { background: var(--bg-active); color: var(--accent); border-color: var(--accent-dim); }
+.scope-btn-read.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+.scope-btn-write.active {
+  background: rgba(255, 255, 255, 0.12);
+  color: #f3f4f6;
+  border-color: rgba(255, 255, 255, 0.35);
+}
+
+/* Reusable cyan action buttons */
+.ac-btn-cyan {
+  border: 1px solid var(--accent-dim);
+  background: linear-gradient(
+    180deg,
+    rgba(99, 235, 255, 0.14) 0%,
+    rgba(99, 235, 255, 0.08) 100%
+  );
+  color: var(--accent);
+  box-shadow: inset 0 0 0 1px rgba(99, 235, 255, 0.12);
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease,
+    color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease;
+}
+
+.ac-btn-cyan:hover:not(:disabled) {
+  border-color: rgba(99, 235, 255, 0.7);
+  background: linear-gradient(
+    180deg,
+    rgba(99, 235, 255, 0.24) 0%,
+    rgba(99, 235, 255, 0.12) 100%
+  );
+  color: #b9f8ff;
+  box-shadow:
+    inset 0 0 0 1px rgba(99, 235, 255, 0.2),
+    0 0 12px rgba(99, 235, 255, 0.14);
+}
+
+.ac-btn-cyan:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.ac-btn-cyan:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ac-btn-cyan-ghost {
+  border: 1px solid var(--accent-dim);
+  color: rgba(99, 235, 255, 0.75);
+  background: rgba(99, 235, 255, 0.04);
+  transition:
+    border-color 0.15s ease,
+    color 0.15s ease,
+    background 0.15s ease;
+}
+
+.ac-btn-cyan-ghost:hover {
+  border-color: rgba(99, 235, 255, 0.5);
+  color: #a4f3ff;
+  background: rgba(99, 235, 255, 0.08);
+}
