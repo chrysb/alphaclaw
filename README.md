@@ -45,6 +45,12 @@
 - **Everything in the browser:** No SSH, no config files to hand-edit, no CLI required after first deploy.
 - **Stays out of the way:** AlphaClaw manages infrastructure; OpenClaw handles the AI.
 
+## No Lock-in. Eject Anytime.
+
+AlphaClaw writes standard OpenClaw config (`openclaw.json`, `.env`). Remove AlphaClaw and your agent keeps running — nothing proprietary, nothing to migrate.
+
+---
+
 ## Quick Start
 
 ### Deploy (recommended)
