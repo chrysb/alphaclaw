@@ -122,8 +122,6 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 | **Crash-loop detection**    | Threshold-based (default: 3 crashes in 300s)                   |
 | **Auto-repair**             | Runs `openclaw doctor --fix --yes`, relaunches gateway         |
 | **Notifications**           | Telegram and Discord alerts for crashes, repairs, and recovery |
-| **Startup grace**           | Suppresses false positives during initial boot                 |
-| **Expected restart window** | Suppresses alerts during intentional restarts                  |
 | **Event log**               | SQLite-backed incident history with API and UI access          |
 
 ## Environment Variables
