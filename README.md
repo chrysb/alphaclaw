@@ -1,5 +1,7 @@
+<p align="center">
+  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/cd1653ac-beaf-4a8b-a85a-8a0d028976fc" />
+</p>
 <h1 align="center">AlphaClaw</h1>
-
 <p align="center">
   <strong>Setup UI. Gateway manager. Watchdog. Zero config to production.</strong><br>
   <strong>One package. One command. Full OpenClaw infrastructure.</strong>
@@ -11,22 +13,20 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-The management harness for [OpenClaw](https://github.com/openclaw/openclaw) — a web-based Setup UI, gateway lifecycle manager, crash watchdog, and channel orchestrator that turns a bare OpenClaw install into a production-ready deployment.
-
-```
-1 command · Web dashboard · Crash recovery · Telegram/Discord/Google · Webhooks · Git sync
-```
+<p align="center">The management harness for [OpenClaw](https://github.com/openclaw/openclaw) — a web-based Setup UI, gateway lifecycle manager, crash watchdog, and channel orchestrator that turns a bare OpenClaw install into a production-ready deployment.</p>
 
 <p align="center">
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
   <a href="https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
 </p>
 
-> **Platform:** AlphaClaw currently targets Docker/Linux deployments (Railway, Render, VPS). macOS local development is not yet supported.
-
 ---
 
-### Features
+> **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
+
+
+
+## Features
 
 - **Setup UI:** Password-protected web dashboard for onboarding, configuration, and day-to-day management.
 - **Guided Onboarding:** Step-by-step setup wizard — model selection, provider credentials, GitHub repo, channel pairing.
@@ -40,7 +40,7 @@ The management harness for [OpenClaw](https://github.com/openclaw/openclaw) — 
 - **Version Management:** In-place updates for both AlphaClaw and OpenClaw with changelog review and one-click apply.
 - **Codex OAuth:** Built-in PKCE flow for OpenAI Codex CLI model access.
 
-### Why AlphaClaw
+## Why AlphaClaw
 
 - **Zero to production in one deploy:** Railway/Render templates ship a complete stack — no manual gateway setup.
 - **Self-healing:** Watchdog detects crashes, enters repair mode, relaunches the gateway, and notifies you.
@@ -49,16 +49,16 @@ The management harness for [OpenClaw](https://github.com/openclaw/openclaw) — 
 
 ---
 
-### Quick Start
+## Quick Start
 
-#### Deploy (recommended)
+### Deploy (recommended)
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic)
 [![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template)
 
 Set `SETUP_PASSWORD` at deploy time and visit your deployment URL. The welcome wizard handles the rest.
 
-#### Local / Docker
+### Local / Docker
 
 ```bash
 npm install @chrysb/alphaclaw
@@ -81,7 +81,7 @@ CMD ["alphaclaw", "start"]
 
 ---
 
-### Setup UI
+## Setup UI
 
 | Tab           | What it manages                                                                                            |
 | ------------- | ---------------------------------------------------------------------------------------------------------- |
@@ -93,7 +93,7 @@ CMD ["alphaclaw", "start"]
 
 ---
 
-### CLI
+## CLI
 
 | Command                                                    | Description                                   |
 | ---------------------------------------------------------- | --------------------------------------------- |
@@ -105,7 +105,7 @@ CMD ["alphaclaw", "start"]
 
 ---
 
-### Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────┐
@@ -133,7 +133,7 @@ CMD ["alphaclaw", "start"]
 
 ---
 
-### Watchdog
+## Watchdog
 
 The built-in watchdog monitors gateway health and recovers from failures automatically.
 
@@ -150,7 +150,7 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 
 ---
 
-### Environment Variables
+## Environment Variables
 
 | Variable                          | Required | Description                                        |
 | --------------------------------- | -------- | -------------------------------------------------- |
@@ -168,7 +168,7 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 
 ---
 
-### Development
+## Development
 
 ```bash
 npm install
