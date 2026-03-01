@@ -1,10 +1,10 @@
 <p align="center">
-  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/d3d7b9e1-9cde-4209-92ed-80b27820d77e" />
+  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/99e194dd-902b-46db-ad0c-aaf723592271" />
 </p>
 <h1 align="center">AlphaClaw</h1>
 <p align="center">
-  <strong>The ops layer for OpenClaw. Deploy in minutes. Stay running for months. No CLI required.</strong><br>
-  <strong>Setup wizard. Self-healing watchdog. Anti-drift prompt hardening.</strong>
+  <strong>The ops layer for OpenClaw. Deploy in minutes. Stay running for months.</strong><br>
+  <strong>Observability. Reliability. Agent discipline. Zero SSH rescue missions.</strong>
 </p>
 
 <p align="center">
@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-<p align="center">AlphaClaw wraps <a href="https://github.com/openclaw/openclaw">OpenClaw</a> with a convenient setup wizard, self-healing watchdog, Git-backed rollback, and full browser-based observability. Ships with anti-drift prompt hardening to keep your agent disciplined, and simplifies integrations (e.g. Google Workspace) so you can manage everything from one UI instead of config files.</p>
+<p align="center">AlphaClaw wraps <a href="https://github.com/openclaw/openclaw">OpenClaw</a> with a convenient setup wizard, self-healing watchdog, Git-backed rollback, and full browser-based observability. Ships with anti-drift prompt hardening to keep your agent disciplined, and simplifies integrations (e.g. Google Workspace, Telegram Topics) so you can manage everything from one UI instead of config files.</p>
 
 <p align="center"><em>First deploy to first message in under five minutes.</em></p>
 
