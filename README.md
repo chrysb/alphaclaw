@@ -1,5 +1,6 @@
 <p align="center">
-  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/cd1653ac-beaf-4a8b-a85a-8a0d028976fc" />
+  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/0ed37d1d-2a91-4f27-8b28-330aa9d115d8" />
+
 </p>
 <h1 align="center">AlphaClaw</h1>
 <p align="center">
