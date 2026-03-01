@@ -24,8 +24,6 @@
 
 > **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
 
-
-
 ## Features
 
 - **Setup UI:** Password-protected web dashboard for onboarding, configuration, and day-to-day management.
@@ -168,6 +166,22 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 
 ---
 
+## Security Notes
+
+AlphaClaw is a convenience wrapper — it intentionally trades some of OpenClaw's default hardening for ease of setup. You should understand what's different:
+
+| Area                    | What AlphaClaw does                                                                                                                   | Trade-off                                                                                              |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| **Setup password**      | All gateway access is gated behind a single `SETUP_PASSWORD`. Brute-force protection is built in (exponential backoff lockout).       | Simpler than OpenClaw's pairing code flow, but the password must be strong.                            |
+| **One-click pairing**   | Channel pairings (Telegram/Discord) can be approved from the Setup UI instead of the CLI.                                             | No terminal access required, but anyone with the setup password can approve pairings.                  |
+| **Auto CLI approval**   | The first CLI device pairing is auto-approved so you can connect without a second screen. Subsequent requests appear in the UI.       | Removes the manual pairing step for the initial CLI connection.                                        |
+| **Query-string tokens** | Webhook URLs support `?token=<WEBHOOK_TOKEN>` for providers that don't support `Authorization` headers. Warnings are shown in the UI. | Tokens may appear in server logs and referrer headers. Use header auth when your provider supports it. |
+| **Gateway token**       | `OPENCLAW_GATEWAY_TOKEN` is auto-generated and injected into the environment so the proxy can authenticate with the gateway.          | The token lives in the `.env` file on the server — standard for managed deployments but worth noting.  |
+
+If you need OpenClaw's full security posture (manual pairing codes, no query-string tokens, no auto-approval), use OpenClaw directly without AlphaClaw.
+
+---
+
 ## Development
 
 ```bash
@@ -182,6 +196,6 @@ npm run test:coverage   # Coverage report
 
 ---
 
-### License
+## License
 
 MIT
