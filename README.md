@@ -20,8 +20,6 @@
   <a href="https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
 </p>
 
----
-
 > **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
 
 ## Features
@@ -44,8 +42,6 @@
 - **Self-healing:** Watchdog detects crashes, enters repair mode, relaunches the gateway, and notifies you.
 - **Everything in the browser:** No SSH, no config files to hand-edit, no CLI required after first deploy.
 - **Stays out of the way:** AlphaClaw manages infrastructure; OpenClaw handles the AI.
-
----
 
 ## Quick Start
 
@@ -77,8 +73,6 @@ EXPOSE 3000
 CMD ["alphaclaw", "start"]
 ```
 
----
-
 ## Setup UI
 
 | Tab           | What it manages                                                                                            |
@@ -88,8 +82,6 @@ CMD ["alphaclaw", "start"]
 | **Providers** | AI provider credentials (Anthropic, OpenAI, Gemini, Mistral, Voyage, Groq, Deepgram) and model selection   |
 | **Envars**    | Environment variables — view, edit, add — with gateway restart prompts                                     |
 | **Webhooks**  | Webhook endpoints, transform modules, request history, payload inspection                                  |
-
----
 
 ## CLI
 
@@ -101,35 +93,23 @@ CMD ["alphaclaw", "start"]
 | `alphaclaw version`                                        | Print version                                 |
 | `alphaclaw help`                                           | Show help                                     |
 
----
-
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────┐
-│                  AlphaClaw                       │
-│                                                  │
-│  ┌───────────┐  ┌───────────┐  ┌─────────────┐  │
-│  │ Setup UI  │  │ Watchdog  │  │  Webhooks   │  │
-│  │ (Preact)  │  │           │  │             │  │
-│  └─────┬─────┘  └─────┬─────┘  └──────┬──────┘  │
-│        │              │               │          │
-│  ┌─────┴──────────────┴───────────────┴───────┐  │
-│  │            Express Server (API)            │  │
-│  └─────────────────────┬──────────────────────┘  │
-│                        │ proxy                   │
-│  ┌─────────────────────┴──────────────────────┐  │
-│  │       OpenClaw Gateway (child process)     │  │
-│  └────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────┘
-```
+```mermaid
+graph TD
+    subgraph AlphaClaw
+        UI["Setup UI<br/><small>Preact + htm + Wouter</small>"]
+        WD["Watchdog<br/><small>Crash recovery · Notifications</small>"]
+        WH["Webhooks<br/><small>Transforms · Request logging</small>"]
+        UI --> API
+        WD --> API
+        WH --> API
+        API["Express Server<br/><small>JSON APIs · Auth · Proxy</small>"]
+    end
 
-- **Frontend:** Preact + htm + Wouter (hash routing), served as static assets.
-- **Backend:** Express with JSON APIs, http-proxy for gateway passthrough.
-- **Gateway:** OpenClaw runs as a managed subprocess on `127.0.0.1:18789`.
-- **Data:** `ALPHACLAW_ROOT_DIR` (default `/data`) holds `.openclaw/`, `.env`, credentials, logs, and SQLite databases.
-
----
+    API -- "proxy" --> GW["OpenClaw Gateway<br/><small>Child process · 127.0.0.1:18789</small>"]
+    GW --> DATA["ALPHACLAW_ROOT_DIR<br/><small>.openclaw/ · .env · logs · SQLite</small>"]
+```
 
 ## Watchdog
 
@@ -145,8 +125,6 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 | **Startup grace**           | Suppresses false positives during initial boot                 |
 | **Expected restart window** | Suppresses alerts during intentional restarts                  |
 | **Event log**               | SQLite-backed incident history with API and UI access          |
-
----
 
 ## Environment Variables
 
@@ -164,8 +142,6 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 | `ALPHACLAW_ROOT_DIR`              | Optional | Data directory (default `/data`)                   |
 | `TRUST_PROXY_HOPS`                | Optional | Trust proxy hop count for correct client IP        |
 
----
-
 ## Security Notes
 
 AlphaClaw is a convenience wrapper — it intentionally trades some of OpenClaw's default hardening for ease of setup. You should understand what's different:
@@ -180,8 +156,6 @@ AlphaClaw is a convenience wrapper — it intentionally trades some of OpenClaw'
 
 If you need OpenClaw's full security posture (manual pairing codes, no query-string tokens, no auto-approval), use OpenClaw directly without AlphaClaw.
 
----
-
 ## Development
 
 ```bash
@@ -193,8 +167,6 @@ npm run test:coverage   # Coverage report
 ```
 
 **Requirements:** Node.js ≥ 22.12.0
-
----
 
 ## License
 
