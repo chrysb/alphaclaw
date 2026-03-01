@@ -266,3 +266,25 @@ textarea:focus {
 .ac-btn-green:active:not(:disabled) {
   transform: translateY(1px);
 }
+
+@keyframes acSpinnerOrbit {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.ac-spinner {
+  animation: acSpinnerOrbit 1s cubic-bezier(0.3, 0.2, 0.7, 0.8) infinite;
+  transform-origin: center;
+  will-change: transform;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ac-spinner {
+    animation-duration: 1.8s;
+    animation-timing-function: linear;
+  }
+}
