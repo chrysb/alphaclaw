@@ -3,8 +3,8 @@
 </p>
 <h1 align="center">AlphaClaw</h1>
 <p align="center">
-  <strong>Setup UI. Gateway manager. Watchdog. Zero config to production.</strong><br>
-  <strong>One package. One command. Full OpenClaw infrastructure.</strong>
+  <strong>The ops layer for OpenClaw. Deploy in minutes. Stay running for months. No CLI required.</strong><br>
+  <strong>Setup wizard. Self-healing watchdog. Anti-drift prompt hardening.</strong>
 </p>
 
 <p align="center">
@@ -13,7 +13,9 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-<p align="center">The management harness for <a href="https://github.com/openclaw/openclaw">OpenClaw</a> — a web-based Setup UI, gateway lifecycle manager, crash watchdog, and channel orchestrator that turns a bare OpenClaw install into a production-ready deployment.</p>
+<p align="center">AlphaClaw wraps <a href="https://github.com/openclaw/openclaw">OpenClaw</a> with a convenient setup wizard, self-healing watchdog, Git-backed rollback, and full browser-based observability. Ships with anti-drift prompt hardening to keep your agent disciplined, and simplifies integrations (e.g. Google Workspace) so you can manage everything from one UI instead of config files.</p>
+
+<p align="center"><em>First deploy to first message in under five minutes.</em></p>
 
 <p align="center">
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
@@ -28,7 +30,7 @@
 - **Guided Onboarding:** Step-by-step setup wizard — model selection, provider credentials, GitHub repo, channel pairing.
 - **Gateway Manager:** Spawns, monitors, restarts, and proxies the OpenClaw gateway as a managed child process.
 - **Watchdog:** Crash detection, crash-loop recovery, auto-repair (`openclaw doctor --fix`), and Telegram/Discord notifications.
-- **Channel Orchestration:** Telegram and Discord bot pairing, topic management, and credential sync from a single UI.
+- **Channel Orchestration:** Telegram and Discord bot pairing, credential sync, and a guided wizard for splitting Telegram into multi-threaded topic groups as your usage grows.
 - **Webhooks:** Named webhook endpoints with per-hook transform modules, request logging, and payload inspection.
 - **Google Workspace:** OAuth integration for Gmail, Calendar, Drive, Docs, Sheets, Tasks, Contacts, and Meet.
 - **Prompt Hardening:** Ships anti-drift bootstrap prompts (`AGENTS.md`, `TOOLS.md`) injected into your agent's system prompt on every message — enforcing safe practices, commit discipline, and change summaries out of the box.
