@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-<p align="center">The management harness for [OpenClaw](https://github.com/openclaw/openclaw) — a web-based Setup UI, gateway lifecycle manager, crash watchdog, and channel orchestrator that turns a bare OpenClaw install into a production-ready deployment.</p>
+<p align="center">The management harness for <a href="https://github.com/openclaw/openclaw">OpenClaw</a> — a web-based Setup UI, gateway lifecycle manager, crash watchdog, and channel orchestrator that turns a bare OpenClaw install into a production-ready deployment.</p>
 
 <p align="center">
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
