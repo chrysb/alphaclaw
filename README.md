@@ -1,5 +1,5 @@
 <p align="center">
-  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/99e194dd-902b-46db-ad0c-aaf723592271" />
+  <img width="771" height="339" alt="image" src="https://github.com/user-attachments/assets/b96b45ab-52f2-4010-bfbe-c640e66b0f36" />
 </p>
 <h1 align="center">AlphaClaw</h1>
 <p align="center">
@@ -47,7 +47,7 @@
 
 ## No Lock-in. Eject Anytime.
 
-AlphaClaw writes standard OpenClaw config (`openclaw.json`, `.env`). Remove AlphaClaw and your agent keeps running — nothing proprietary, nothing to migrate.
+AlphaClaw simply wraps OpenClaw, it's not a dependency. Remove AlphaClaw and your agent keeps running. Nothing proprietary, nothing to migrate.
 
 ---
 
