@@ -12,6 +12,11 @@
   --accent: #63ebff;
   --accent-dim: rgba(99, 235, 255, 0.4);
   --accent-link: rgba(99, 235, 255, 0.6);
+  --orange: #d98a58;
+  --comment: #6a737d;
+  --keyword: #ff7b72;
+  --string: #a5d6ff;
+  --number: #79c0ff;
   --panel-bg-contrast: rgba(255, 255, 255, 0.028);
   --panel-border-contrast: rgba(255, 255, 255, 0.11);
   --field-bg-contrast: rgba(0, 0, 0, 0.3);
