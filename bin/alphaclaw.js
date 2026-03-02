@@ -5,6 +5,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execSync } = require("child_process");
+const {
+  normalizeGitSyncFilePath,
+  validateGitSyncFilePath,
+} = require("../lib/cli/git-sync");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 
 // ---------------------------------------------------------------------------
@@ -84,6 +88,7 @@ start options:
 
 git-sync options:
   --message, -m <text> Commit message
+  --file, -f <path>    Optional file path in .openclaw to sync only one file
 
 telegram topic add options:
   --thread <id>       Telegram thread ID
@@ -93,6 +98,7 @@ telegram topic add options:
 
 Examples:
   alphaclaw git-sync --message "sync workspace"
+  alphaclaw git-sync --message "update config" --file "workspace/app/config.json"
   alphaclaw telegram topic add --thread 12 --name "Testing"
   alphaclaw telegram topic add --thread 12 --name "Testing" --system "Handle QA requests"
 `);
@@ -234,9 +240,20 @@ const runGitSync = () => {
   const commitMessage = String(
     flagValue(commandArgs, "--message", "-m") || "",
   ).trim();
+  const requestedFilePath = String(
+    flagValue(commandArgs, "--file", "-f") || "",
+  ).trim();
+  const normalizedFilePath = normalizeGitSyncFilePath(requestedFilePath);
   if (!commitMessage) {
     console.error("[alphaclaw] Missing --message for git-sync");
     return 1;
+  }
+  if (normalizedFilePath) {
+    const pathValidation = validateGitSyncFilePath(normalizedFilePath);
+    if (!pathValidation.ok) {
+      console.error(pathValidation.error);
+      return 1;
+    }
   }
   if (!githubToken) {
     console.error("[alphaclaw] Missing GITHUB_TOKEN for git-sync");
@@ -312,13 +329,23 @@ const runGitSync = () => {
         `[alphaclaw] Remote branch "${branch}" not found, skipping pull`,
       );
     }
-    runGit("add -A");
+    if (normalizedFilePath) {
+      runGit(`add -A -- ${quoteArg(normalizedFilePath)}`);
+    } else {
+      runGit("add -A");
+    }
     try {
       runGit("diff --cached --quiet");
       console.log("[alphaclaw] No changes to commit");
       return 0;
     } catch {}
-    runGit(`commit -m ${quoteArg(commitMessage)}`);
+    if (normalizedFilePath) {
+      runGit(
+        `commit -m ${quoteArg(commitMessage)} -- ${quoteArg(normalizedFilePath)}`,
+      );
+    } else {
+      runGit(`commit -m ${quoteArg(commitMessage)}`);
+    }
     runGit(`push origin ${quoteArg(branch)}`, { withAuth: true });
     const hash = String(runGit("rev-parse --short HEAD")).trim();
     console.log(`[alphaclaw] Git sync complete (${hash})`);
