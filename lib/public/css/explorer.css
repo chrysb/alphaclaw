@@ -791,6 +791,15 @@
   font-size: 12px;
 }
 
+.file-viewer-loading-shell {
+  flex: 1 1 auto;
+  min-height: 140px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+}
+
 .file-viewer-state-error {
   color: #f87171;
 }
