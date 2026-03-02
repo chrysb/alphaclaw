@@ -32,6 +32,24 @@ Changes committed ([abc1234](commit url)): <-- linked commit hash
 • path/or/resource (new|edit|delete) — brief description
 ```
 
+### Release Flow (Beta -> Production)
+
+Use this release flow when promoting tested beta builds to production:
+
+1. Ensure `main` is clean and synced, and tests pass.
+2. Publish beta iterations as needed:
+   - `npm version prerelease --preid=beta`
+   - `git push && git push --tags`
+   - `npm publish --tag beta`
+3. For beta template testing, pin exact beta in template `package.json` (for example `0.3.2-beta.4`) to avoid Docker layer cache reusing old installs.
+4. When ready for production, publish a stable release version (for example `0.3.2`):
+   - `npm version 0.3.2`
+   - `git push && git push --tags`
+   - `npm publish` (publishes to `latest`)
+5. Return templates to production channel:
+   - `@chrysb/alphaclaw: "latest"`
+6. Optionally keep beta branch/tag flows active for next release cycle.
+
 ### Telegram Notice Format (AlphaClaw)
 
 Use this format for any Telegram notices sent from AlphaClaw services (watchdog, system alerts, repair notices):
