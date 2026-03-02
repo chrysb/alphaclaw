@@ -2,7 +2,7 @@
 
 .app-shell {
   display: grid;
-  grid-template-columns: 220px 6px minmax(0, 1fr);
+  grid-template-columns: 220px 0 minmax(0, 1fr);
   grid-template-rows: auto 1fr 24px;
   height: 100vh;
   position: relative;
@@ -69,9 +69,22 @@
   grid-row: 2;
   cursor: col-resize;
   position: relative;
+  width: 6px;
+  margin-left: -3px;
+  z-index: 4;
 }
 
 .sidebar-resizer::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 6px;
+  background: transparent;
+}
+
+.sidebar-resizer::after {
   content: "";
   position: absolute;
   left: 2px;
@@ -82,8 +95,8 @@
   transition: background 0.12s;
 }
 
-.sidebar-resizer:hover::before,
-.sidebar-resizer.is-resizing::before {
+.sidebar-resizer:hover::after,
+.sidebar-resizer.is-resizing::after {
   background: rgba(99, 235, 255, 0.55);
 }
 
