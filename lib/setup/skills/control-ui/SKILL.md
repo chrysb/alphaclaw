@@ -1,9 +1,9 @@
 ---
-name: control-ui
-description: Know when and how to direct the user to the Setup UI for configuration tasks.
+name: alphaclaw
+description: Know when and how to direct the user to the AlphaClaw UI for configuration tasks.
 ---
 
-# Control UI
+# AlphaClaw UI
 
 There is a web-based Setup UI at `{{BASE_URL}}`. The **user** manages runtime configuration through it. You should NOT call these API endpoints yourself or write config files directly — instead, tell the user what they need to do and where to do it.
 
@@ -35,16 +35,16 @@ When a user asks about pairing their Telegram or Discord account:
 
 Supported Google services (user selects which to enable during OAuth):
 
-| Service | Read | Write | Google API |
-|---------|------|-------|------------|
-| Gmail | `gmail:read` | `gmail:write` | `gmail.googleapis.com` |
+| Service  | Read            | Write            | Google API                     |
+| -------- | --------------- | ---------------- | ------------------------------ |
+| Gmail    | `gmail:read`    | `gmail:write`    | `gmail.googleapis.com`         |
 | Calendar | `calendar:read` | `calendar:write` | `calendar-json.googleapis.com` |
-| Drive | `drive:read` | `drive:write` | `drive.googleapis.com` |
-| Sheets | `sheets:read` | `sheets:write` | `sheets.googleapis.com` |
-| Docs | `docs:read` | `docs:write` | `docs.googleapis.com` |
-| Tasks | `tasks:read` | `tasks:write` | `tasks.googleapis.com` |
-| Contacts | `contacts:read` | `contacts:write` | `people.googleapis.com` |
-| Meet | `meet:read` | `meet:write` | `meet.googleapis.com` |
+| Drive    | `drive:read`    | `drive:write`    | `drive.googleapis.com`         |
+| Sheets   | `sheets:read`   | `sheets:write`   | `sheets.googleapis.com`        |
+| Docs     | `docs:read`     | `docs:write`     | `docs.googleapis.com`          |
+| Tasks    | `tasks:read`    | `tasks:write`    | `tasks.googleapis.com`         |
+| Contacts | `contacts:read` | `contacts:write` | `people.googleapis.com`        |
+| Meet     | `meet:read`     | `meet:write`     | `meet.googleapis.com`          |
 
 Default enabled: Gmail (read), Calendar (read+write), Drive (read), Sheets (read), Docs (read).
 
@@ -60,11 +60,3 @@ gog contacts list --account user@gmail.com
 ```
 
 Config lives at `/data/.openclaw/gogcli/`.
-
-## What the Setup UI provides (for your awareness)
-
-This is a reference so you know what's available — not an invitation to call these endpoints.
-
-- **General tab** (`{{BASE_URL}}#general`): Gateway status/restart, OpenClaw version + update, channel health, pending pairings, feature health (Embeddings/Audio), Google Workspace
-- **Providers tab** (`{{BASE_URL}}#providers`): Primary model selection, AI provider credentials, feature capabilities, Codex OAuth
-- **Envars tab** (`{{BASE_URL}}#envars`): View/edit/add environment variables, save to `/data/.env`
