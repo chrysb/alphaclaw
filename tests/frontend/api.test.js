@@ -72,4 +72,37 @@ describe("frontend/api", () => {
       "Reserved env var",
     );
   });
+
+  it("fetchUsageSummary calls usage summary endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, summary: { daily: [] } }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchUsageSummary(90);
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/usage/summary?days=90", {});
+    expect(result).toEqual({ ok: true, summary: { daily: [] } });
+  });
+
+  it("fetchUsageSessions calls usage sessions endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, sessions: [] }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchUsageSessions(100);
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/usage/sessions?limit=100", {});
+    expect(result).toEqual({ ok: true, sessions: [] });
+  });
+
+  it("fetchUsageSessionDetail encodes session id in path", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, detail: { sessionId: "x" } }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchUsageSessionDetail("agent:main:telegram:group:-1:topic:2");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/usage/sessions/agent%3Amain%3Atelegram%3Agroup%3A-1%3Atopic%3A2",
+      {},
+    );
+    expect(result).toEqual({ ok: true, detail: { sessionId: "x" } });
+  });
 });
