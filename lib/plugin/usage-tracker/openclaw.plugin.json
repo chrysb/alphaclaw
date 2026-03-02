@@ -1,0 +1,8 @@
+{
+  "id": "usage-tracker",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {}
+  }
+}

@@ -1,8 +1,9 @@
 /* ── App shell grid ─────────────────────────────── */
 
 .app-shell {
+  --sidebar-width: 220px;
   display: grid;
-  grid-template-columns: 220px 0 minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) 0px minmax(0, 1fr);
   grid-template-rows: auto 1fr 24px;
   height: 100vh;
   position: relative;
@@ -286,6 +287,7 @@
 
 @media (max-width: 768px) {
   .app-shell {
+    --sidebar-width: 0px !important;
     grid-template-columns: 1fr;
     grid-template-rows: auto 1fr 24px;
   }

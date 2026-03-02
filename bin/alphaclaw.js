@@ -11,6 +11,19 @@ const {
 } = require("../lib/cli/git-sync");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 
+const kUsageTrackerPluginId = "usage-tracker";
+const kLegacyUsageTrackerPluginIds = [
+  "alphaclaw-usage-tracker",
+  "${GOG_KEYRING_PASSWORD}-usage-tracker",
+];
+const kUsageTrackerPluginPath = path.resolve(
+  __dirname,
+  "..",
+  "lib",
+  "plugin",
+  "usage-tracker",
+);
+
 // ---------------------------------------------------------------------------
 // Parse CLI flags
 // ---------------------------------------------------------------------------
@@ -772,6 +785,8 @@ if (fs.existsSync(configPath)) {
     const cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
     if (!cfg.channels) cfg.channels = {};
     if (!cfg.plugins) cfg.plugins = {};
+    if (!cfg.plugins.load) cfg.plugins.load = {};
+    if (!Array.isArray(cfg.plugins.load.paths)) cfg.plugins.load.paths = [];
     if (!cfg.plugins.entries) cfg.plugins.entries = {};
     let changed = false;
 
@@ -796,6 +811,23 @@ if (fs.existsSync(configPath)) {
       };
       cfg.plugins.entries.discord = { enabled: true };
       console.log("[alphaclaw] Discord added");
+      changed = true;
+    }
+    if (!cfg.plugins.load.paths.includes(kUsageTrackerPluginPath)) {
+      cfg.plugins.load.paths.push(kUsageTrackerPluginPath);
+      changed = true;
+    }
+    for (const legacyPluginId of kLegacyUsageTrackerPluginIds) {
+      if (
+        legacyPluginId !== kUsageTrackerPluginId &&
+        cfg.plugins.entries[legacyPluginId]
+      ) {
+        delete cfg.plugins.entries[legacyPluginId];
+        changed = true;
+      }
+    }
+    if (cfg.plugins.entries[kUsageTrackerPluginId]?.enabled !== true) {
+      cfg.plugins.entries[kUsageTrackerPluginId] = { enabled: true };
       changed = true;
     }
 

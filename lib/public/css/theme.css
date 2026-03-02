@@ -451,3 +451,38 @@ textarea:focus {
     animation-timing-function: linear;
   }
 }
+
+/* Reusable segmented control (pill toggle). */
+.ac-segmented-control {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--panel-border-contrast);
+  border-radius: 8px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.02);
+  height: 28px;
+}
+
+.ac-segmented-control-button {
+  border: 0;
+  background: transparent;
+  color: var(--text-muted);
+  font-family: inherit;
+  font-size: 12px;
+  letter-spacing: 0.03em;
+  height: 100%;
+  line-height: 1;
+  padding: 0 10px;
+  cursor: pointer;
+  transition: color 0.12s, background 0.12s;
+}
+
+.ac-segmented-control-button:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ac-segmented-control-button.active {
+  color: var(--accent);
+  background: var(--bg-active);
+}
