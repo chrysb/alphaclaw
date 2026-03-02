@@ -16,9 +16,9 @@
   width: 30px;
   height: 30px;
   padding: 0;
-  color: rgba(99, 235, 255, 0.8);
+  color: var(--text-muted);
   border: 0;
-  border-radius: 10px;
+  border-radius: 6px;
   background: transparent;
   cursor: pointer;
   display: inline-flex;
@@ -33,8 +33,8 @@
 
 .sidebar-tab.active {
   color: #b9f5ff;
-  background: rgba(99, 235, 255, 0.08);
-  box-shadow: 0 0 14px rgba(99, 235, 255, 0.16);
+  background: rgba(99, 235, 255, 0.05);
+  /* box-shadow: 0 0 8px rgba(99, 235, 255, 0.16); */
 }
 
 .sidebar-tab-icon {
