@@ -5,6 +5,10 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { execSync } = require("child_process");
+const {
+  normalizeGitSyncFilePath,
+  validateGitSyncFilePath,
+} = require("../lib/cli/git-sync");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 
 // ---------------------------------------------------------------------------
@@ -239,20 +243,15 @@ const runGitSync = () => {
   const requestedFilePath = String(
     flagValue(commandArgs, "--file", "-f") || "",
   ).trim();
-  const normalizedFilePath = requestedFilePath
-    ? requestedFilePath.replace(/\\/g, "/").replace(/^\.\/+/, "")
-    : "";
+  const normalizedFilePath = normalizeGitSyncFilePath(requestedFilePath);
   if (!commitMessage) {
     console.error("[alphaclaw] Missing --message for git-sync");
     return 1;
   }
   if (normalizedFilePath) {
-    if (
-      normalizedFilePath.startsWith("/") ||
-      normalizedFilePath.startsWith("../") ||
-      normalizedFilePath.includes("/../")
-    ) {
-      console.error("[alphaclaw] --file must stay within /data/.openclaw");
+    const pathValidation = validateGitSyncFilePath(normalizedFilePath);
+    if (!pathValidation.ok) {
+      console.error(pathValidation.error);
       return 1;
     }
   }
