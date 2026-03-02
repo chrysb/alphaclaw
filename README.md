@@ -49,8 +49,6 @@
 
 AlphaClaw simply wraps OpenClaw, it's not a dependency. Remove AlphaClaw and your agent keeps running. Nothing proprietary, nothing to migrate.
 
----
-
 ## Quick Start
 
 ### Deploy (recommended)
