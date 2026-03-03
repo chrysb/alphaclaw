@@ -105,6 +105,11 @@
   padding: 6px 0 8px;
 }
 
+.file-tree-wrap-loading {
+  min-height: 100%;
+  display: flex;
+}
+
 .file-tree-search {
   padding: 0 8px 6px;
 }
@@ -301,6 +306,15 @@
   padding: 10px 14px;
   font-size: 12px;
   color: var(--text-muted);
+}
+
+.file-tree-state-loading {
+  width: 100%;
+  flex: 1 1 auto;
+  min-height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .file-tree-state-error {
