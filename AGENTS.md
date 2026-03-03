@@ -1,3 +1,42 @@
+### AlphaClaw Project Context
+
+AlphaClaw is the ops and setup layer around OpenClaw. It provides a browser-based setup UI, gateway lifecycle management, watchdog recovery flows, and integrations (for example Telegram, Discord, Google Workspace, and webhooks) so users can operate OpenClaw without manual server intervention.
+
+### Architecture At A Glance
+
+- `bin/alphaclaw.js`: CLI entrypoint and lifecycle command surface.
+- `lib/server`: Express server, authenticated setup APIs, watchdog APIs, channel integrations, and proxying to the OpenClaw gateway.
+- `lib/public`: Setup UI frontend (component-driven tabs and flows for providers, envars, watchdog, webhooks, and onboarding).
+- `lib/setup`: Prompt hardening templates and setup-related assets injected into agent/system behavior.
+
+Runtime model:
+
+1. AlphaClaw server starts and manages OpenClaw as a child process.
+2. Setup UI calls AlphaClaw APIs for configuration and operations.
+3. AlphaClaw proxies gateway traffic and handles watchdog monitoring/repair.
+
+### Key Technologies
+
+- Node.js 22+ runtime.
+- Express-based HTTP API server.
+- `http-proxy` for gateway proxy behavior.
+- OpenClaw CLI/gateway process orchestration.
+- Preact + `htm` frontend patterns for Setup UI components.
+- Vitest + Supertest for server and route testing.
+
+### Coding And Change Patterns
+
+- Keep edits targeted and production-safe; favor small, reviewable changes.
+- Preserve existing behavior unless the task explicitly requires behavior changes.
+- Follow existing UI conventions and shared components for consistency.
+- Reuse existing server route and state patterns before introducing new abstractions.
+- Update tests when behavior changes in routes, watchdog flows, or setup state.
+
+### Where To Put Agent Guidance
+
+- **This file (`AGENTS.md`):** Project-level guidance for coding agents working on the AlphaClaw codebase — architecture, conventions, release flow, UI patterns, etc.
+- **`lib/setup/core-prompts/AGENTS.md`:** Runtime prompt injected into the OpenClaw agent's system prompt. Only write there when the guidance is meant for the deployed agent's behavior, not for coding on this project.
+
 ### Release Flow (Beta -> Production)
 
 Use this release flow when promoting tested beta builds to production:
