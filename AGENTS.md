@@ -56,6 +56,26 @@ Use this release flow when promoting tested beta builds to production:
    - `@chrysb/alphaclaw: "latest"`
 6. Optionally keep beta branch/tag flows active for next release cycle.
 
+### Runtime Dependency Guardrails (Express 4 vs 5)
+
+AlphaClaw currently expects Express 4 semantics in its setup API layer. A broken container dependency tree can accidentally resolve `express@5` at `/app/node_modules/express`, which causes subtle request handling regressions (for example body parsing behavior on certain methods).
+
+Known root cause pattern:
+
+- Mutating `/app/node_modules` in-place (for example copy-over installs used for emergency package swaps) can leave the runtime tree inconsistent with `/app/package.json`.
+- This can hoist `express@5` to the app root, so `require("express")` inside AlphaClaw resolves the wrong major version.
+
+Preferred fix/recovery:
+
+1. Ensure template `package.json` pins the intended `@chrysb/alphaclaw` version.
+2. Rebuild the `openclaw` container from scratch (no cache) and recreate it:
+   - `docker compose down`
+   - `docker compose build --no-cache openclaw`
+   - `docker compose up -d openclaw`
+3. Verify runtime resolution inside the container:
+   - `node -p "require('express/package.json').version"` should be `4.x`
+   - `npm ls express` should show `@chrysb/alphaclaw` on `express@4.x` (OpenClaw can still carry its own `express@5` subtree).
+
 ### Telegram Notice Format (AlphaClaw)
 
 Use this format for any Telegram notices sent from AlphaClaw services (watchdog, system alerts, repair notices):

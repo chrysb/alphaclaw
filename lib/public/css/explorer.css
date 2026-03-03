@@ -574,6 +574,37 @@
   flex-shrink: 0;
 }
 
+.file-viewer-icon-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  margin-right: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text-muted);
+  transition: border-color 0.12s ease, color 0.12s ease, background 0.12s ease;
+}
+
+.file-viewer-icon-action:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: var(--text);
+  background: rgba(148, 163, 184, 0.08);
+}
+
+.file-viewer-icon-action.is-disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.file-viewer-icon-action-icon {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+}
+
 .file-viewer-view-toggle {
   display: flex;
   align-items: center;
