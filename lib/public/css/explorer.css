@@ -281,6 +281,14 @@
   box-shadow: 0 0 6px rgba(45, 226, 255, 0.75);
 }
 
+.tree-lock-icon {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 11px;
+  height: 11px;
+  color: var(--text-dim);
+}
+
 .tree-children {
   list-style: none;
 }
@@ -329,6 +337,23 @@
   padding: 4px 0;
   height: 42px;
   background: rgba(234, 179, 8, 0.08);
+}
+
+.file-viewer-protected-banner.is-locked {
+  background: rgba(220, 38, 38, 0.16);
+  border-top: 1px solid rgba(248, 113, 113, 0.42);
+  border-bottom: 1px solid rgba(248, 113, 113, 0.42);
+}
+
+.file-viewer-protected-banner-icon {
+  width: 14px;
+  height: 14px;
+  color: #fca5a5;
+  flex-shrink: 0;
+}
+
+.file-viewer-protected-banner.is-locked .file-viewer-protected-banner-text {
+  color: #fecaca;
 }
 
 .file-viewer-protected-banner-text {
@@ -975,15 +1000,108 @@
   color: var(--text-muted);
 }
 
+.sidebar-git-changes-label {
+  padding: 7px 10px 4px;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.sidebar-git-changes-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 0 6px;
+}
+
+.sidebar-git-change-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-height: 22px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  line-height: 1.25;
+}
+
+.sidebar-git-change-row.is-clickable {
+  cursor: pointer;
+}
+
+.sidebar-git-change-row.is-clickable:hover {
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.sidebar-git-change-path {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+.sidebar-git-change-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  font-size: 10px;
+}
+
+.sidebar-git-change-plus {
+  color: #71f8a7;
+}
+
+.sidebar-git-change-minus {
+  color: #f3a86a;
+}
+
+.sidebar-git-change-status {
+  font-size: 10px;
+  letter-spacing: 0.06em;
+}
+
+.sidebar-git-change-row.is-untracked .sidebar-git-change-status {
+  color: #71f8a7;
+}
+
+.sidebar-git-change-row.is-modified .sidebar-git-change-status {
+  color: #63ebff;
+}
+
+.sidebar-git-change-row.is-deleted .sidebar-git-change-status {
+  color: #f87171;
+}
+
+.sidebar-git-change-row.is-deleted .sidebar-git-change-path {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+
+.sidebar-git-scroll {
+  overflow-y: auto;
+  min-height: 0;
+  flex: 1 1 auto;
+}
+
+.sidebar-git-actions {
+  padding: 8px 10px 6px;
+}
+
+.sidebar-git-sync-button {
+  width: 100%;
+}
+
 .sidebar-git-list {
   list-style: none;
   display: flex;
   flex-direction: column;
   gap: 3px;
   padding: 6px 10px 0;
-  overflow-y: auto;
-  min-height: 0;
-  flex: 1 1 auto;
 }
 
 .sidebar-git-list li {
