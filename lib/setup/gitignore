@@ -6,6 +6,9 @@
 !workspace/**
 workspace/.openclaw/
 workspace/.openclaw/**
+!gogcli/
+gogcli/*
+!gogcli/state.json
 db/
 db/**
 !skills/

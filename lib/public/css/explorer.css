@@ -225,6 +225,19 @@
   color: var(--accent);
 }
 
+.tree-folder-toggle {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex: 0 0 auto;
+}
+
 .arrow {
   font-size: 10px;
   transition: transform 0.15s;
