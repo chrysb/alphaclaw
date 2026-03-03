@@ -146,9 +146,7 @@ if (portFlag) {
 
 const openclawDir = path.join(rootDir, ".openclaw");
 fs.mkdirSync(openclawDir, { recursive: true });
-const {
-  hourlyGitSyncPath,
-} = migrateManagedInternalFiles({
+const { hourlyGitSyncPath } = migrateManagedInternalFiles({
   fs,
   openclawDir,
 });
@@ -830,7 +828,16 @@ if (fs.existsSync(configPath)) {
       const replacements = buildSecretReplacements(process.env);
       for (const [secret, envRef] of replacements) {
         if (secret) {
-          content = content.split(secret).join(envRef);
+          // Only replace the secret if it is an exact match for a JSON string value
+          // This ensures we do not replace substrings inside other strings
+          const secretJson = JSON.stringify(secret);
+          content = content.replace(
+            new RegExp(
+              secretJson.replace(/[-\/\\^$*+?.()|[\]{}]/g, "\\$&"),
+              "g",
+            ),
+            JSON.stringify(envRef),
+          );
         }
       }
       fs.writeFileSync(configPath, content);

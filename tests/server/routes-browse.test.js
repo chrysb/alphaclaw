@@ -60,6 +60,19 @@ describe("server/routes/browse", () => {
     expect(res.body.error).toContain("Path must stay within");
   });
 
+  it("rejects path traversal on git diff", async () => {
+    const rootDir = createTestRoot();
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/git-diff")
+      .query({ path: "../outside.txt" });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain("Path must stay within");
+  });
+
   it("rejects likely binary files on read", async () => {
     const rootDir = createTestRoot();
     const binaryFilePath = path.join(rootDir, "image.bin");

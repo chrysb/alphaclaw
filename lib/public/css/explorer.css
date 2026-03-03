@@ -367,6 +367,15 @@
   letter-spacing: 0.01em;
 }
 
+.file-viewer-diff-banner {
+  background: rgba(59, 130, 246, 0.12);
+}
+
+.file-viewer-diff-banner .file-viewer-protected-banner-text,
+.file-viewer-diff-banner {
+  color: #bfdbfe;
+}
+
 .file-viewer-tabbar-spacer {
   flex: 1;
 }
@@ -580,6 +589,48 @@
   flex: 1;
   display: flex;
   align-items: stretch;
+}
+
+.file-viewer-diff-shell {
+  width: 100%;
+  min-height: 0;
+  height: 100%;
+  overflow: auto;
+  padding: 8px 0;
+}
+
+.file-viewer-diff-pre {
+  margin: 0;
+  padding: 0 12px 12px;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.file-viewer-diff-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+  padding: 1px 8px;
+  border-radius: 4px;
+}
+
+.file-viewer-diff-line.is-added {
+  color: #86efac;
+  background: rgba(34, 197, 94, 0.1);
+}
+
+.file-viewer-diff-line.is-removed {
+  color: #fca5a5;
+  background: rgba(239, 68, 68, 0.1);
+}
+
+.file-viewer-diff-line.is-hunk {
+  color: #93c5fd;
+}
+
+.file-viewer-diff-line.is-header {
+  color: var(--text-dim);
 }
 
 .file-viewer-editor-line-num-col {

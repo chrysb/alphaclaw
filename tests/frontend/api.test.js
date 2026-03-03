@@ -119,4 +119,17 @@ describe("frontend/api", () => {
     });
     expect(result).toEqual({ ok: true, committed: true });
   });
+
+  it("fetchBrowseFileDiff calls git diff endpoint with encoded path", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, content: "diff --git" }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchBrowseFileDiff("workspace/hooks/bootstrap/AGENTS.md");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/git-diff?path=workspace%2Fhooks%2Fbootstrap%2FAGENTS.md",
+      {},
+    );
+    expect(result).toEqual({ ok: true, content: "diff --git" });
+  });
 });
