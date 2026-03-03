@@ -626,37 +626,7 @@ try {
 } catch {}
 
 // ---------------------------------------------------------------------------
-// 10. Configure gog credentials (if env vars present)
-// ---------------------------------------------------------------------------
-
-if (process.env.GOG_CLIENT_CREDENTIALS_JSON && process.env.GOG_REFRESH_TOKEN) {
-  try {
-    const tmpCreds = `/tmp/gog-creds-${process.pid}.json`;
-    const tmpToken = `/tmp/gog-token-${process.pid}.json`;
-    fs.writeFileSync(tmpCreds, process.env.GOG_CLIENT_CREDENTIALS_JSON);
-    execSync(`gog auth credentials set "${tmpCreds}"`, { stdio: "ignore" });
-    fs.unlinkSync(tmpCreds);
-    fs.writeFileSync(
-      tmpToken,
-      JSON.stringify({
-        email: process.env.GOG_ACCOUNT || "",
-        refresh_token: process.env.GOG_REFRESH_TOKEN,
-      }),
-    );
-    execSync(`gog auth tokens import "${tmpToken}"`, { stdio: "ignore" });
-    fs.unlinkSync(tmpToken);
-    console.log(
-      `[alphaclaw] gog CLI configured for ${process.env.GOG_ACCOUNT || "account"}`,
-    );
-  } catch (e) {
-    console.log(`[alphaclaw] gog credentials setup skipped: ${e.message}`);
-  }
-} else {
-  console.log("[alphaclaw] Google credentials not set -- skipping gog setup");
-}
-
-// ---------------------------------------------------------------------------
-// 11. Reconcile channels if already onboarded
+// 10. Reconcile channels if already onboarded
 // ---------------------------------------------------------------------------
 
 const configPath = path.join(openclawDir, "openclaw.json");
