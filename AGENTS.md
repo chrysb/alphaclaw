@@ -86,7 +86,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Keep constants in `kName` format (e.g. `kUiTabs`, `kGroupOrder`, `kNamePattern`).
 - Keep component-level helpers near the top of the file, before the main export.
 - Avoid monolithic component files. Prefer breaking large features into focused child components and hooks.
-- Preferred pattern for non-trivial UI features: a feature folder with `index.js` for rendering/composition and `hook.js` (or `use-*.js`) for business logic/state/effects/handlers.
+- Preferred pattern for non-trivial UI features: a feature folder with `index.js` for rendering/composition and `use-*.js` for business logic/state/effects/handlers.
 - Treat `index.js` as a presentational shell whenever possible: keep business logic in hooks and pass derived state/actions down as props.
 
 #### Rendering and composition
