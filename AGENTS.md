@@ -31,6 +31,7 @@ Runtime model:
 - Follow existing UI conventions and shared components for consistency.
 - Reuse existing server route and state patterns before introducing new abstractions.
 - Update tests when behavior changes in routes, watchdog flows, or setup state.
+- Before running tests in a fresh checkout, run `npm install` so `vitest` (devDependency) is available for `npm test`.
 
 ### Where To Put Agent Guidance
 

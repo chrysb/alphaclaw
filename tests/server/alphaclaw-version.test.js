@@ -107,7 +107,7 @@ describe("server/alphaclaw-version", () => {
     expect(result.body.restarting).toBe(true);
     expect(result.body.previousVersion).toBeTruthy();
     expect(execMock).toHaveBeenCalledWith(
-      "npm install @chrysb/alphaclaw@latest --omit=dev --no-save --package-lock=false --prefer-online",
+      "npm install @chrysb/alphaclaw@latest --omit=dev --no-save --save=false --package-lock=false --prefer-online",
       expect.objectContaining({
         timeout: 180000,
       }),
