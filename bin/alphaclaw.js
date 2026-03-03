@@ -11,11 +11,6 @@ const {
 } = require("../lib/cli/git-sync");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 
-const kUsageTrackerPluginId = "usage-tracker";
-const kLegacyUsageTrackerPluginIds = [
-  "alphaclaw-usage-tracker",
-  "${GOG_KEYRING_PASSWORD}-usage-tracker",
-];
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
   "..",
@@ -817,17 +812,8 @@ if (fs.existsSync(configPath)) {
       cfg.plugins.load.paths.push(kUsageTrackerPluginPath);
       changed = true;
     }
-    for (const legacyPluginId of kLegacyUsageTrackerPluginIds) {
-      if (
-        legacyPluginId !== kUsageTrackerPluginId &&
-        cfg.plugins.entries[legacyPluginId]
-      ) {
-        delete cfg.plugins.entries[legacyPluginId];
-        changed = true;
-      }
-    }
-    if (cfg.plugins.entries[kUsageTrackerPluginId]?.enabled !== true) {
-      cfg.plugins.entries[kUsageTrackerPluginId] = { enabled: true };
+    if (cfg.plugins.entries["usage-tracker"]?.enabled !== true) {
+      cfg.plugins.entries["usage-tracker"] = { enabled: true };
       changed = true;
     }
 
