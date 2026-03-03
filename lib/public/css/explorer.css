@@ -216,6 +216,15 @@
   background: var(--bg-hover);
 }
 
+.tree-folder.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
+.tree-folder.active .arrow {
+  color: var(--accent);
+}
+
 .arrow {
   font-size: 10px;
   transition: transform 0.15s;

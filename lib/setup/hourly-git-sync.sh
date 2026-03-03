@@ -81,5 +81,32 @@ NODE
 maybe_restore_if_runtime_only "cron/jobs.json"
 maybe_restore_if_runtime_only "crons.json"
 
+resolve_alphaclaw_cmd() {
+  if command -v alphaclaw >/dev/null 2>&1; then
+    command -v alphaclaw
+    return 0
+  fi
+
+  local candidate_paths=(
+    "/app/node_modules/.bin/alphaclaw"
+    "$REPO/node_modules/.bin/alphaclaw"
+    "$REPO/../node_modules/.bin/alphaclaw"
+  )
+  local candidate
+  for candidate in "${candidate_paths[@]}"; do
+    if [[ -x "$candidate" ]]; then
+      echo "$candidate"
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 msg="Auto-commit hourly sync $(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-alphaclaw git-sync -m "$msg"
+alphaclaw_cmd="$(resolve_alphaclaw_cmd || true)"
+if [[ -z "${alphaclaw_cmd:-}" ]]; then
+  echo "hourly-git-sync: alphaclaw CLI not found in PATH or known install paths" >&2
+  exit 127
+fi
+"$alphaclaw_cmd" git-sync -m "$msg"
