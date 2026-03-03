@@ -6,7 +6,8 @@ const request = require("supertest");
 
 const { registerBrowseRoutes } = require("../../lib/server/routes/browse");
 
-const createTestRoot = () => fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-browse-test-"));
+const createTestRoot = () =>
+  fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-browse-test-"));
 
 const createApp = (kRootDir) => {
   const app = express();
@@ -20,9 +21,21 @@ describe("server/routes/browse", () => {
     const rootDir = createTestRoot();
     fs.mkdirSync(path.join(rootDir, "devices"), { recursive: true });
     fs.mkdirSync(path.join(rootDir, ".alphaclaw"), { recursive: true });
-    fs.writeFileSync(path.join(rootDir, "openclaw.json"), '{"ok":true}\n', "utf8");
-    fs.writeFileSync(path.join(rootDir, "devices", "paired.json"), "[]\n", "utf8");
-    fs.writeFileSync(path.join(rootDir, ".alphaclaw", "hourly-git-sync.sh"), "#!/bin/bash\n", "utf8");
+    fs.writeFileSync(
+      path.join(rootDir, "openclaw.json"),
+      '{"ok":true}\n',
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(rootDir, "devices", "paired.json"),
+      "[]\n",
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(rootDir, ".alphaclaw", "hourly-git-sync.sh"),
+      "#!/bin/bash\n",
+      "utf8",
+    );
     const app = createApp(rootDir);
 
     const res = await request(app).get("/api/browse/tree");
@@ -38,12 +51,22 @@ describe("server/routes/browse", () => {
     );
     expect(res.body.root.children).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: "folder", path: "devices", name: "devices" }),
-        expect.objectContaining({ type: "file", path: "openclaw.json", name: "openclaw.json" }),
+        expect.objectContaining({
+          type: "folder",
+          path: "devices",
+          name: "devices",
+        }),
+        expect.objectContaining({
+          type: "file",
+          path: "openclaw.json",
+          name: "openclaw.json",
+        }),
       ]),
     );
     expect(
-      (res.body.root.children || []).some((entry) => entry?.name === ".alphaclaw"),
+      (res.body.root.children || []).some(
+        (entry) => entry?.name === ".alphaclaw",
+      ),
     ).toBe(false);
   });
 
@@ -104,7 +127,9 @@ describe("server/routes/browse", () => {
     expect(res.body.ok).toBe(true);
     expect(res.body.kind).toBe("audio");
     expect(res.body.mimeType).toBe("audio/mpeg");
-    expect(String(res.body.audioDataUrl || "")).toContain("data:audio/mpeg;base64,");
+    expect(String(res.body.audioDataUrl || "")).toContain(
+      "data:audio/mpeg;base64,",
+    );
     expect(res.body.content).toBe("");
   });
 
@@ -140,14 +165,20 @@ describe("server/routes/browse", () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({
       ok: false,
-      error: "This file is managed by Alpha Claw and cannot be edited.",
+      error: "This file is managed by AlphaClaw and cannot be edited.",
     });
     expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
   });
 
   it("rejects writes to locked bootstrap files with workspace prefix", async () => {
     const rootDir = createTestRoot();
-    const lockedPath = path.join(rootDir, "workspace", "hooks", "bootstrap", "AGENTS.md");
+    const lockedPath = path.join(
+      rootDir,
+      "workspace",
+      "hooks",
+      "bootstrap",
+      "AGENTS.md",
+    );
     fs.mkdirSync(path.dirname(lockedPath), { recursive: true });
     fs.writeFileSync(lockedPath, "before\n", "utf8");
     const app = createApp(rootDir);
@@ -160,7 +191,7 @@ describe("server/routes/browse", () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({
       ok: false,
-      error: "This file is managed by Alpha Claw and cannot be edited.",
+      error: "This file is managed by AlphaClaw and cannot be edited.",
     });
     expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
   });
@@ -180,7 +211,7 @@ describe("server/routes/browse", () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({
       ok: false,
-      error: "This file is managed by Alpha Claw and cannot be edited.",
+      error: "This file is managed by AlphaClaw and cannot be edited.",
     });
     expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
   });
