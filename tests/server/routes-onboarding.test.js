@@ -207,14 +207,16 @@ describe("server/routes/onboarding", () => {
     expect(toolsWriteCall[1]).toContain("https://example.com");
 
     expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
-      "/tmp/openclaw/hourly-git-sync.sh",
+      "/tmp/openclaw/.alphaclaw/hourly-git-sync.sh",
       expect.stringContaining("Auto-commit hourly sync"),
       expect.objectContaining({ mode: 0o755 }),
     );
 
     expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
       "/etc/cron.d/openclaw-hourly-sync",
-      expect.stringContaining('0 * * * * root bash "/tmp/openclaw/hourly-git-sync.sh"'),
+      expect.stringContaining(
+        '0 * * * * root bash "/tmp/openclaw/.alphaclaw/hourly-git-sync.sh"',
+      ),
       expect.objectContaining({ mode: 0o644 }),
     );
 

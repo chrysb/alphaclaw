@@ -341,8 +341,6 @@
 
 .file-viewer-protected-banner.is-locked {
   background: rgba(220, 38, 38, 0.16);
-  border-top: 1px solid rgba(248, 113, 113, 0.42);
-  border-bottom: 1px solid rgba(248, 113, 113, 0.42);
 }
 
 .file-viewer-protected-banner-icon {

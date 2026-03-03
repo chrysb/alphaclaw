@@ -285,7 +285,7 @@ describe("server/routes/system", () => {
     );
     expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
       "/etc/cron.d/openclaw-hourly-sync",
-      expect.stringContaining('*/15 * * * * root bash "/tmp/openclaw/hourly-git-sync.sh"'),
+      expect.stringContaining('*/15 * * * * root bash "/tmp/openclaw/.alphaclaw/hourly-git-sync.sh"'),
       expect.objectContaining({ mode: 0o644 }),
     );
     expect(res.body.ok).toBe(true);

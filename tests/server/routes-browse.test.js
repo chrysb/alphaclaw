@@ -19,8 +19,10 @@ describe("server/routes/browse", () => {
   it("returns browse tree rooted at configured directory", async () => {
     const rootDir = createTestRoot();
     fs.mkdirSync(path.join(rootDir, "devices"), { recursive: true });
+    fs.mkdirSync(path.join(rootDir, ".alphaclaw"), { recursive: true });
     fs.writeFileSync(path.join(rootDir, "openclaw.json"), '{"ok":true}\n', "utf8");
     fs.writeFileSync(path.join(rootDir, "devices", "paired.json"), "[]\n", "utf8");
+    fs.writeFileSync(path.join(rootDir, ".alphaclaw", "hourly-git-sync.sh"), "#!/bin/bash\n", "utf8");
     const app = createApp(rootDir);
 
     const res = await request(app).get("/api/browse/tree");
@@ -40,6 +42,9 @@ describe("server/routes/browse", () => {
         expect.objectContaining({ type: "file", path: "openclaw.json", name: "openclaw.json" }),
       ]),
     );
+    expect(
+      (res.body.root.children || []).some((entry) => entry?.name === ".alphaclaw"),
+    ).toBe(false);
   });
 
   it("rejects path traversal on read", async () => {
@@ -129,14 +134,15 @@ describe("server/routes/browse", () => {
     expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
   });
 
-  it("rejects writes to locked hourly git sync file", async () => {
+  it("rejects writes to locked managed files under .alphaclaw", async () => {
     const rootDir = createTestRoot();
-    const lockedPath = path.join(rootDir, "hourly-git-sync.sh");
+    const lockedPath = path.join(rootDir, ".alphaclaw", "hourly-git-sync.sh");
+    fs.mkdirSync(path.dirname(lockedPath), { recursive: true });
     fs.writeFileSync(lockedPath, "before\n", "utf8");
     const app = createApp(rootDir);
 
     const res = await request(app).put("/api/browse/write").send({
-      path: "hourly-git-sync.sh",
+      path: ".alphaclaw/hourly-git-sync.sh",
       content: "after\n",
     });
 

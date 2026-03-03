@@ -10,6 +10,9 @@ const {
   validateGitSyncFilePath,
 } = require("../lib/cli/git-sync");
 const { buildSecretReplacements } = require("../lib/server/helpers");
+const {
+  migrateManagedInternalFiles,
+} = require("../lib/server/internal-files-migration");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -143,6 +146,12 @@ if (portFlag) {
 
 const openclawDir = path.join(rootDir, ".openclaw");
 fs.mkdirSync(openclawDir, { recursive: true });
+const {
+  hourlyGitSyncPath,
+} = migrateManagedInternalFiles({
+  fs,
+  openclawDir,
+});
 console.log(`[alphaclaw] Root directory: ${rootDir}`);
 
 // Check for pending update marker (written by the update endpoint before restart).
@@ -542,7 +551,6 @@ if (!fs.existsSync(gogConfigFile)) {
 // 8. Install/reconcile system cron entry
 // ---------------------------------------------------------------------------
 
-const hourlyGitSyncPath = path.join(openclawDir, "hourly-git-sync.sh");
 const packagedHourlyGitSyncPath = path.join(setupDir, "hourly-git-sync.sh");
 
 try {

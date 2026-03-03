@@ -59,7 +59,7 @@ describe("server/routes/pairings", () => {
     expect(res.body.pending).toEqual([]);
     expect(clawCmd).toHaveBeenCalledWith("devices approve req-cli-1", { quiet: true });
     expect(fsModule.writeFileSync).toHaveBeenCalledWith(
-      "/tmp/openclaw/.cli-device-auto-approved",
+      "/tmp/openclaw/.alphaclaw/.cli-device-auto-approved",
       expect.stringContaining("approvedAt"),
     );
   });
