@@ -133,6 +133,81 @@ describe("server/routes/browse", () => {
     expect(res.body.content).toBe("");
   });
 
+  it("returns sqlite schema previews for sqlite files", async () => {
+    let DatabaseSync = null;
+    try {
+      ({ DatabaseSync } = require("node:sqlite"));
+    } catch {
+      // Runtime does not support node:sqlite.
+      return;
+    }
+    const rootDir = createTestRoot();
+    const dbPath = path.join(rootDir, "test.sqlite");
+    const database = new DatabaseSync(dbPath);
+    database.exec(
+      `
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL
+        );
+        INSERT INTO users (name) VALUES ('Ada');
+      `,
+    );
+    database.close();
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/read")
+      .query({ path: "test.sqlite" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.kind).toBe("sqlite");
+    expect(res.body.sqliteSummary).toBeTruthy();
+    expect(Array.isArray(res.body.sqliteSummary.objects)).toBe(true);
+    expect(
+      res.body.sqliteSummary.objects.some((entry) => entry?.name === "users"),
+    ).toBe(true);
+    expect(res.body.content).toBe("");
+  });
+
+  it("returns sqlite table rows for selected table", async () => {
+    let DatabaseSync = null;
+    try {
+      ({ DatabaseSync } = require("node:sqlite"));
+    } catch {
+      return;
+    }
+    const rootDir = createTestRoot();
+    const dbPath = path.join(rootDir, "rows.sqlite");
+    const database = new DatabaseSync(dbPath);
+    database.exec(
+      `
+        CREATE TABLE users (
+          id INTEGER PRIMARY KEY,
+          name TEXT NOT NULL
+        );
+        INSERT INTO users (name) VALUES ('Ada'), ('Grace');
+      `,
+    );
+    database.close();
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/sqlite-table")
+      .query({ path: "rows.sqlite", table: "users", limit: "1", offset: "1" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.table).toBe("users");
+    expect(Array.isArray(res.body.columns)).toBe(true);
+    expect(Array.isArray(res.body.rows)).toBe(true);
+    expect(res.body.rows.length).toBe(1);
+    expect(res.body.totalRows).toBe(2);
+    expect(res.body.limit).toBe(1);
+    expect(res.body.offset).toBe(1);
+  });
+
   it("writes file content and returns write result", async () => {
     const rootDir = createTestRoot();
     const filePath = path.join(rootDir, "openclaw.json");
