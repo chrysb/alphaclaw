@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { execSync } = require("child_process");
 const express = require("express");
 const request = require("supertest");
 
@@ -15,6 +16,14 @@ const createApp = (kRootDir) => {
   registerBrowseRoutes({ app, fs, kRootDir });
   return app;
 };
+
+const runGit = (cwd, args) =>
+  execSync(`git ${args}`, {
+    cwd,
+    stdio: ["ignore", "pipe", "pipe"],
+  })
+    .toString()
+    .trim();
 
 describe("server/routes/browse", () => {
   it("returns browse tree rooted at configured directory", async () => {
@@ -289,6 +298,89 @@ describe("server/routes/browse", () => {
       error: "This file is managed by AlphaClaw and cannot be edited.",
     });
     expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
+  });
+
+  it("deletes regular files", async () => {
+    const rootDir = createTestRoot();
+    const filePath = path.join(rootDir, "deleteme.txt");
+    fs.writeFileSync(filePath, "delete me\n", "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app).delete("/api/browse/delete").send({
+      path: "deleteme.txt",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      path: "deleteme.txt",
+    });
+    expect(fs.existsSync(filePath)).toBe(false);
+  });
+
+  it("rejects deleting protected files", async () => {
+    const rootDir = createTestRoot();
+    const filePath = path.join(rootDir, "openclaw.json");
+    fs.writeFileSync(filePath, '{"ok":true}\n', "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app).delete("/api/browse/delete").send({
+      path: "openclaw.json",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "This file cannot be deleted from the explorer.",
+    });
+    expect(fs.existsSync(filePath)).toBe(true);
+  });
+
+  it("rejects deleting directories", async () => {
+    const rootDir = createTestRoot();
+    const dirPath = path.join(rootDir, "delivery-queue");
+    fs.mkdirSync(dirPath, { recursive: true });
+    const app = createApp(rootDir);
+
+    const res = await request(app).delete("/api/browse/delete").send({
+      path: "delivery-queue",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "Path is not a file",
+    });
+    expect(fs.existsSync(dirPath)).toBe(true);
+  });
+
+  it("restores a tracked deleted file from git", async () => {
+    const rootDir = createTestRoot();
+    const app = createApp(rootDir);
+    const filePath = path.join(rootDir, "restore-me.json");
+    fs.writeFileSync(filePath, '{"restore":true}\n', "utf8");
+
+    runGit(rootDir, "init");
+    runGit(rootDir, "config user.email test@example.com");
+    runGit(rootDir, "config user.name Test User");
+    runGit(rootDir, "add restore-me.json");
+    runGit(rootDir, "commit -m \"test commit\"");
+
+    fs.rmSync(filePath, { force: true });
+    expect(fs.existsSync(filePath)).toBe(false);
+
+    const res = await request(app).post("/api/browse/restore").send({
+      path: "restore-me.json",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      path: "restore-me.json",
+      restored: true,
+    });
+    expect(fs.existsSync(filePath)).toBe(true);
+    expect(fs.readFileSync(filePath, "utf8")).toBe('{"restore":true}\n');
   });
 
   it("returns non-repo git summary outside git repositories", async () => {
