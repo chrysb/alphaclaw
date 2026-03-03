@@ -86,8 +86,66 @@ describe("server/routes/browse", () => {
     expect(res.status).toBe(200);
     expect(res.body.ok).toBe(true);
     expect(res.body.path).toBe("openclaw.json");
-    expect(typeof res.body.synced).toBe("boolean");
     expect(fs.readFileSync(filePath, "utf8")).toBe('{"after":true}\n');
+  });
+
+  it("rejects writes to locked bootstrap files", async () => {
+    const rootDir = createTestRoot();
+    const lockedPath = path.join(rootDir, "hooks", "bootstrap", "AGENTS.md");
+    fs.mkdirSync(path.dirname(lockedPath), { recursive: true });
+    fs.writeFileSync(lockedPath, "before\n", "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app).put("/api/browse/write").send({
+      path: "hooks/bootstrap/AGENTS.md",
+      content: "after\n",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "This file is managed by Alpha Claw and cannot be edited.",
+    });
+    expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
+  });
+
+  it("rejects writes to locked bootstrap files with workspace prefix", async () => {
+    const rootDir = createTestRoot();
+    const lockedPath = path.join(rootDir, "workspace", "hooks", "bootstrap", "AGENTS.md");
+    fs.mkdirSync(path.dirname(lockedPath), { recursive: true });
+    fs.writeFileSync(lockedPath, "before\n", "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app).put("/api/browse/write").send({
+      path: "workspace/hooks/bootstrap/AGENTS.md",
+      content: "after\n",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "This file is managed by Alpha Claw and cannot be edited.",
+    });
+    expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
+  });
+
+  it("rejects writes to locked hourly git sync file", async () => {
+    const rootDir = createTestRoot();
+    const lockedPath = path.join(rootDir, "hourly-git-sync.sh");
+    fs.writeFileSync(lockedPath, "before\n", "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app).put("/api/browse/write").send({
+      path: "hourly-git-sync.sh",
+      content: "after\n",
+    });
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "This file is managed by Alpha Claw and cannot be edited.",
+    });
+    expect(fs.readFileSync(lockedPath, "utf8")).toBe("before\n");
   });
 
   it("returns non-repo git summary outside git repositories", async () => {
@@ -104,5 +162,20 @@ describe("server/routes/browse", () => {
         repoPath: path.resolve(rootDir),
       }),
     );
+  });
+
+  it("rejects git sync outside git repositories", async () => {
+    const rootDir = createTestRoot();
+    const app = createApp(rootDir);
+
+    const res = await request(app).post("/api/browse/git-sync").send({
+      message: "sync changes",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "No git repo at this root",
+    });
   });
 });

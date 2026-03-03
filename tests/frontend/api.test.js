@@ -105,4 +105,18 @@ describe("frontend/api", () => {
     );
     expect(result).toEqual({ ok: true, detail: { sessionId: "x" } });
   });
+
+  it("syncBrowseChanges posts commit message", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, committed: true }));
+    const api = await loadApiModule();
+
+    const result = await api.syncBrowseChanges("sync changes");
+
+    expect(global.fetch).toHaveBeenCalledWith("/api/browse/git-sync", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: "sync changes" }),
+    });
+    expect(result).toEqual({ ok: true, committed: true });
+  });
 });
