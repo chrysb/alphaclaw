@@ -259,6 +259,10 @@
   color: #ff7ac6;
 }
 
+.file-icon-audio {
+  color: #f5a6ff;
+}
+
 .file-icon-shell {
   color: #71f8a7;
 }
@@ -951,6 +955,21 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.35);
 }
 
+.file-viewer-audio-shell {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 18px;
+  overflow: auto;
+}
+
+.file-viewer-audio-player {
+  width: min(640px, 100%);
+}
+
 .file-viewer-state-error {
   color: #f87171;
 }
@@ -1067,18 +1086,28 @@
   text-overflow: ellipsis;
 }
 
-.sidebar-git-dirty {
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
+.sidebar-git-sync-status {
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-.sidebar-git-dirty.is-clean {
+.sidebar-git-sync-status.is-up-to-date {
   color: #71f8a7;
 }
 
-.sidebar-git-dirty.is-dirty {
+.sidebar-git-sync-status.is-ahead,
+.sidebar-git-sync-status.is-diverged {
   color: #f3a86a;
+}
+
+.sidebar-git-sync-status.is-behind {
+  color: #93c5fd;
+}
+
+.sidebar-git-sync-status.is-no-upstream,
+.sidebar-git-sync-status.is-upstream-gone {
+  color: var(--text-dim);
 }
 
 .sidebar-git-meta {

@@ -90,6 +90,24 @@ describe("server/routes/browse", () => {
     });
   });
 
+  it("returns audio previews for supported audio files", async () => {
+    const rootDir = createTestRoot();
+    const audioFilePath = path.join(rootDir, "clip.mp3");
+    fs.writeFileSync(audioFilePath, Buffer.from([0xff, 0xfb, 0x90, 0x64]));
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/read")
+      .query({ path: "clip.mp3" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.kind).toBe("audio");
+    expect(res.body.mimeType).toBe("audio/mpeg");
+    expect(String(res.body.audioDataUrl || "")).toContain("data:audio/mpeg;base64,");
+    expect(res.body.content).toBe("");
+  });
+
   it("writes file content and returns write result", async () => {
     const rootDir = createTestRoot();
     const filePath = path.join(rootDir, "openclaw.json");

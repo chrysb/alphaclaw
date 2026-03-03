@@ -753,6 +753,25 @@ if (fs.existsSync(configPath)) {
           stdio: "ignore",
           env: gitEnv,
         });
+        try {
+          execSync("git show-ref --verify --quiet refs/heads/main", {
+            cwd: openclawDir,
+            stdio: "ignore",
+          });
+          try {
+            execSync("git rev-parse --abbrev-ref --symbolic-full-name main@{upstream}", {
+              cwd: openclawDir,
+              stdio: "ignore",
+            });
+          } catch {
+            execSync("git branch --set-upstream-to=origin/main main", {
+              cwd: openclawDir,
+              stdio: "ignore",
+              env: gitEnv,
+            });
+            console.log("[alphaclaw] Set main upstream to origin/main");
+          }
+        } catch {}
         const remoteConfig = String(
           execSync(`git show "origin/${branch}:openclaw.json"`, {
             cwd: openclawDir,
@@ -871,7 +890,52 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 13. Start Express server
+// 13. Install git auth shim
+// ---------------------------------------------------------------------------
+
+try {
+  const gitAskPassSrc = path.join(__dirname, "..", "lib", "scripts", "git-askpass");
+  const gitAskPassDest = "/tmp/alphaclaw-git-askpass.sh";
+  const gitShimTemplatePath = path.join(__dirname, "..", "lib", "scripts", "git");
+  const gitShimDest = "/usr/local/bin/git";
+
+  if (fs.existsSync(gitAskPassSrc)) {
+    fs.copyFileSync(gitAskPassSrc, gitAskPassDest);
+    fs.chmodSync(gitAskPassDest, 0o755);
+  }
+
+  if (fs.existsSync(gitShimTemplatePath)) {
+    let realGitPath = "/usr/bin/git";
+    try {
+      const gitCandidates = String(
+        execSync("which -a git", {
+          stdio: ["ignore", "pipe", "ignore"],
+          encoding: "utf8",
+        }),
+      )
+        .split("\n")
+        .map((candidate) => candidate.trim())
+        .filter(Boolean);
+      const normalizedShimDest = path.resolve(gitShimDest);
+      const selectedCandidate = gitCandidates.find(
+        (candidatePath) => path.resolve(candidatePath) !== normalizedShimDest,
+      );
+      if (selectedCandidate) realGitPath = selectedCandidate;
+    } catch {}
+
+    const gitShimTemplate = fs.readFileSync(gitShimTemplatePath, "utf8");
+    const gitShimContent = gitShimTemplate
+      .replace("@@REAL_GIT@@", realGitPath)
+      .replace("@@OPENCLAW_REPO_ROOT@@", openclawDir);
+    fs.writeFileSync(gitShimDest, gitShimContent, { mode: 0o755 });
+    console.log("[alphaclaw] git auth shim installed");
+  }
+} catch (e) {
+  console.log(`[alphaclaw] git auth shim skipped: ${e.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// 14. Start Express server
 // ---------------------------------------------------------------------------
 
 console.log("[alphaclaw] Setup complete -- starting server");
