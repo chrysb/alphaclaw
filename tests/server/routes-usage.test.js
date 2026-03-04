@@ -22,6 +22,27 @@ const createDeps = () => ({
       totalCost: 0.008,
       lastActivityMs: 1730000001000,
     },
+    {
+      sessionId: "agent:main:hook:10bded75-e18b-4d0c-823f-99f296b4eedb",
+      sessionKey: "agent:main:hook:10bded75-e18b-4d0c-823f-99f296b4eedb",
+      totalTokens: 640,
+      totalCost: 0.0064,
+      lastActivityMs: 1730000002000,
+    },
+    {
+      sessionId: "agent:main:hook:gmail:19cb6d04b",
+      sessionKey: "agent:main:hook:gmail:19cb6d04b",
+      totalTokens: 450,
+      totalCost: 0.0045,
+      lastActivityMs: 1730000003000,
+    },
+    {
+      sessionId: "agent:main:cron:system-sync",
+      sessionKey: "agent:main:cron:system-sync",
+      totalTokens: 320,
+      totalCost: 0.0032,
+      lastActivityMs: 1730000004000,
+    },
   ]),
   getSessionDetail: vi.fn(({ sessionId }) =>
     sessionId === "missing"
@@ -63,7 +84,9 @@ describe("server/routes/usage", () => {
     expect(secondResponse.status).toBe(200);
     expect(secondResponse.body.cached).toBe(true);
     expect(deps.getDailySummary).toHaveBeenCalledTimes(1);
-    expect(deps.getDailySummary).toHaveBeenCalledWith({ days: 30 });
+    expect(deps.getDailySummary).toHaveBeenCalledWith(
+      expect.objectContaining({ days: 30 }),
+    );
   });
 
   it("returns sessions with resolved labels on GET /api/usage/sessions", async () => {
@@ -89,6 +112,19 @@ describe("server/routes/usage", () => {
     expect(response.body.sessions[1].labels).toEqual([
       { label: "Main", tone: "cyan" },
       { label: "Telegram Direct", tone: "blue" },
+    ]);
+    expect(response.body.sessions[2].labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Hook", tone: "purple" },
+    ]);
+    expect(response.body.sessions[3].labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Hook", tone: "purple" },
+      { label: "Gmail", tone: "gray" },
+    ]);
+    expect(response.body.sessions[4].labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Cron", tone: "blue" },
     ]);
   });
 

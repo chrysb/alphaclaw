@@ -13,6 +13,9 @@ db/
 db/**
 !skills/
 !skills/**
+!hooks/
+!hooks/transforms/
+!hooks/transforms/**
 !cron/
 !cron/jobs.json
 !openclaw.json
