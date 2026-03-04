@@ -1,0 +1,44 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+
+const {
+  writeSanitizedOpenclawConfig,
+} = require("../../lib/server/onboarding/openclaw");
+
+const createTempOpenclawDir = () =>
+  fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-onboarding-openclaw-test-"));
+
+describe("server/onboarding/openclaw", () => {
+  it("only scrubs exact secret string values in JSON", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const pluginPath = "/app/node_modules/@chrysb/alphaclaw/lib/plugin/usage-tracker";
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: { load: { paths: [pluginPath] }, entries: {} },
+          channels: {},
+          notes: "alphaclaw",
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { GOG_KEYRING_PASSWORD: "alphaclaw" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.notes).toBe("${GOG_KEYRING_PASSWORD}");
+    expect(next.plugins.load.paths).toContain(pluginPath);
+    expect(next.plugins.load.paths).not.toContain(
+      "/app/node_modules/@chrysb/${GOG_KEYRING_PASSWORD}/lib/plugin/usage-tracker",
+    );
+  });
+});
