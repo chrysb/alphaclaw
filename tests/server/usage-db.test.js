@@ -84,4 +84,108 @@ describe("server/usage-db", () => {
 
     fs.rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it("returns cost distribution by agent and source", () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-agent-breakdown-"));
+    const { initUsageDb, getDailySummary } = loadUsageDb();
+    const { path: dbPath } = initUsageDb({ rootDir });
+    const database = new DatabaseSync(dbPath);
+    const now = Date.now();
+
+    const insertUsageEvent = database.prepare(`
+      INSERT INTO usage_events (
+        timestamp,
+        session_id,
+        session_key,
+        run_id,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        total_tokens
+      ) VALUES (
+        $timestamp,
+        $session_id,
+        $session_key,
+        $run_id,
+        $provider,
+        $model,
+        $input_tokens,
+        $output_tokens,
+        $cache_read_tokens,
+        $cache_write_tokens,
+        $total_tokens
+      )
+    `);
+
+    insertUsageEvent.run({
+      $timestamp: now - 2_000,
+      $session_id: "raw-a",
+      $session_key: "agent:main:telegram:direct:123",
+      $run_id: "run-a",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 1_000_000,
+      $output_tokens: 0,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 1_000_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now - 1_000,
+      $session_id: "raw-b",
+      $session_key: "agent:main:hook:gmail:abc123",
+      $run_id: "run-b",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 0,
+      $output_tokens: 1_000_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 1_000_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now - 500,
+      $session_id: "raw-c",
+      $session_key: "agent:ops:cron:nightly",
+      $run_id: "run-c",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 0,
+      $output_tokens: 1_000_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 1_000_000,
+    });
+
+    const summary = getDailySummary({ days: 7, timeZone: "UTC" });
+
+    expect(summary?.costByAgent).toBeTruthy();
+    expect(Array.isArray(summary.costByAgent.agents)).toBe(true);
+
+    const mainAgent = summary.costByAgent.agents.find((row) => row.agent === "main");
+    const opsAgent = summary.costByAgent.agents.find((row) => row.agent === "ops");
+
+    expect(mainAgent).toBeTruthy();
+    expect(opsAgent).toBeTruthy();
+    expect(mainAgent.totalCost).toBeCloseTo(12.5, 8);
+    expect(opsAgent.totalCost).toBeCloseTo(10, 8);
+
+    const mainChat = mainAgent.sourceBreakdown.find((row) => row.source === "chat");
+    const mainHooks = mainAgent.sourceBreakdown.find((row) => row.source === "hooks");
+    const mainCron = mainAgent.sourceBreakdown.find((row) => row.source === "cron");
+
+    expect(mainChat.totalCost).toBeCloseTo(2.5, 8);
+    expect(mainHooks.totalCost).toBeCloseTo(10, 8);
+    expect(mainCron.totalCost).toBeCloseTo(0, 8);
+
+    const opsCron = opsAgent.sourceBreakdown.find((row) => row.source === "cron");
+    expect(opsCron.totalCost).toBeCloseTo(10, 8);
+
+    expect(summary.costByAgent.totals.totalCost).toBeCloseTo(22.5, 8);
+
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  });
 });
