@@ -8,6 +8,17 @@ const mockJsonResponse = (status, payload) => ({
 });
 
 describe("frontend/api", () => {
+  const expectLastFetchHeaders = (expectedContentType = "") => {
+    const callArgs = global.fetch.mock.calls[global.fetch.mock.calls.length - 1] || [];
+    const options = callArgs[1] || {};
+    const headers = options.headers;
+    expect(headers).toBeInstanceOf(Headers);
+    if (expectedContentType) {
+      expect(headers.get("Content-Type")).toBe(expectedContentType);
+    }
+    return { callArgs, options, headers };
+  };
+
   beforeEach(() => {
     global.fetch = vi.fn();
     global.window = { location: { href: "http://localhost/" } };
@@ -20,7 +31,10 @@ describe("frontend/api", () => {
 
     const result = await api.fetchStatus();
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/status", {});
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/status",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
     expect(result).toEqual(payload);
     expect(window.location.href).toBe("http://localhost/");
   });
@@ -41,11 +55,15 @@ describe("frontend/api", () => {
 
     const result = await api.runOnboard(vars, modelKey);
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/onboard", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vars, modelKey }),
-    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/onboard",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ vars, modelKey }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
     expect(result).toEqual({ ok: true });
   });
 
@@ -56,11 +74,15 @@ describe("frontend/api", () => {
 
     const result = await api.saveEnvVars(vars);
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/env", {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ vars }),
-    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/env",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ vars }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
     expect(result).toEqual({ ok: true, changed: true });
   });
 
@@ -79,7 +101,10 @@ describe("frontend/api", () => {
 
     const result = await api.fetchUsageSummary(90);
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/usage/summary?days=90", {});
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/usage/summary?days=90",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
     expect(result).toEqual({ ok: true, summary: { daily: [] } });
   });
 
@@ -89,7 +114,10 @@ describe("frontend/api", () => {
 
     const result = await api.fetchUsageSessions(100);
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/usage/sessions?limit=100", {});
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/usage/sessions?limit=100",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
     expect(result).toEqual({ ok: true, sessions: [] });
   });
 
@@ -101,7 +129,7 @@ describe("frontend/api", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/usage/sessions/agent%3Amain%3Atelegram%3Agroup%3A-1%3Atopic%3A2",
-      {},
+      expect.objectContaining({ headers: expect.any(Headers) }),
     );
     expect(result).toEqual({ ok: true, detail: { sessionId: "x" } });
   });
@@ -112,11 +140,15 @@ describe("frontend/api", () => {
 
     const result = await api.syncBrowseChanges("sync changes");
 
-    expect(global.fetch).toHaveBeenCalledWith("/api/browse/git-sync", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: "sync changes" }),
-    });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/git-sync",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ message: "sync changes" }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
     expect(result).toEqual({ ok: true, committed: true });
   });
 
@@ -128,7 +160,7 @@ describe("frontend/api", () => {
 
     expect(global.fetch).toHaveBeenCalledWith(
       "/api/browse/git-diff?path=workspace%2Fhooks%2Fbootstrap%2FAGENTS.md",
-      {},
+      expect.objectContaining({ headers: expect.any(Headers) }),
     );
     expect(result).toEqual({ ok: true, content: "diff --git" });
   });
