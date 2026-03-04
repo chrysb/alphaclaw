@@ -117,6 +117,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Prefer early return for hidden states (e.g. `if (!visible) return null;`).
 - Use `<PageHeader />` for tab/page headers that need a title and right-side actions.
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.
+- For internal section dividers, use `border-t border-border` (avoid opacity variants) with comfortable vertical spacing around the divider.
 
 #### Buttons
 
@@ -145,10 +146,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 #### Inputs and forms
 
 - Reuse `<SecretInput />` for sensitive values and token/key inputs.
+- Reuse `<ToggleSwitch />` for boolean on/off controls instead of ad-hoc checkbox/switch markup.
 - Base input look should remain consistent:
   - `bg-black/30 border border-border rounded-lg ... focus:border-gray-500`
 - Preserve monospace for technical values (`font-mono`) and codes/paths.
 - Prefer inline helper text under fields (`text-xs text-gray-500/600`) for setup guidance.
+- For tip/help links in helper text, use the shared `ac-tip-link` class (token-backed via `--accent-link`) instead of per-file ad-hoc cyan classes.
 
 #### Feedback and state
 

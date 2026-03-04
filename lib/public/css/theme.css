@@ -116,6 +116,16 @@ body::before {
   border-color: var(--panel-border-contrast) !important;
 }
 
+.ac-tip-link {
+  color: var(--accent-link);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.ac-tip-link:hover {
+  color: var(--accent);
+}
+
 /* Universal field contrast treatment (all tabs/pages). */
 input:not([type="checkbox"]):not([type="radio"]):not([type="range"]),
 select,
