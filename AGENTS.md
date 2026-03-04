@@ -1,3 +1,5 @@
+## Project Overview
+
 ### AlphaClaw Project Context
 
 AlphaClaw is the ops and setup layer around OpenClaw. It provides a browser-based setup UI, gateway lifecycle management, watchdog recovery flows, and integrations (for example Telegram, Discord, Google Workspace, and webhooks) so users can operate OpenClaw without manual server intervention.
@@ -24,7 +26,9 @@ Runtime model:
 - Preact + `htm` frontend patterns for Setup UI components.
 - Vitest + Supertest for server and route testing.
 
-### Coding And Change Patterns
+## Coding Conventions
+
+### Change Patterns
 
 - Keep edits targeted and production-safe; favor small, reviewable changes.
 - Preserve existing behavior unless the task explicitly requires behavior changes.
@@ -33,10 +37,18 @@ Runtime model:
 - Update tests when behavior changes in routes, watchdog flows, or setup state.
 - Before running tests in a fresh checkout, run `npm install` so `vitest` (devDependency) is available for `npm test`.
 
+### Code Structure
+
+- Avoid monolithic implementation files for new features. For new UI areas and new API areas, start with a decomposed structure (focused components/hooks/utilities for UI; focused route modules/services/helpers for server) rather than building one large file first and splitting later.
+- When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
+- When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
+
 ### Where To Put Agent Guidance
 
 - **This file (`AGENTS.md`):** Project-level guidance for coding agents working on the AlphaClaw codebase — architecture, conventions, release flow, UI patterns, etc.
 - **`lib/setup/core-prompts/AGENTS.md`:** Runtime prompt injected into the OpenClaw agent's system prompt. Only write there when the guidance is meant for the deployed agent's behavior, not for coding on this project.
+
+## Operations
 
 ### Release Flow (Beta -> Production)
 
@@ -95,21 +107,19 @@ Use this format for any Telegram notices sent from AlphaClaw services (watchdog,
    - `Trigger: \`crash_loop\``
 6. Do not use HTML tags (`<b>`, `<a href>`) for Telegram watchdog notices.
 
-### UI Conventions
+## UI Conventions
 
 Use these conventions for all UI work under `lib/public/js` and `lib/public/css`.
 
-#### Component structure
+### Component structure
 
 - Use arrow-function components and helpers.
 - Prefer shared components over one-off markup when a pattern already exists.
 - Keep constants in `kName` format (e.g. `kUiTabs`, `kGroupOrder`, `kNamePattern`).
 - Keep component-level helpers near the top of the file, before the main export.
-- Avoid monolithic component files. Prefer breaking large features into focused child components and hooks.
-- Preferred pattern for non-trivial UI features: a feature folder with `index.js` for rendering/composition and `use-*.js` for business logic/state/effects/handlers.
 - Treat `index.js` as a presentational shell whenever possible: keep business logic in hooks and pass derived state/actions down as props.
 
-#### Rendering and composition
+### Rendering and composition
 
 - Use the `htm` + `preact` pattern:
   - `const html = htm.bind(h);`
@@ -117,8 +127,10 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Prefer early return for hidden states (e.g. `if (!visible) return null;`).
 - Use `<PageHeader />` for tab/page headers that need a title and right-side actions.
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.
+- For nested "surface on surface" blocks (content inside a `bg-surface` card), use `ac-surface-inset` for the inner container treatment so inset sections match shared history/sessions styling.
+- For internal section dividers, use `border-t border-border` (avoid opacity variants) with comfortable vertical spacing around the divider.
 
-#### Buttons
+### Buttons
 
 - Primary actions: `ac-btn-cyan`
 - Secondary actions: `ac-btn-secondary`
@@ -132,7 +144,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - In setup/onboarding auth flows (e.g. Codex OAuth), prefer `<ActionButton />` over raw `<button>` for consistency in tone, sizing, and loading behavior.
 - In multi-step auth flows, keep the active "finish" action visually primary and demote the "start/restart" action to secondary once the flow has started.
 
-#### Dialogs and modals
+### Dialogs and modals
 
 - Use `<ConfirmDialog />` for destructive/confirmation flows.
 - Use `<ModalShell />` for non-confirm custom modals that need shared overlay and Escape handling.
@@ -142,7 +154,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
   - `bg-modal border border-border rounded-xl p-5 ...`
 - Support close-on-overlay click and Escape key for dialogs.
 
-#### Inputs and forms
+### Inputs and forms
 
 - Reuse `<SecretInput />` for sensitive values and token/key inputs.
 - Base input look should remain consistent:
@@ -150,7 +162,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Preserve monospace for technical values (`font-mono`) and codes/paths.
 - Prefer inline helper text under fields (`text-xs text-gray-500/600`) for setup guidance.
 
-#### Feedback and state
+### Feedback and state
 
 - Use `showToast(...)` for user-visible operation outcomes.
 - Prefer semantic toast levels (`success`, `error`, `warning`, `info`) at callsites. Legacy color aliases are only for backwards compatibility.
@@ -160,5 +172,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Use `<Badge />` for compact status chips (e.g. connected/not connected) instead of one-off status span styling.
 - Use polling via `usePolling` for frequently refreshed backend-backed data.
 - For restart-required flows, render the standardized yellow restart banner style used in `providers`, `envars`, and `webhooks`.
+
+### Shared formatting utilities
+
+- Prefer shared formatter helpers in `lib/public/js/lib/format.js` for reusable value formatting (`formatX` style helpers such as date/time, currency, integers, and common duration formats).
+- Before adding a new formatter in a component, check `lib/public/js/lib/format.js` and reuse an existing helper when possible.
+- Add new formatter helpers to `lib/public/js/lib/format.js` when the behavior is cross-feature and likely to be reused; keep feature-specific transforms local to the feature folder.
+- Avoid wrapper pass-through helpers that only rename a global formatter without adding feature-specific behavior.
 
 For inconsistencies tracking and DRY opportunities, see `lib/setup/core-prompts/UI-DRY-OPPORTUNITIES.md`.

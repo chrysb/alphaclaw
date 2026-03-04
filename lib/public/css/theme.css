@@ -66,6 +66,13 @@ body::before {
   background: rgba(0, 0, 0, 0.12);
 }
 
+/* Shared inset panel for "surface on surface" layouts. */
+.ac-surface-inset {
+  border: 1px solid var(--panel-border-contrast);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.12);
+}
+
 .ac-history-summary {
   cursor: pointer;
   list-style: none;
