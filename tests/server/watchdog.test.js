@@ -66,6 +66,7 @@ describe("server/watchdog", () => {
     } else {
       process.env.WATCHDOG_NOTIFICATIONS_DISABLED = kOriginalNotificationsDisabled;
     }
+    vi.useRealTimers();
     vi.restoreAllMocks();
   });
 
@@ -90,6 +91,82 @@ describe("server/watchdog", () => {
           skipped: true,
           startupGraceActive: true,
         }),
+      }),
+    );
+    watchdog.stop();
+  });
+
+  it("retries startup health checks before marking degraded", async () => {
+    vi.useFakeTimers();
+    let healthChecks = 0;
+    const { watchdog, clawCmd, insertWatchdogEvent } = createHarness({
+      autoRepair: false,
+      clawCmdImpl: async (command) => {
+        if (command === "health --json") {
+          healthChecks += 1;
+          if (healthChecks === 1) return { ok: false, stderr: "gateway unavailable" };
+          return { ok: true, stdout: JSON.stringify({ ok: true }) };
+        }
+        return { ok: true, stdout: "" };
+      },
+    });
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now() - 60_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    expect(watchdog.getStatus().health).toBe("unknown");
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(clawCmd).toHaveBeenCalledWith("health --json", { quiet: true });
+    expect(clawCmd).not.toHaveBeenCalledWith("doctor --fix --yes", { quiet: true });
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "running",
+        health: "healthy",
+      }),
+    );
+    expect(insertWatchdogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "health_check",
+        status: "ok",
+        details: expect.objectContaining({
+          skipped: true,
+          startupFailureRetryActive: true,
+          startupConsecutiveFailures: 1,
+          startupFailureThreshold: 3,
+        }),
+      }),
+    );
+    watchdog.stop();
+  });
+
+  it("uses 5s degraded retries to recover before regular interval", async () => {
+    vi.useFakeTimers();
+    let healthChecks = 0;
+    const { watchdog, clawCmd } = createHarness({
+      autoRepair: false,
+      clawCmdImpl: async (command) => {
+        if (command === "health --json") {
+          healthChecks += 1;
+          if (healthChecks <= 3) return { ok: false, stderr: "temporarily unavailable" };
+          return { ok: true, stdout: JSON.stringify({ ok: true }) };
+        }
+        return { ok: true, stdout: "" };
+      },
+    });
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now() - 60_000 });
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(watchdog.getStatus().health).toBe("degraded");
+    expect(clawCmd).toHaveBeenCalledTimes(3);
+
+    await vi.advanceTimersByTimeAsync(5_000);
+
+    expect(clawCmd).toHaveBeenCalledTimes(4);
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "running",
+        health: "healthy",
       }),
     );
     watchdog.stop();
