@@ -142,6 +142,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - For `<PageHeader />` actions, use `ac-btn-cyan` (primary) or `ac-btn-secondary` (secondary) by default; avoid ghost/text-only styling for main header actions.
 - Prefer shared action components when available (`ActionButton`, `UpdateActionButton`, `ConfirmDialog`) before custom button logic.
 - In setup/onboarding auth flows (e.g. Codex OAuth), prefer `<ActionButton />` over raw `<button>` for consistency in tone, sizing, and loading behavior.
+- In setup wizard/multi-step modal footers, use `<ActionButton />` for Back/Next/Finish/Done actions (not raw `<button>`), so loading and tone behavior stays consistent.
 - In multi-step auth flows, keep the active "finish" action visually primary and demote the "start/restart" action to secondary once the flow has started.
 
 ### Dialogs and modals
