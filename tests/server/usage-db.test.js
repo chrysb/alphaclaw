@@ -4,7 +4,7 @@ const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
 
 const loadUsageDb = () => {
-  const modulePath = require.resolve("../../lib/server/usage-db");
+  const modulePath = require.resolve("../../lib/server/db/usage");
   delete require.cache[modulePath];
   return require(modulePath);
 };
@@ -72,7 +72,7 @@ describe("server/usage-db", () => {
     });
 
     const detail = getSessionDetail({ sessionId: "session-1" });
-    const expectedCost = 2.5 + 75;
+    const expectedCost = 2.5 + 37.5;
     const summedBreakdownCost = detail.modelBreakdown.reduce(
       (sum, row) => sum + Number(row.totalCost || 0),
       0,
@@ -185,6 +185,77 @@ describe("server/usage-db", () => {
     expect(opsCron.totalCost).toBeCloseTo(10, 8);
 
     expect(summary.costByAgent.totals.totalCost).toBeCloseTo(22.5, 8);
+
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  });
+
+  it("applies tiered pricing per event, not aggregated totals", () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-tiered-event-"));
+    const { initUsageDb, getSessionDetail } = loadUsageDb();
+    const { path: dbPath } = initUsageDb({ rootDir });
+    const database = new DatabaseSync(dbPath);
+    const now = Date.now();
+
+    const insertUsageEvent = database.prepare(`
+      INSERT INTO usage_events (
+        timestamp,
+        session_id,
+        session_key,
+        run_id,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        total_tokens
+      ) VALUES (
+        $timestamp,
+        $session_id,
+        $session_key,
+        $run_id,
+        $provider,
+        $model,
+        $input_tokens,
+        $output_tokens,
+        $cache_read_tokens,
+        $cache_write_tokens,
+        $total_tokens
+      )
+    `);
+
+    // Each event stays below the 200k threshold, so both should use 25/M output rate.
+    insertUsageEvent.run({
+      $timestamp: now - 1000,
+      $session_id: "raw-tier-1",
+      $session_key: "session-tier-1",
+      $run_id: "run-tier-1",
+      $provider: "anthropic",
+      $model: "claude-opus-4-6",
+      $input_tokens: 0,
+      $output_tokens: 150_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 150_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now,
+      $session_id: "raw-tier-1",
+      $session_key: "session-tier-1",
+      $run_id: "run-tier-2",
+      $provider: "anthropic",
+      $model: "claude-opus-4-6",
+      $input_tokens: 0,
+      $output_tokens: 150_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 150_000,
+    });
+
+    const detail = getSessionDetail({ sessionId: "session-tier-1" });
+
+    expect(detail).toBeTruthy();
+    expect(detail.totalCost).toBeCloseTo(7.5, 8);
 
     fs.rmSync(rootDir, { recursive: true, force: true });
   });

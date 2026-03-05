@@ -4,7 +4,7 @@ const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
 
 const loadWatchdogDb = () => {
-  const modulePath = require.resolve("../../lib/server/watchdog-db");
+  const modulePath = require.resolve("../../lib/server/db/watchdog");
   delete require.cache[modulePath];
   return require(modulePath);
 };
