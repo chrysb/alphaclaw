@@ -164,4 +164,47 @@ describe("frontend/api", () => {
     );
     expect(result).toEqual({ ok: true, content: "diff --git" });
   });
+
+  it("downloadBrowseFile calls download endpoint and triggers browser download", async () => {
+    const fileBlob = new Blob(["test"], { type: "text/plain" });
+    const createObjectURL = vi.fn(() => "blob:test-url");
+    const revokeObjectURL = vi.fn();
+    global.window.URL = { createObjectURL, revokeObjectURL };
+    const click = vi.fn();
+    const remove = vi.fn();
+    const appendChild = vi.fn();
+    global.document = {
+      createElement: vi.fn((tagName) =>
+        tagName === "a"
+          ? {
+              href: "",
+              download: "",
+              click,
+              remove,
+            }
+          : {},
+      ),
+      body: { appendChild },
+    };
+    global.fetch.mockResolvedValue({
+      status: 200,
+      ok: true,
+      blob: async () => fileBlob,
+      text: async () => "",
+    });
+    const api = await loadApiModule();
+
+    const result = await api.downloadBrowseFile("workspace/file.txt");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/download?path=workspace%2Ffile.txt",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(createObjectURL).toHaveBeenCalledWith(fileBlob);
+    expect(appendChild).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(remove).toHaveBeenCalledTimes(1);
+    expect(revokeObjectURL).toHaveBeenCalledWith("blob:test-url");
+    expect(result).toEqual({ ok: true });
+  });
 });

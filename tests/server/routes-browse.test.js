@@ -217,6 +217,23 @@ describe("server/routes/browse", () => {
     expect(res.body.offset).toBe(1);
   });
 
+  it("downloads files as attachments", async () => {
+    const rootDir = createTestRoot();
+    const filePath = path.join(rootDir, "download-me.txt");
+    fs.writeFileSync(filePath, "file payload\n", "utf8");
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/download")
+      .query({ path: "download-me.txt" });
+
+    expect(res.status).toBe(200);
+    expect(String(res.headers["content-disposition"] || "")).toContain(
+      'attachment; filename="download-me.txt"',
+    );
+    expect(res.text).toBe("file payload\n");
+  });
+
   it("writes file content and returns write result", async () => {
     const rootDir = createTestRoot();
     const filePath = path.join(rootDir, "openclaw.json");
