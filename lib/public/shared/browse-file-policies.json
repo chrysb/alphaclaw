@@ -6,8 +6,8 @@
   "lockedPaths": [
     "hooks/bootstrap/agents.md",
     "hooks/bootstrap/tools.md",
-    "skills/control-ui/skill.md",
-    "skills/gog-cli/skill.md",
+    "skills/control-ui",
+    "skills/gog-cli",
     ".alphaclaw/hourly-git-sync.sh",
     ".alphaclaw/.cli-device-auto-approved"
   ]

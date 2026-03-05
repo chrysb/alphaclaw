@@ -314,6 +314,7 @@ describe("server/routes/browse", () => {
     expect(res.body).toEqual({
       ok: true,
       path: "deleteme.txt",
+      type: "file",
     });
     expect(fs.existsSync(filePath)).toBe(false);
   });
@@ -331,27 +332,29 @@ describe("server/routes/browse", () => {
     expect(res.status).toBe(403);
     expect(res.body).toEqual({
       ok: false,
-      error: "This file cannot be deleted from the explorer.",
+      error: "This path cannot be deleted from the explorer.",
     });
     expect(fs.existsSync(filePath)).toBe(true);
   });
 
-  it("rejects deleting directories", async () => {
+  it("deletes directories recursively", async () => {
     const rootDir = createTestRoot();
     const dirPath = path.join(rootDir, "delivery-queue");
     fs.mkdirSync(dirPath, { recursive: true });
+    fs.writeFileSync(path.join(dirPath, "child.txt"), "hi", "utf8");
     const app = createApp(rootDir);
 
     const res = await request(app).delete("/api/browse/delete").send({
       path: "delivery-queue",
     });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      ok: false,
-      error: "Path is not a file",
+      ok: true,
+      path: "delivery-queue",
+      type: "folder",
     });
-    expect(fs.existsSync(dirPath)).toBe(true);
+    expect(fs.existsSync(dirPath)).toBe(false);
   });
 
   it("restores a tracked deleted file from git", async () => {
