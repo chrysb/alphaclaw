@@ -32,7 +32,7 @@ describe("server/doctor-normalize", () => {
         category: "guidance",
         title: "Tools guidance drift",
         recommendation: "Move tool guidance into TOOLS.md",
-        targetPaths: ["README.md", "hooks/bootstrap/TOOLS.md"],
+        targetPaths: [{ path: "README.md" }, { path: "hooks/bootstrap/TOOLS.md" }],
         status: "open",
       }),
     ]);
@@ -72,7 +72,7 @@ describe("server/doctor-normalize", () => {
         category: "redundancy",
         title: "Duplicated UI guidance",
         recommendation: "Centralize the detailed guidance into one place",
-        targetPaths: ["hooks/bootstrap/TOOLS.md"],
+        targetPaths: [{ path: "hooks/bootstrap/TOOLS.md" }],
       }),
     ]);
   });

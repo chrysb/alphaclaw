@@ -47,10 +47,20 @@
 .app-content {
   grid-column: 3;
   grid-row: 2;
-  overflow-y: auto;
-  padding: 24px 32px;
+  overflow: hidden;
   position: relative;
   z-index: 1;
+}
+
+.app-content-pane {
+  position: absolute;
+  inset: 0;
+  overflow-y: auto;
+  padding: 24px 32px;
+}
+
+.app-content-pane.browse-pane {
+  padding: 0;
 }
 
 /* ── Sidebar ───────────────────────────────────── */
@@ -312,6 +322,8 @@
   .app-content {
     grid-column: 1;
     grid-row: 2;
+  }
+  .app-content-pane {
     padding: 0 14px 12px;
   }
 

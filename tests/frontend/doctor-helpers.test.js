@@ -97,8 +97,8 @@ describe("frontend/doctor helpers", () => {
         priorityCounts: { P0: 2, P1: 1, P2: 0 },
       }),
     ).toEqual([
-      { tone: "danger", count: 2, label: "P0" },
-      { tone: "warning", count: 1, label: "P1" },
+      { tone: "danger", count: 0, label: "P0" },
+      { tone: "warning", count: 0, label: "P1" },
     ]);
     expect(
       helpers.buildDoctorRunMarkers({

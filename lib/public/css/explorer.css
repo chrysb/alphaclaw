@@ -1,9 +1,5 @@
 /* ── Browse/Explorer mode ─────────────────────── */
 
-.app-content.browse-mode {
-  padding: 0;
-}
-
 .sidebar-tabs {
   display: flex;
   align-items: center;
@@ -875,6 +871,10 @@
   align-items: flex-start;
 }
 
+.line-highlight-flash {
+  color: #4ade80 !important;
+}
+
 .file-viewer-editor {
   width: 100%;
   min-height: 0;
@@ -1608,7 +1608,4 @@
     display: none;
   }
 
-  .app-content.browse-mode {
-    padding: 0;
-  }
 }

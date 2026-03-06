@@ -74,6 +74,10 @@ body::before {
   background: rgba(0, 0, 0, 0.12);
 }
 
+.snippet-collapse-fade {
+  background: linear-gradient(to bottom, transparent 0%, rgba(0, 0, 0, 0.75) 70%);
+}
+
 /* Shared inset panel for "surface on surface" layouts. */
 .ac-surface-inset {
   border: 1px solid var(--panel-border-contrast);
