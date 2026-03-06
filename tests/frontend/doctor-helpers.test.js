@@ -109,58 +109,36 @@ describe("frontend/doctor helpers", () => {
     expect(helpers.getDoctorRunPillDetail({ status: "completed", cardCount: 0 })).toBe(
       "No findings",
     );
-    expect(helpers.getDoctorDriftRisk({ hasBaseline: false })).toEqual({
-      label: "Unknown",
-      tone: "neutral",
-      detail: "No prior baseline yet",
+    expect(helpers.getDoctorChangeLabel({ changedFilesCount: 0 })).toEqual({
+      text: "No changes since last run",
+      meaningful: false,
     });
     expect(
-      helpers.getDoctorDriftRisk({
-        hasBaseline: true,
-        baselineSource: "last_run",
-        deltaScore: 0,
-        changedFilesCount: 0,
-      }),
-    ).toEqual({
-      label: "Low",
-      tone: "info",
-      detail: "No detected changes",
-    });
-    expect(
-      helpers.getDoctorDriftRisk({
-        hasBaseline: true,
-        baselineSource: "initial_install",
-        deltaScore: 0,
-        changedFilesCount: 0,
-      }),
-    ).toEqual({
-      label: "Low",
-      tone: "info",
-      detail: "Compared to initial install",
-    });
-    expect(
-      helpers.getDoctorDriftRisk({
-        hasBaseline: true,
-        baselineSource: "last_run",
-        deltaScore: 5,
-        changedFilesCount: 3,
-      }),
-    ).toEqual({
-      label: "Moderate",
-      tone: "warning",
-      detail: "3 changed files",
-    });
-    expect(
-      helpers.getDoctorDriftRisk({
-        hasBaseline: true,
-        baselineSource: "last_run",
-        deltaScore: 9,
+      helpers.getDoctorChangeLabel({
         changedFilesCount: 2,
+        hasMeaningfulChanges: false,
       }),
     ).toEqual({
-      label: "High",
-      tone: "danger",
-      detail: "2 changed files",
+      text: "2 changes since last run",
+      meaningful: false,
+    });
+    expect(
+      helpers.getDoctorChangeLabel({
+        changedFilesCount: 3,
+        hasMeaningfulChanges: true,
+      }),
+    ).toEqual({
+      text: "3 changes since last run",
+      meaningful: true,
+    });
+    expect(
+      helpers.getDoctorChangeLabel({
+        changedFilesCount: 1,
+        hasMeaningfulChanges: false,
+      }),
+    ).toEqual({
+      text: "1 change since last run",
+      meaningful: false,
     });
     expect(helpers.getDoctorStatusTone("fixed")).toBe("success");
     expect(helpers.buildDoctorStatusFilterOptions()).toEqual([

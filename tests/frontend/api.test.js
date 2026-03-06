@@ -205,6 +205,7 @@ describe("frontend/api", () => {
       sessionId: "session-123",
       replyChannel: "telegram",
       replyTo: "1050",
+      prompt: "Use a more focused fix request",
     });
 
     expect(global.fetch).toHaveBeenCalledWith(
@@ -215,6 +216,7 @@ describe("frontend/api", () => {
           sessionId: "session-123",
           replyChannel: "telegram",
           replyTo: "1050",
+          prompt: "Use a more focused fix request",
         }),
         headers: expect.any(Headers),
       }),

@@ -58,6 +58,9 @@ const createSystemDeps = () => {
       clearRequired: vi.fn(),
       markRestartComplete: vi.fn(),
     },
+    topicRegistry: {
+      getGroup: vi.fn(() => null),
+    },
     OPENCLAW_DIR: "/tmp/openclaw",
   };
   return deps;
@@ -364,6 +367,16 @@ describe("server/routes/system", () => {
 
   it("hides internal hook, cron, and doctor sessions from GET /api/agent/sessions", async () => {
     const deps = createSystemDeps();
+    deps.topicRegistry.getGroup.mockImplementation((groupId) =>
+      String(groupId) === "-1003709908795"
+        ? {
+            name: "AlphaClaw",
+            topics: {
+              "4011": { name: "Rosebud" },
+            },
+          }
+        : null,
+    );
     deps.clawCmd.mockResolvedValue({
       ok: true,
       stdout: JSON.stringify({
@@ -376,6 +389,11 @@ describe("server/routes/system", () => {
             key: "agent:main:telegram:direct:1050",
             sessionId: "",
             updatedAt: 6,
+          },
+          {
+            key: "agent:main:telegram:group:-1003709908795:topic:4011",
+            sessionId: "topic-session",
+            updatedAt: 5,
           },
         ],
       }),
@@ -402,6 +420,14 @@ describe("server/routes/system", () => {
         label: "Telegram 1050",
         replyChannel: "telegram",
         replyTo: "1050",
+      },
+      {
+        key: "agent:main:telegram:group:-1003709908795:topic:4011",
+        sessionId: "topic-session",
+        updatedAt: 5,
+        label: "Telegram AlphaClaw · Rosebud",
+        replyChannel: "",
+        replyTo: "",
       },
     ]);
   });

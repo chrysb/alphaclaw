@@ -176,6 +176,7 @@ describe("server/routes/doctor", () => {
       sessionId: "session-123",
       replyChannel: "telegram",
       replyTo: "1050",
+      prompt: "Use the safer prompt",
     });
 
     expect(res.status).toBe(200);
@@ -184,6 +185,7 @@ describe("server/routes/doctor", () => {
       sessionId: "session-123",
       replyChannel: "telegram",
       replyTo: "1050",
+      prompt: "Use the safer prompt",
     });
     expect(res.body.ok).toBe(true);
   });
