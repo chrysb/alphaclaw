@@ -361,4 +361,48 @@ describe("server/routes/system", () => {
       error: "AlphaClaw update already in progress",
     });
   });
+
+  it("hides internal hook, cron, and doctor sessions from GET /api/agent/sessions", async () => {
+    const deps = createSystemDeps();
+    deps.clawCmd.mockResolvedValue({
+      ok: true,
+      stdout: JSON.stringify({
+        sessions: [
+          { key: "agent:main:main", sessionId: "main-session", updatedAt: 10 },
+          { key: "agent:main:hook:abc", sessionId: "hook-session", updatedAt: 9 },
+          { key: "agent:main:cron:abc", sessionId: "cron-session", updatedAt: 8 },
+          { key: "agent:main:doctor:42", sessionId: "doctor-session", updatedAt: 7 },
+          {
+            key: "agent:main:telegram:direct:1050",
+            sessionId: "",
+            updatedAt: 6,
+          },
+        ],
+      }),
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/agent/sessions");
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.sessions).toEqual([
+      {
+        key: "agent:main:main",
+        sessionId: "main-session",
+        updatedAt: 10,
+        label: "Main agent thread",
+        replyChannel: "",
+        replyTo: "",
+      },
+      {
+        key: "agent:main:telegram:direct:1050",
+        sessionId: "",
+        updatedAt: 6,
+        label: "Telegram 1050",
+        replyChannel: "telegram",
+        replyTo: "1050",
+      },
+    ]);
+  });
 });

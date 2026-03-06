@@ -121,6 +121,68 @@ describe("frontend/api", () => {
     expect(result).toEqual({ ok: true, sessions: [] });
   });
 
+  it("fetchDoctorStatus calls Doctor status endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, status: { stale: true } }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchDoctorStatus();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/status",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, status: { stale: true } });
+  });
+
+  it("fetchDoctorCards calls aggregated Doctor cards endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, cards: [] }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchDoctorCards({ runId: "all" });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/cards?runId=all",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, cards: [] });
+  });
+
+  it("startDoctorRun posts to the Doctor run endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(202, { ok: true, runId: 42 }));
+    const api = await loadApiModule();
+
+    const result = await api.startDoctorRun();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/run",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({}),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, runId: 42 });
+  });
+
+  it("importDoctorResult posts raw Doctor output", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(201, { ok: true, runId: 43 }));
+    const api = await loadApiModule();
+
+    const result = await api.importDoctorResult('{"summary":"Imported","cards":[]}');
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/import",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ rawOutput: '{"summary":"Imported","cards":[]}' }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, runId: 43 });
+  });
+
   it("fetchUsageSessionDetail encodes session id in path", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, detail: { sessionId: "x" } }));
     const api = await loadApiModule();
@@ -132,6 +194,33 @@ describe("frontend/api", () => {
       expect.objectContaining({ headers: expect.any(Headers) }),
     );
     expect(result).toEqual({ ok: true, detail: { sessionId: "x" } });
+  });
+
+  it("sendDoctorCardFix posts delivery fields", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, stdout: "sent" }));
+    const api = await loadApiModule();
+
+    const result = await api.sendDoctorCardFix({
+      cardId: 7,
+      sessionId: "session-123",
+      replyChannel: "telegram",
+      replyTo: "1050",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/findings/7/fix",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          sessionId: "session-123",
+          replyChannel: "telegram",
+          replyTo: "1050",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, stdout: "sent" });
   });
 
   it("syncBrowseChanges posts commit message", async () => {

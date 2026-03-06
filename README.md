@@ -3,7 +3,7 @@
 </p>
 <h1 align="center">AlphaClaw</h1>
 <p align="center">
-  <strong>The ops layer for OpenClaw. Deploy in minutes. Stay running for months.</strong><br>
+  <strong>The ultimate OpenClaw harness. Deploy in minutes. Stay running for months.</strong><br>
   <strong>Observability. Reliability. Agent discipline. Zero SSH rescue missions.</strong>
 </p>
 
@@ -13,7 +13,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
-<p align="center">AlphaClaw wraps <a href="https://github.com/openclaw/openclaw">OpenClaw</a> with a convenient setup wizard, self-healing watchdog, Git-backed rollback, and full browser-based observability. Ships with anti-drift prompt hardening to keep your agent disciplined, and simplifies integrations (e.g. Google Workspace, Telegram Topics) so you can manage everything from one UI instead of config files.</p>
+<p align="center">AlphaClaw wraps <a href="https://github.com/openclaw/openclaw">OpenClaw</a> with a convenient setup wizard, self-healing watchdog, Git-backed rollback, and full browser-based observability. Ships with anti-drift prompt hardening to keep your agent disciplined, and simplifies integrations (e.g. Google Workspace, Google Pub/Sub, Telegram Topics) so you can manage everything from one UI instead of config files.</p>
 
 <p align="center"><em>First deploy to first message in under five minutes.</em></p>
 
@@ -32,7 +32,8 @@
 - **Watchdog:** Crash detection, crash-loop recovery, auto-repair (`openclaw doctor --fix`), and Telegram/Discord notifications.
 - **Channel Orchestration:** Telegram and Discord bot pairing, credential sync, and a guided wizard for splitting Telegram into multi-threaded topic groups as your usage grows.
 - **Webhooks:** Named webhook endpoints with per-hook transform modules, request logging, and payload inspection.
-- **Google Workspace:** OAuth integration for Gmail, Calendar, Drive, Docs, Sheets, Tasks, Contacts, and Meet.
+- **Google Workspace:** OAuth integration for Gmail, Calendar, Drive, Docs, Sheets, Tasks, Contacts, and Meet, plus guided Gmail watch setup with Google Pub/Sub topic, subscription, and push endpoint handling.
+- **File Explorer:** Browser-based workspace explorer with file visibility, inline edits, diff view, and Git-aware sync for quick fixes without SSH.
 - **Prompt Hardening:** Ships anti-drift bootstrap prompts (`AGENTS.md`, `TOOLS.md`) injected into your agent's system prompt on every message — enforcing safe practices, commit discipline, and change summaries out of the box.
 - **Git Sync:** Automatic hourly commits of your OpenClaw workspace to GitHub with configurable cron schedule. Combined with prompt hardening, every agent action is version-controlled and auditable.
 - **Version Management:** In-place updates for both AlphaClaw and OpenClaw with changelog review and one-click apply.
@@ -81,13 +82,15 @@ CMD ["alphaclaw", "start"]
 
 ## Setup UI
 
-| Tab           | What it manages                                                                                            |
-| ------------- | ---------------------------------------------------------------------------------------------------------- |
-| **General**   | Gateway status, channel health, pending pairings, Google Workspace, repo sync schedule, OpenClaw dashboard |
-| **Watchdog**  | Health monitoring, crash-loop status, auto-repair toggle, notifications toggle, event log, live log tail   |
-| **Providers** | AI provider credentials (Anthropic, OpenAI, Gemini, Mistral, Voyage, Groq, Deepgram) and model selection   |
-| **Envars**    | Environment variables — view, edit, add — with gateway restart prompts                                     |
-| **Webhooks**  | Webhook endpoints, transform modules, request history, payload inspection                                  |
+| Tab           | What it manages                                                                                                 |
+| ------------- | --------------------------------------------------------------------------------------------------------------- |
+| **General**   | Gateway status, channel health, pending pairings, Google Workspace, repo sync schedule, OpenClaw dashboard      |
+| **Browse**    | File explorer for workspace visibility, inline edits, diff review, and Git-backed sync                          |
+| **Usage**     | Token summaries, per-session and per-agent cost and token breakdown                                             |
+| **Watchdog**  | Health monitoring, crash-loop status, auto-repair toggle, notifications toggle, event log, live log tail        |
+| **Providers** | AI provider credentials (Anthropic, OpenAI, Gemini, Mistral, Voyage, Groq, Deepgram) and model selection        |
+| **Envars**    | Environment variables — view, edit, add — with gateway restart prompts                                          |
+| **Webhooks**  | Webhook endpoints, transform modules, request history, payload inspection, including Gmail watch delivery flows |
 
 ## CLI
 
@@ -121,14 +124,14 @@ graph TD
 
 The built-in watchdog monitors gateway health and recovers from failures automatically.
 
-| Capability                  | Details                                                        |
-| --------------------------- | -------------------------------------------------------------- |
-| **Health checks**           | Periodic `openclaw health` with configurable interval          |
-| **Crash detection**         | Listens for gateway exit events                                |
-| **Crash-loop detection**    | Threshold-based (default: 3 crashes in 300s)                   |
-| **Auto-repair**             | Runs `openclaw doctor --fix --yes`, relaunches gateway         |
-| **Notifications**           | Telegram and Discord alerts for crashes, repairs, and recovery |
-| **Event log**               | SQLite-backed incident history with API and UI access          |
+| Capability               | Details                                                        |
+| ------------------------ | -------------------------------------------------------------- |
+| **Health checks**        | Periodic `openclaw health` with configurable interval          |
+| **Crash detection**      | Listens for gateway exit events                                |
+| **Crash-loop detection** | Threshold-based (default: 3 crashes in 300s)                   |
+| **Auto-repair**          | Runs `openclaw doctor --fix --yes`, relaunches gateway         |
+| **Notifications**        | Telegram and Discord alerts for crashes, repairs, and recovery |
+| **Event log**            | SQLite-backed incident history with API and UI access          |
 
 ## Environment Variables
 
