@@ -10,6 +10,16 @@ const createModelDeps = () => {
     gatewayEnv: vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "token" })),
     parseJsonFromNoisyOutput: vi.fn(() => ({})),
     normalizeOnboardingModels: vi.fn(() => []),
+    authProfiles: {
+      getModelConfig: vi.fn(() => ({ primary: null, configuredModels: {} })),
+      listProfiles: vi.fn(() => []),
+      loadAuthStore: vi.fn(() => ({ profiles: {}, order: {} })),
+      setModelConfig: vi.fn(),
+      upsertProfile: vi.fn(),
+      setAuthOrder: vi.fn(),
+      syncConfigAuthReferencesForAgent: vi.fn(),
+      removeProfile: vi.fn(),
+    },
   };
   return deps;
 };
@@ -126,6 +136,35 @@ describe("server/routes/models", () => {
         env: { OPENCLAW_GATEWAY_TOKEN: "token" },
         timeout: 30000,
       },
+    );
+  });
+
+  it("re-syncs auth references on PUT /api/models/config", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      primary: "openai-codex/gpt-5.3-codex",
+      configuredModels: {
+        "openai-codex/gpt-5.3-codex": {},
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(deps.authProfiles.setModelConfig).toHaveBeenCalledWith({
+      primary: "openai-codex/gpt-5.3-codex",
+      configuredModels: {
+        "openai-codex/gpt-5.3-codex": {},
+      },
+    });
+    expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledWith(
+      undefined,
+    );
+    expect(deps.shellCmd).toHaveBeenCalledWith(
+      'alphaclaw git-sync -m "models: update config" -f "openclaw.json"',
+      { timeout: 30000 },
     );
   });
 });
