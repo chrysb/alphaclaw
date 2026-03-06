@@ -183,4 +183,10 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Add new formatter helpers to `lib/public/js/lib/format.js` when the behavior is cross-feature and likely to be reused; keep feature-specific transforms local to the feature folder.
 - Avoid wrapper pass-through helpers that only rename a global formatter without adding feature-specific behavior.
 
+### localStorage keys
+
+- All standalone `localStorage` keys are defined in `lib/public/js/lib/storage-keys.js`. Import keys from this file — never define raw localStorage key strings inline in components.
+- Use the naming convention `alphaclaw.<area>.<purpose>` for new keys (e.g. `alphaclaw.doctor.lastSessionKey`).
+- Keys that live inside the `alphaclaw.ui.settings` JSON blob (e.g. `browseLastPath`, `doctorWarningDismissedUntilMs`) are sub-keys, not standalone localStorage entries — those stay in their consuming file.
+
 For inconsistencies tracking and DRY opportunities, see `lib/setup/core-prompts/UI-DRY-OPPORTUNITIES.md`.

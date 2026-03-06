@@ -109,37 +109,15 @@ describe("frontend/doctor helpers", () => {
     expect(helpers.getDoctorRunPillDetail({ status: "completed", cardCount: 0 })).toBe(
       "No findings",
     );
-    expect(helpers.getDoctorChangeLabel({ changedFilesCount: 0 })).toEqual({
-      text: "No changes since last run",
-      meaningful: false,
-    });
-    expect(
-      helpers.getDoctorChangeLabel({
-        changedFilesCount: 2,
-        hasMeaningfulChanges: false,
-      }),
-    ).toEqual({
-      text: "2 changes since last run",
-      meaningful: false,
-    });
-    expect(
-      helpers.getDoctorChangeLabel({
-        changedFilesCount: 3,
-        hasMeaningfulChanges: true,
-      }),
-    ).toEqual({
-      text: "3 changes since last run",
-      meaningful: true,
-    });
-    expect(
-      helpers.getDoctorChangeLabel({
-        changedFilesCount: 1,
-        hasMeaningfulChanges: false,
-      }),
-    ).toEqual({
-      text: "1 change since last run",
-      meaningful: false,
-    });
+    expect(helpers.getDoctorChangeLabel({ changedFilesCount: 0 })).toBe(
+      "No changes since last run",
+    );
+    expect(helpers.getDoctorChangeLabel({ changedFilesCount: 2 })).toBe(
+      "2 changes since last run",
+    );
+    expect(helpers.getDoctorChangeLabel({ changedFilesCount: 1 })).toBe(
+      "1 change since last run",
+    );
     expect(helpers.getDoctorStatusTone("fixed")).toBe("success");
     expect(helpers.buildDoctorStatusFilterOptions()).toEqual([
       { value: "open", label: "Open" },

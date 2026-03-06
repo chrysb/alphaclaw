@@ -43,17 +43,17 @@ describe("frontend/browse-draft-state", () => {
     expect(dispatchEvent).toHaveBeenCalledTimes(3);
   });
 
-  it("builds draft index from legacy per-file keys", async () => {
+  it("builds draft index from per-file keys when no index exists", async () => {
     const storage = createStorage();
     const draftState = await loadDraftState();
-    storage.setItem("alphaclawBrowseDraft:legacy/a.txt", "a");
-    storage.setItem("alphaclaw.browse.draft.current/b.txt", "b");
+    storage.setItem("alphaclaw.browse.draft.docs/a.txt", "a");
+    storage.setItem("alphaclaw.browse.draft.src/b.txt", "b");
 
     const draftPaths = draftState.readStoredDraftPaths(storage);
 
-    expect(Array.from(draftPaths).sort()).toEqual(["current/b.txt", "legacy/a.txt"]);
-    const storedIndexRaw = storage.getItem("alphaclaw.draftIndex");
+    expect(Array.from(draftPaths).sort()).toEqual(["docs/a.txt", "src/b.txt"]);
+    const storedIndexRaw = storage.getItem("alphaclaw.browse.draftIndex");
     expect(storedIndexRaw).toBeTruthy();
-    expect(JSON.parse(storedIndexRaw)).toEqual(["current/b.txt", "legacy/a.txt"]);
+    expect(JSON.parse(storedIndexRaw)).toEqual(["docs/a.txt", "src/b.txt"]);
   });
 });
