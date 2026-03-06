@@ -191,6 +191,57 @@ describe("server/watchdog", () => {
     expect(clawCmd).toHaveBeenCalledWith("doctor --fix --yes", { quiet: true });
   });
 
+  it("clears crash-loop lifecycle after a healthy check recovery", async () => {
+    vi.useFakeTimers();
+    let healthChecks = 0;
+    const { watchdog, insertWatchdogEvent } = createHarness({
+      autoRepair: false,
+      clawCmdImpl: async (command) => {
+        if (command === "health --json") {
+          healthChecks += 1;
+          if (healthChecks === 1) {
+            return { ok: false, stderr: "gateway unavailable" };
+          }
+          return { ok: true, stdout: JSON.stringify({ ok: true }) };
+        }
+        return { ok: true, stdout: "" };
+      },
+    });
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now() - 60_000 });
+    watchdog.onGatewayExit({ code: 1, expectedExit: false });
+    watchdog.onGatewayExit({ code: 1, expectedExit: false });
+    watchdog.onGatewayExit({ code: 1, expectedExit: false });
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "crash_loop",
+        health: "unhealthy",
+      }),
+    );
+
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "running",
+        health: "healthy",
+      }),
+    );
+    expect(insertWatchdogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "recovery",
+        source: "health_timer",
+        status: "ok",
+        details: expect.objectContaining({
+          previousLifecycle: "crash_loop",
+          health: "healthy",
+        }),
+      }),
+    );
+    watchdog.stop();
+  });
+
   it("suppresses notifier sends when notifications are disabled", async () => {
     const { watchdog, notifier } = createHarness({
       notificationsDisabled: true,
