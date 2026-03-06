@@ -10,12 +10,18 @@ const createModelDeps = () => {
     gatewayEnv: vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "token" })),
     parseJsonFromNoisyOutput: vi.fn(() => ({})),
     normalizeOnboardingModels: vi.fn(() => []),
+    readEnvFile: vi.fn(() => []),
+    writeEnvFile: vi.fn(),
+    reloadEnv: vi.fn(() => true),
     authProfiles: {
       getModelConfig: vi.fn(() => ({ primary: null, configuredModels: {} })),
       listProfiles: vi.fn(() => []),
       loadAuthStore: vi.fn(() => ({ profiles: {}, order: {} })),
       setModelConfig: vi.fn(),
       upsertProfile: vi.fn(),
+      getEnvVarForApiKeyProvider: vi.fn((provider) =>
+        provider === "openai" ? "OPENAI_API_KEY" : "",
+      ),
       setAuthOrder: vi.fn(),
       syncConfigAuthReferencesForAgent: vi.fn(),
       removeProfile: vi.fn(),
@@ -166,5 +172,29 @@ describe("server/routes/models", () => {
       'alphaclaw git-sync -m "models: update config" -f "openclaw.json"',
       { timeout: 30000 },
     );
+  });
+
+  it("writes API-key model auth changes back to env vars", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    deps.readEnvFile.mockReturnValue([{ key: "OPENAI_API_KEY", value: "" }]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      profiles: [
+        {
+          id: "openai:default",
+          type: "api_key",
+          provider: "openai",
+          key: "sk-live-123",
+        },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "sk-live-123" },
+    ]);
+    expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
   });
 });

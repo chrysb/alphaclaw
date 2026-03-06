@@ -170,6 +170,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Use `showToast(...)` for user-visible operation outcomes.
 - Prefer semantic toast levels (`success`, `error`, `warning`, `info`) at callsites. Legacy color aliases are only for backwards compatibility.
 - Keep toast positioning relative to the active page container (not the viewport) when layout banners can shift content.
+- For hover help and icon labels, use the shared portal-backed tooltip components (`Tooltip`, `InfoTooltip`) instead of inline absolutely positioned popovers, so tooltips are not clipped by cards, rows, or scroll containers.
 - Keep loading/saving flags explicit in state (`saving`, `creating`, `restartingGateway`, etc.).
 - Reuse `<LoadingSpinner />` for loading indicators instead of inline spinner SVG markup.
 - Use `<Badge />` for compact status chips (e.g. connected/not connected) instead of one-off status span styling.

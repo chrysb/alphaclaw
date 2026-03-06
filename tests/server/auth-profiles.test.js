@@ -273,4 +273,34 @@ describe("server/auth-profiles", () => {
     const config = readJson("openclaw.json");
     expect(config.auth?.profiles?.["openai-codex:codex-cli"]).toBeUndefined();
   });
+
+  it("does not write auth refs into incomplete pre-onboarding config", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".openclaw", "openclaw.json"),
+      JSON.stringify(
+        {
+          auth: {
+            profiles: {},
+          },
+          gateway: { port: 18789 },
+        },
+        null,
+        2,
+      ),
+    );
+
+    ap.upsertCodexProfile({
+      access: "jwt",
+      refresh: "rt",
+      expires: 9999999999999,
+      accountId: "acct",
+    });
+
+    const store = readJson("agents/main/agent/auth-profiles.json");
+    expect(store.profiles["openai-codex:codex-cli"]).toBeDefined();
+
+    const config = readJson("openclaw.json");
+    expect(config.auth?.profiles || {}).toEqual({});
+    expect(config.gateway.port).toBe(18789);
+  });
 });

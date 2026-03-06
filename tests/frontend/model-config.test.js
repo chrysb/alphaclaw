@@ -11,7 +11,7 @@ describe("frontend/model-config", () => {
   it("returns visible AI field keys for provider", async () => {
     const modelConfig = await loadModelConfig();
     const keys = modelConfig.getVisibleAiFieldKeys("openai-codex");
-    expect(keys.has("OPENAI_API_KEY")).toBe(true);
+    expect(keys.has("OPENAI_API_KEY")).toBe(false);
     expect(keys.has("ANTHROPIC_API_KEY")).toBe(false);
   });
 

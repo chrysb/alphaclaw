@@ -27,6 +27,9 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => ({
   resolveGithubRepoUrl: vi.fn((value) => value),
   resolveModelProvider: vi.fn((modelKey) => String(modelKey).split("/")[0]),
   hasCodexOauthProfile: vi.fn(() => hasCodexOauth),
+  authProfiles: {
+    syncConfigAuthReferencesForAgent: vi.fn(),
+  },
   ensureGatewayProxyConfig: vi.fn(),
   getBaseUrl: vi.fn(() => "https://example.com"),
   startGateway: vi.fn(),
@@ -141,7 +144,7 @@ describe("server/routes/onboarding", () => {
     expect(deps.shellCmd).not.toHaveBeenCalled();
   });
 
-  it("requires codex oauth or API key for openai-codex provider", async () => {
+  it("requires codex oauth for openai-codex provider", async () => {
     const deps = createBaseDeps({ hasCodexOauth: false });
     const app = createApp(deps);
 
@@ -159,7 +162,7 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({
       ok: false,
-      error: "Connect OpenAI Codex OAuth or provide OPENAI_API_KEY before continuing",
+      error: "Connect OpenAI Codex OAuth before continuing",
     });
   });
 
@@ -196,6 +199,7 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect(deps.startGateway).toHaveBeenCalledTimes(1);
+    expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledTimes(1);
     expect(deps.fs.copyFileSync).toHaveBeenCalledWith(
       path.join(kSetupDir, "core-prompts", "AGENTS.md"),
       "/tmp/openclaw/workspace/hooks/bootstrap/AGENTS.md",

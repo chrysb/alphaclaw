@@ -18,10 +18,24 @@ const createSystemDeps = () => {
     writeEnvFile: vi.fn(),
     reloadEnv: vi.fn(() => true),
     kKnownVars: [
-      { key: "OPENAI_API_KEY", label: "OpenAI API Key", group: "models", hint: "" },
+      {
+        key: "OPENAI_API_KEY",
+        label: "OpenAI API Key",
+        group: "ai",
+        hint: "",
+        features: ["Models", "Embeddings", "TTS", "STT"],
+      },
+      {
+        key: "ANTHROPIC_TOKEN",
+        label: "Anthropic Setup Token",
+        group: "ai",
+        hint: "",
+        features: ["Models"],
+        visibleInEnvars: false,
+      },
       { key: "GITHUB_TOKEN", label: "GitHub Access Token", group: "github", hint: "" },
     ],
-    kKnownKeys: new Set(["OPENAI_API_KEY", "GITHUB_TOKEN"]),
+    kKnownKeys: new Set(["OPENAI_API_KEY", "ANTHROPIC_TOKEN", "GITHUB_TOKEN"]),
     kSystemVars: new Set(["PORT", "SETUP_PASSWORD"]),
     syncChannelConfig: vi.fn(),
     isGatewayRunning: vi.fn(async () => true),
@@ -61,6 +75,13 @@ const createSystemDeps = () => {
     topicRegistry: {
       getGroup: vi.fn(() => null),
     },
+    authProfiles: {
+      getEnvVarForApiKeyProvider: vi.fn((provider) =>
+        provider === "openai" ? "OPENAI_API_KEY" : "",
+      ),
+      upsertApiKeyProfileForEnvVar: vi.fn(),
+      removeApiKeyProfileForEnvVar: vi.fn(),
+    },
     OPENCLAW_DIR: "/tmp/openclaw",
   };
   return deps;
@@ -94,6 +115,7 @@ describe("server/routes/system", () => {
         expect.objectContaining({
           key: "OPENAI_API_KEY",
           value: "abc",
+          features: ["Models", "Embeddings", "TTS", "STT"],
           source: "env_file",
         }),
         expect.objectContaining({
@@ -109,6 +131,7 @@ describe("server/routes/system", () => {
       ]),
     );
     expect(res.body.vars.some((entry) => entry.key === "PORT")).toBe(false);
+    expect(res.body.vars.some((entry) => entry.key === "ANTHROPIC_TOKEN")).toBe(false);
     expect(res.body.vars.some((entry) => entry.key === "GITHUB_WORKSPACE_REPO")).toBe(
       false,
     );
@@ -178,6 +201,55 @@ describe("server/routes/system", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true, changed: false, restartRequired: false });
     expect(deps.restartGateway).not.toHaveBeenCalled();
+  });
+
+  it("preserves hidden known vars on PUT /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "ANTHROPIC_TOKEN", value: "hidden-token" },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "same" }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "same" },
+      { key: "ANTHROPIC_TOKEN", value: "hidden-token" },
+    ]);
+  });
+
+  it("syncs API-key auth profiles from known env vars on save", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "sk-test-123" }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.authProfiles.getEnvVarForApiKeyProvider).toHaveBeenCalledWith("openai");
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "openai",
+      "sk-test-123",
+    );
+  });
+
+  it("removes mirrored auth profile when synced env var is cleared", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "" }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.authProfiles.removeApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "openai",
+    );
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).not.toHaveBeenCalled();
   });
 
   it("keeps restartRequired true until gateway restart", async () => {
