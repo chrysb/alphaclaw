@@ -14,6 +14,8 @@ const loadDoctorService = () => {
   return require(modulePath);
 };
 
+const repeatText = (length, character = "A") => character.repeat(length);
+
 describe("server/doctor-service", () => {
   it("reuses the previous completed run when the workspace fingerprint is unchanged", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-workspace-"));
@@ -231,5 +233,198 @@ describe("server/doctor-service", () => {
     expect(initialStatus.changeSummary.baselineSource).toBe("initial_install");
     expect(nextStatus.changeSummary.changedFilesCount).toBe(1);
     expect(nextStatus.changeSummary.hasMeaningfulChanges).toBe(false);
+  });
+
+  it("reports healthy Project Context files without truncation", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-healthy-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-healthy-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\nKeep it short.\n", "utf8");
+
+    const doctorDb = loadDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const status = doctorService.buildStatus();
+
+    expect(status.bootstrapContext.hasActiveTruncation).toBe(false);
+    expect(status.bootstrapContext.activeTruncatedFiles).toEqual([]);
+  });
+
+  it("reports per-file Project Context truncation in Doctor status", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-file-limit-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-file-limit-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), repeatText(20001), "utf8");
+
+    const doctorDb = loadDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const status = doctorService.buildStatus();
+
+    expect(status.bootstrapContext.hasActiveTruncation).toBe(true);
+    expect(status.bootstrapContext.hasTotalLimitTruncation).toBe(false);
+    expect(status.bootstrapContext.activeTruncatedFiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "AGENTS.md",
+          rawChars: 20001,
+          truncatedByFileLimit: true,
+          truncatedByTotalLimit: false,
+          reason: "file_limit",
+        }),
+      ]),
+    );
+  });
+
+  it("reports total Project Context truncation when active injected files exceed the total cap", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-total-limit-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-total-limit-db-"));
+    const activeProjectContextFiles = [
+      "AGENTS.md",
+      "SOUL.md",
+      "TOOLS.md",
+      "IDENTITY.md",
+      "USER.md",
+      "HEARTBEAT.md",
+      "hooks/bootstrap/AGENTS.md",
+      "hooks/bootstrap/TOOLS.md",
+    ];
+    fs.mkdirSync(path.join(workspaceRoot, "hooks", "bootstrap"), { recursive: true });
+    for (const filePath of activeProjectContextFiles) {
+      fs.writeFileSync(path.join(workspaceRoot, filePath), repeatText(20000), "utf8");
+    }
+
+    const doctorDb = loadDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const status = doctorService.buildStatus();
+
+    expect(status.bootstrapContext.hasActiveTruncation).toBe(true);
+    expect(status.bootstrapContext.hasTotalLimitTruncation).toBe(true);
+    expect(status.bootstrapContext.activeInjectedChars).toBe(
+      status.bootstrapContext.bootstrapTotalMaxChars,
+    );
+    expect(status.bootstrapContext.activeTruncatedFiles).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          path: "hooks/bootstrap/TOOLS.md",
+          truncatedByTotalLimit: true,
+        }),
+      ]),
+    );
+  });
+
+  it("adds deterministic truncation cards alongside imported Doctor findings", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-import-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-import-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), repeatText(20001), "utf8");
+
+    const doctorDb = loadDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "Imported findings",
+        cards: [
+          {
+            priority: "P2",
+            category: "workspace",
+            title: "Small cleanup",
+            summary: "Minor cleanup item",
+            recommendation: "Tidy the note",
+            evidence: [{ type: "path", path: "AGENTS.md" }],
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "Tidy the note safely.",
+            status: "open",
+          },
+        ],
+      }),
+    });
+
+    const cards = doctorDb.getDoctorCardsByRunId(imported.runId);
+
+    expect(cards).toHaveLength(2);
+    expect(cards).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          priority: "P0",
+          title: "AGENTS.md is being truncated in Project Context",
+        }),
+        expect.objectContaining({
+          priority: "P2",
+          title: "Small cleanup",
+        }),
+      ]),
+    );
   });
 });

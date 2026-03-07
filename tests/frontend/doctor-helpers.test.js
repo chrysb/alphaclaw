@@ -73,13 +73,17 @@ describe("frontend/doctor helpers", () => {
         stale: true,
         changeSummary: { changedFilesCount: 3 },
       }),
-    ).toBe("Drift Doctor has not been run in the last week and 3 files changed since the last review.");
+    ).toBe(
+      "Drift Doctor has not been run in the last week and 3 files changed since the last review.",
+    );
   });
 
   it("formats categories and run filter options", async () => {
     const helpers = await loadDoctorHelpers();
 
-    expect(helpers.formatDoctorCategory("token_efficiency")).toBe("Token Efficiency");
+    expect(helpers.formatDoctorCategory("token_efficiency")).toBe(
+      "Token Efficiency",
+    );
     expect(helpers.getDoctorCategoryTone("token_efficiency")).toBe("info");
     expect(helpers.getDoctorCategoryTone("redundancy")).toBe("accent");
     expect(helpers.getDoctorCategoryTone("workspace_state")).toBe("secondary");
@@ -106,9 +110,9 @@ describe("frontend/doctor helpers", () => {
       }),
     ).toEqual([{ tone: "cyan", count: 0, label: "Running" }]);
     expect(helpers.getDoctorRunPillDetail({ status: "failed" })).toBe("Failed");
-    expect(helpers.getDoctorRunPillDetail({ status: "completed", cardCount: 0 })).toBe(
-      "No findings",
-    );
+    expect(
+      helpers.getDoctorRunPillDetail({ status: "completed", cardCount: 0 }),
+    ).toBe("No findings");
     expect(helpers.getDoctorChangeLabel({ changedFilesCount: 0 })).toBe(
       "No changes since last run",
     );
@@ -123,6 +127,109 @@ describe("frontend/doctor helpers", () => {
       { value: "open", label: "Open" },
       { value: "dismissed", label: "Dismissed" },
       { value: "fixed", label: "Fixed" },
+    ]);
+  });
+
+  it("formats persistent Project Context truncation warnings", async () => {
+    const helpers = await loadDoctorHelpers();
+    const fileLimitStatus = {
+      bootstrapContext: {
+        hasActiveTruncation: true,
+        hasActiveNearLimitFiles: false,
+        hasActiveWarnings: true,
+        hasTotalLimitTruncation: false,
+        bootstrapMaxChars: 20000,
+        bootstrapTotalMaxChars: 150000,
+        truncationGuidance:
+          "OpenClaw trims oversized injected files by keeping the first 70%, keeping the last 20%, and cutting the middle 10% without a warning.",
+        activeTruncatedFiles: [
+          { path: "AGENTS.md", rawChars: 24500, injectedChars: 20000 },
+        ],
+        activeNearLimitFiles: [],
+      },
+    };
+    const multiFileStatus = {
+      bootstrapContext: {
+        hasActiveTruncation: true,
+        hasActiveNearLimitFiles: true,
+        hasActiveWarnings: true,
+        hasTotalLimitTruncation: true,
+        bootstrapMaxChars: 20000,
+        bootstrapTotalMaxChars: 150000,
+        truncationGuidance:
+          "OpenClaw trims oversized injected files by keeping the first 70%, keeping the last 20%, and cutting the middle 10% without a warning.",
+        activeTruncatedFiles: [
+          { path: "AGENTS.md", rawChars: 24500, injectedChars: 20000 },
+          {
+            path: "hooks/bootstrap/AGENTS.md",
+            rawChars: 1800,
+            injectedChars: 1000,
+          },
+        ],
+        activeNearLimitFiles: [
+          { path: "TOOLS.md", rawChars: 20000 },
+          {
+            path: "hooks/bootstrap/TOOLS.md",
+            rawChars: 19500,
+            injectedChars: 19500,
+          },
+        ],
+      },
+    };
+
+    const nearLimitStatus = {
+      bootstrapContext: {
+        hasActiveTruncation: false,
+        hasActiveNearLimitFiles: true,
+        hasActiveWarnings: true,
+        bootstrapMaxChars: 20000,
+        bootstrapTotalMaxChars: 150000,
+        activeTruncatedFiles: [],
+        activeNearLimitFiles: [
+          { path: "TOOLS.md", rawChars: 19000, injectedChars: 19000 },
+        ],
+      },
+    };
+
+    expect(helpers.hasDoctorBootstrapWarnings(fileLimitStatus)).toBe(true);
+    expect(helpers.getDoctorBootstrapWarningTitle(fileLimitStatus)).toBe(
+      "One of your main files is being truncated:",
+    );
+    expect(helpers.getDoctorBootstrapWarningTitle(multiFileStatus)).toBe(
+      "Some of your main files are being truncated or nearing the limit:",
+    );
+    expect(helpers.getDoctorBootstrapTruncationItems(multiFileStatus)).toEqual([
+      {
+        path: "AGENTS.md",
+        size: "24,500 chars",
+        statusText: "-4,500 cut",
+        statusTone: "danger",
+      },
+      {
+        path: "TOOLS.md",
+        size: "20,000 chars",
+        statusText: "Near limit",
+        statusTone: "warning",
+      },
+    ]);
+    expect(helpers.getDoctorBootstrapWarningTitle(nearLimitStatus)).toBe(
+      "One of your main files is nearing the limit:",
+    );
+    expect(helpers.getDoctorBootstrapTruncationItems(fileLimitStatus)).toEqual([
+      {
+        path: "AGENTS.md",
+        size: "24,500 chars",
+        statusText: "-4,500 cut",
+        statusTone: "danger",
+      },
+    ]);
+    expect(helpers.getDoctorBootstrapTruncationItems(nearLimitStatus)).toEqual([
+      {
+        path: "TOOLS.md",
+        size: "19,000 chars",
+        statusText: "Near limit",
+        statusTone: "warning",
+      },
     ]);
   });
 });

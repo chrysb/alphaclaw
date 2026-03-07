@@ -13,6 +13,18 @@ describe("server/doctor-prompt", () => {
     expect(prompt).toContain("Do not treat default-template content as drift just because it is broad or multi-purpose.");
   });
 
+  it("includes Project Context truncation guidance", () => {
+    const prompt = buildDoctorPrompt({
+      workspaceRoot: "/tmp/workspace",
+      managedRoot: "/tmp/managed",
+      promptVersion: "doctor-v1",
+    });
+
+    expect(prompt).toContain("Large injected files are truncated per-file at 20000 chars by default");
+    expect(prompt).toContain("OpenClaw trims oversized injected files by keeping the first 70%");
+    expect(prompt).toContain("`BOOTSTRAP.md` is first-run only");
+  });
+
   it("tells the analyzer not to propose structural changes to AlphaClaw-managed files", () => {
     const prompt = buildDoctorPrompt({
       workspaceRoot: "/tmp/workspace",
