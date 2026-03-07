@@ -290,6 +290,70 @@ describe("server/watchdog", () => {
     );
   });
 
+  it("treats non-zero expected exits as crashes", () => {
+    const { watchdog, insertWatchdogEvent } = createHarness({
+      autoRepair: false,
+    });
+
+    watchdog.onGatewayExit({
+      code: 1,
+      signal: null,
+      expectedExit: true,
+      stderrTail: ["gateway failed"],
+    });
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "crashed",
+        health: "unhealthy",
+        crashCountInWindow: 1,
+      }),
+    );
+    expect(insertWatchdogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "crash",
+        source: "exit_event",
+        status: "failed",
+        details: expect.objectContaining({
+          code: 1,
+          signal: null,
+          stderrTail: ["gateway failed"],
+        }),
+      }),
+    );
+  });
+
+  it("stops suppressing failures after the expected restart timeout", async () => {
+    vi.useFakeTimers();
+    const { watchdog, insertWatchdogEvent } = createHarness({
+      autoRepair: false,
+      clawCmdImpl: async (command) => {
+        if (command === "health --json") {
+          return { ok: false, stderr: "gateway restarting" };
+        }
+        return { ok: true, stdout: "" };
+      },
+    });
+
+    watchdog.onExpectedRestart();
+    await vi.advanceTimersByTimeAsync(15_000);
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        health: "degraded",
+      }),
+    );
+    expect(insertWatchdogEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        eventType: "health_check",
+        status: "failed",
+        details: expect.objectContaining({
+          reason: "gateway restarting",
+        }),
+      }),
+    );
+  });
+
   it("sends gateway healthy again after deferred auto-repair recovery", async () => {
     let healthChecks = 0;
     const { watchdog, notifier } = createHarness({

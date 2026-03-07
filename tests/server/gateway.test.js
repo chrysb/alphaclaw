@@ -1,12 +1,20 @@
 const childProcess = require("child_process");
 const fs = require("fs");
 const net = require("net");
+const {
+  ALPHACLAW_DIR,
+  kControlUiSkillPath,
+  kOnboardingMarkerPath,
+  OPENCLAW_DIR,
+} = require("../../lib/server/constants");
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
 const originalExecSync = childProcess.execSync;
 const originalExistsSync = fs.existsSync;
+const originalMkdirSync = fs.mkdirSync;
 const originalReadFileSync = fs.readFileSync;
+const originalWriteFileSync = fs.writeFileSync;
 const originalCreateConnection = net.createConnection;
 
 const createSocket = (isRunning) => ({
@@ -38,7 +46,9 @@ describe("server/gateway restart behavior", () => {
     childProcess.spawn = originalSpawn;
     childProcess.execSync = originalExecSync;
     fs.existsSync = originalExistsSync;
+    fs.mkdirSync = originalMkdirSync;
     fs.readFileSync = originalReadFileSync;
+    fs.writeFileSync = originalWriteFileSync;
     net.createConnection = originalCreateConnection;
     delete require.cache[modulePath];
   });
@@ -159,7 +169,7 @@ describe("server/gateway restart behavior", () => {
   });
 
   it("does not treat auth-only openclaw config as onboarded", () => {
-    fs.existsSync = vi.fn(() => true);
+    fs.existsSync = vi.fn((targetPath) => targetPath === `${OPENCLAW_DIR}/openclaw.json`);
     delete require.cache[modulePath];
     const gateway = require(modulePath);
     fs.readFileSync = vi.fn(() =>
@@ -178,8 +188,18 @@ describe("server/gateway restart behavior", () => {
     expect(gateway.isOnboarded()).toBe(false);
   });
 
-  it("treats config with primary model as onboarded", () => {
-    fs.existsSync = vi.fn(() => true);
+  it("treats onboarding marker as source of truth", () => {
+    fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.isOnboarded()).toBe(true);
+  });
+
+  it("backfills onboarding marker from config with primary model", () => {
+    fs.existsSync = vi.fn((targetPath) => targetPath === `${OPENCLAW_DIR}/openclaw.json`);
+    fs.mkdirSync = vi.fn();
+    fs.writeFileSync = vi.fn();
     delete require.cache[modulePath];
     const gateway = require(modulePath);
     fs.readFileSync = vi.fn(() =>
@@ -195,5 +215,27 @@ describe("server/gateway restart behavior", () => {
     );
 
     expect(gateway.isOnboarded()).toBe(true);
+    expect(fs.mkdirSync).toHaveBeenCalledWith(
+      ALPHACLAW_DIR,
+      { recursive: true },
+    );
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      kOnboardingMarkerPath,
+      expect.stringContaining('"reason": "config_primary_model"'),
+    );
+  });
+
+  it("backfills onboarding marker from legacy onboarding artifact", () => {
+    fs.existsSync = vi.fn((targetPath) => targetPath === kControlUiSkillPath);
+    fs.mkdirSync = vi.fn();
+    fs.writeFileSync = vi.fn();
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.isOnboarded()).toBe(true);
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      kOnboardingMarkerPath,
+      expect.stringContaining('"reason": "legacy_artifact_backfill"'),
+    );
   });
 });

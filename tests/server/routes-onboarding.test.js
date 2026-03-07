@@ -18,6 +18,7 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => ({
   constants: {
     OPENCLAW_DIR: "/tmp/openclaw",
     WORKSPACE_DIR: "/tmp/openclaw/workspace",
+    kOnboardingMarkerPath: "/tmp/alphaclaw/onboarded.json",
   },
   shellCmd: vi.fn(async () => ""),
   gatewayEnv: vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "tok" })),
@@ -222,6 +223,11 @@ describe("server/routes/onboarding", () => {
         '0 * * * * root bash "/tmp/openclaw/.alphaclaw/hourly-git-sync.sh"',
       ),
       expect.objectContaining({ mode: 0o644 }),
+    );
+
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/alphaclaw/onboarded.json",
+      expect.stringContaining('"reason": "onboarding_complete"'),
     );
 
     const initialPushCall = deps.shellCmd.mock.calls.find(([cmd]) =>
