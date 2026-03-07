@@ -5,36 +5,50 @@ const request = require("supertest");
 const { registerOnboardingRoutes } = require("../../lib/server/routes/onboarding");
 const { kSetupDir } = require("../../lib/server/constants");
 
-const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => ({
-  fs: {
-    mkdirSync: vi.fn(),
-    existsSync: vi.fn(() => false),
-    copyFileSync: vi.fn(),
-    rmSync: vi.fn(),
-    readFileSync: vi.fn(() => "{}"),
-    writeFileSync: vi.fn(),
-    appendFileSync: vi.fn(),
-  },
-  constants: {
-    OPENCLAW_DIR: "/tmp/openclaw",
-    WORKSPACE_DIR: "/tmp/openclaw/workspace",
-    kOnboardingMarkerPath: "/tmp/alphaclaw/onboarded.json",
-  },
-  shellCmd: vi.fn(async () => ""),
-  gatewayEnv: vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "tok" })),
-  writeEnvFile: vi.fn(),
-  reloadEnv: vi.fn(),
-  isOnboarded: vi.fn(() => onboarded),
-  resolveGithubRepoUrl: vi.fn((value) => value),
-  resolveModelProvider: vi.fn((modelKey) => String(modelKey).split("/")[0]),
-  hasCodexOauthProfile: vi.fn(() => hasCodexOauth),
-  authProfiles: {
-    syncConfigAuthReferencesForAgent: vi.fn(),
-  },
-  ensureGatewayProxyConfig: vi.fn(),
-  getBaseUrl: vi.fn(() => "https://example.com"),
-  startGateway: vi.fn(),
-});
+const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
+  const kOnboardingMarkerPath = "/tmp/alphaclaw/onboarded.json";
+  return {
+    fs: {
+      mkdirSync: vi.fn(),
+      existsSync: vi.fn((targetPath) =>
+        onboarded ? targetPath === kOnboardingMarkerPath : false,
+      ),
+      copyFileSync: vi.fn(),
+      rmSync: vi.fn(),
+      readFileSync: vi.fn(() => "{}"),
+      writeFileSync: vi.fn(),
+      appendFileSync: vi.fn(),
+    },
+    constants: {
+      OPENCLAW_DIR: "/tmp/openclaw",
+      WORKSPACE_DIR: "/tmp/openclaw/workspace",
+      kOnboardingMarkerPath,
+      kSystemVars: new Set(["WEBHOOK_TOKEN", "OPENCLAW_GATEWAY_TOKEN"]),
+      kKnownKeys: new Set([
+        "OPENAI_API_KEY",
+        "GITHUB_TOKEN",
+        "GITHUB_WORKSPACE_REPO",
+        "TELEGRAM_BOT_TOKEN",
+        "SLACK_BOT_TOKEN",
+      ]),
+    },
+    shellCmd: vi.fn(async () => ""),
+    gatewayEnv: vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "tok" })),
+    readEnvFile: vi.fn(() => []),
+    writeEnvFile: vi.fn(),
+    reloadEnv: vi.fn(),
+    isOnboarded: vi.fn(() => onboarded),
+    resolveGithubRepoUrl: vi.fn((value) => value),
+    resolveModelProvider: vi.fn((modelKey) => String(modelKey).split("/")[0]),
+    hasCodexOauthProfile: vi.fn(() => hasCodexOauth),
+    authProfiles: {
+      syncConfigAuthReferencesForAgent: vi.fn(),
+    },
+    ensureGatewayProxyConfig: vi.fn(),
+    getBaseUrl: vi.fn(() => "https://example.com"),
+    startGateway: vi.fn(),
+  };
+};
 
 const createApp = (deps) => {
   const app = express();
@@ -338,5 +352,102 @@ describe("server/routes/onboarding", () => {
       error:
         "Model provider authentication failed. Check your API key/token and try again.",
     });
+  });
+
+  it("fills missing imported env refs with placeholders during import onboarding", async () => {
+    const deps = createBaseDeps();
+    const files = new Map([
+      [
+        "/tmp/openclaw/openclaw.json",
+        JSON.stringify({
+          env: {
+            vars: {
+              NOTION_API_KEY: "${NOTION_API_KEY}",
+            },
+          },
+          hooks: {
+            token: "${WEBHOOK_TOKEN}",
+            transformsDir: "/root/.openclaw/hooks/transforms",
+          },
+          channels: {
+            $include: "channels.json",
+          },
+          gateway: {
+            auth: {
+              token: "${GATEWAY_AUTH_TOKEN}",
+            },
+          },
+          talk: {
+            apiKey: "${ELEVENLABS_API_KEY}",
+          },
+        }),
+      ],
+      [
+        "/tmp/openclaw/channels.json",
+        JSON.stringify({
+          slack: {
+            botToken: "${SLACK_BOT_TOKEN}",
+            appToken: "${SLACK_APP_TOKEN}",
+            userToken: "${SLACK_USER_TOKEN}",
+          },
+        }),
+      ],
+      ["/tmp/openclaw/.git", "gitdir"],
+      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
+      [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
+      [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
+    ]);
+    deps.fs.existsSync.mockImplementation((targetPath) => files.has(targetPath));
+    deps.fs.readFileSync.mockImplementation((targetPath) => files.get(targetPath) || "{}");
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      ...makeValidBody(),
+      vars: makeValidBody().vars.map((entry) =>
+        entry.key === "GITHUB_WORKSPACE_REPO"
+          ? { ...entry, value: "owner/target-repo" }
+          : entry,
+      ),
+      importMode: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(deps.writeEnvFile).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/target-repo" },
+        { key: "SLACK_BOT_TOKEN", value: "placeholder" },
+        { key: "SLACK_APP_TOKEN", value: "placeholder" },
+        { key: "SLACK_USER_TOKEN", value: "placeholder" },
+        { key: "ELEVENLABS_API_KEY", value: "placeholder" },
+        { key: "NOTION_API_KEY", value: "placeholder" },
+      ]),
+    );
+    expect(
+      deps.writeEnvFile.mock.calls.some(([vars]) =>
+        Array.isArray(vars) &&
+        vars.some((entry) => entry.key === "GATEWAY_AUTH_TOKEN"),
+      ),
+    ).toBe(false);
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"token": "${OPENCLAW_GATEWAY_TOKEN}"',
+    );
+    expect(files.get("/tmp/openclaw/openclaw.json")).not.toContain(
+      '"transformsDir"',
+    );
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) =>
+        cmd.includes('git remote set-url origin "https://github.com/owner/target-repo.git"'),
+      ),
+    ).toBe(true);
+    expect(deps.shellCmd).toHaveBeenCalledWith(
+      'openclaw models set "openai/gpt-5.1-codex"',
+      expect.objectContaining({
+        env: { OPENCLAW_GATEWAY_TOKEN: "tok" },
+      }),
+    );
   });
 });
