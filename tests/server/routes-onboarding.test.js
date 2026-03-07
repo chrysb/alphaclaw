@@ -384,6 +384,22 @@ describe("server/routes/onboarding", () => {
     });
   });
 
+  it("redacts fine-grained GitHub tokens from onboarding errors", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+    deps.shellCmd.mockRejectedValueOnce(
+      new Error('boom github_pat_super_secret_value openclaw onboard'),
+    );
+
+    const res = await request(app).post("/api/onboard").send(makeValidBody());
+
+    expect(res.status).toBe(500);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).not.toContain("github_pat_super_secret_value");
+    expect(res.body.error).toContain("***");
+  });
+
   it("returns a helpful OOM message when onboarding runs out of memory", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
@@ -853,5 +869,64 @@ describe("server/routes/onboarding", () => {
     expect(files.get(path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"))).toContain(
       '"token": "${OPENCLAW_GATEWAY_TOKEN}"',
     );
+  });
+
+  it("rejects import apply when approved secrets were not in the server scan", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-invalid-secret");
+    const files = new Map([
+      [
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify({
+          models: {
+            providers: {
+              openai: {
+                apiKey: "sk-live-real-secret",
+              },
+            },
+          },
+        }),
+      ],
+    ]);
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => targetPath === tempDir || files.has(targetPath),
+    );
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (files.has(targetPath)) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [{ name: "openclaw.json", isFile: () => true, isDirectory: () => false }];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation((targetPath) => files.get(targetPath) || "{}");
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [
+        {
+          file: "../outside.json",
+          configPath: "models.providers.openai.apiKey",
+          value: "sk-live-real-secret",
+          suggestedEnvVar: "BAD KEY",
+        },
+      ],
+      skipSecretExtraction: false,
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "Invalid approved secrets payload",
+    });
+    expect(deps.writeEnvFile).not.toHaveBeenCalled();
   });
 });
