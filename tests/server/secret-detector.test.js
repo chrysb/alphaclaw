@@ -5,7 +5,7 @@ const {
   matchesValuePrefix,
   maskValue,
   parseEnvFileSecrets,
-} = require("../../lib/server/onboarding/secret-detector");
+} = require("../../lib/server/onboarding/import/secret-detector");
 
 const createMockFs = (files = {}) => ({
   readFileSync: (p) => {

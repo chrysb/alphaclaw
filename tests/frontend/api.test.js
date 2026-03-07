@@ -67,6 +67,98 @@ describe("frontend/api", () => {
     expect(result).toEqual({ ok: true });
   });
 
+  it("verifyGithubOnboardingRepo posts repo, token, and mode", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, repoExists: true }));
+    const api = await loadApiModule();
+
+    const result = await api.verifyGithubOnboardingRepo(
+      "my-org/source-repo",
+      "ghp_123",
+      "existing",
+    );
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/onboard/github/verify",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          repo: "my-org/source-repo",
+          token: "ghp_123",
+          mode: "existing",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, repoExists: true });
+  });
+
+  it("scanImportRepo posts the temp dir payload", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, hasOpenclawSetup: true }));
+    const api = await loadApiModule();
+
+    const result = await api.scanImportRepo("/tmp/alphaclaw-import-1234");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/onboard/import/scan",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ tempDir: "/tmp/alphaclaw-import-1234" }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, hasOpenclawSetup: true });
+  });
+
+  it("applyImport posts import approval payload", async () => {
+    global.fetch.mockResolvedValue(
+      mockJsonResponse(200, {
+        ok: true,
+        envVarsImported: 2,
+        placeholderReview: {
+          found: true,
+          count: 1,
+          vars: [{ key: "SLACK_BOT_TOKEN", status: "missing" }],
+        },
+      }),
+    );
+    const api = await loadApiModule();
+
+    const result = await api.applyImport({
+      tempDir: "/tmp/alphaclaw-import-1234",
+      approvedSecrets: [{ suggestedEnvVar: "OPENAI_API_KEY", value: "sk-123" }],
+      skipSecretExtraction: false,
+      githubRepo: "owner/target-repo",
+      githubToken: "ghp_123",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/onboard/import/apply",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          tempDir: "/tmp/alphaclaw-import-1234",
+          approvedSecrets: [{ suggestedEnvVar: "OPENAI_API_KEY", value: "sk-123" }],
+          skipSecretExtraction: false,
+          githubRepo: "owner/target-repo",
+          githubToken: "ghp_123",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({
+      ok: true,
+      envVarsImported: 2,
+      placeholderReview: {
+        found: true,
+        count: 1,
+        vars: [{ key: "SLACK_BOT_TOKEN", status: "missing" }],
+      },
+    });
+  });
+
   it("saveEnvVars uses PUT with expected request body", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, changed: true }));
     const api = await loadApiModule();

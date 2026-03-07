@@ -196,7 +196,7 @@ describe("server/gateway restart behavior", () => {
     expect(gateway.isOnboarded()).toBe(true);
   });
 
-  it("backfills onboarding marker from config with primary model", () => {
+  it("does not backfill onboarding marker from config with primary model", () => {
     fs.existsSync = vi.fn((targetPath) => targetPath === `${OPENCLAW_DIR}/openclaw.json`);
     fs.mkdirSync = vi.fn();
     fs.writeFileSync = vi.fn();
@@ -214,15 +214,23 @@ describe("server/gateway restart behavior", () => {
       }),
     );
 
-    expect(gateway.isOnboarded()).toBe(true);
-    expect(fs.mkdirSync).toHaveBeenCalledWith(
-      ALPHACLAW_DIR,
-      { recursive: true },
+    expect(gateway.isOnboarded()).toBe(false);
+    expect(fs.mkdirSync).not.toHaveBeenCalled();
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("does not treat nested openclaw config as onboarded", () => {
+    fs.existsSync = vi.fn(
+      (targetPath) => targetPath === `${OPENCLAW_DIR}/.openclaw/openclaw.json`,
     );
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      kOnboardingMarkerPath,
-      expect.stringContaining('"reason": "config_primary_model"'),
-    );
+    fs.mkdirSync = vi.fn();
+    fs.writeFileSync = vi.fn();
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.isOnboarded()).toBe(false);
+    expect(fs.mkdirSync).not.toHaveBeenCalled();
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 
   it("backfills onboarding marker from legacy onboarding artifact", () => {

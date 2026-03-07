@@ -1,4 +1,5 @@
 const path = require("path");
+const os = require("os");
 const express = require("express");
 const request = require("supertest");
 
@@ -13,8 +14,13 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
       existsSync: vi.fn((targetPath) =>
         onboarded ? targetPath === kOnboardingMarkerPath : false,
       ),
+      statSync: vi.fn(() => {
+        throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+      }),
+      readdirSync: vi.fn(() => []),
       copyFileSync: vi.fn(),
       rmSync: vi.fn(),
+      renameSync: vi.fn(),
       readFileSync: vi.fn(() => "{}"),
       writeFileSync: vi.fn(),
       appendFileSync: vi.fn(),
@@ -197,6 +203,82 @@ describe("server/routes/onboarding", () => {
     expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
   });
 
+  it("allows existing source repos owned by a different accessible org", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({ full_name: "my-org/source-repo" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => [{ sha: "abc123" }],
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => ({ full_name: "my-org/source-repo" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        status: 200,
+        statusText: "OK",
+        json: async () => [{ sha: "abc123" }],
+      });
+    deps.shellCmd.mockResolvedValueOnce("");
+
+    const verifyRes = await request(app).post("/api/onboard/github/verify").send({
+      repo: "my-org/source-repo",
+      token: "ghp_test_123456789",
+      mode: "existing",
+    });
+
+    expect(verifyRes.status).toBe(200);
+    expect(verifyRes.body).toMatchObject({
+      ok: true,
+      repoExists: true,
+      repoIsEmpty: false,
+    });
+  });
+
+  it("rejects new workspace repos whose owner differs from the token user", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    global.fetch.mockResolvedValueOnce({
+      ok: true,
+      headers: { get: () => "repo" },
+      json: async () => ({ login: "owner" }),
+    });
+
+    const res = await request(app).post("/api/onboard/github/verify").send({
+      repo: "my-org/new-repo",
+      token: "ghp_test_123456789",
+      mode: "new",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: 'New workspace repo owner must match your token user "owner"',
+    });
+  });
+
   it("installs deterministic hourly git sync cron during successful onboarding", async () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
@@ -356,6 +438,7 @@ describe("server/routes/onboarding", () => {
 
   it("fills missing imported env refs with placeholders during import onboarding", async () => {
     const deps = createBaseDeps();
+    mockGithubVerifyAndCreate();
     const files = new Map([
       [
         "/tmp/openclaw/openclaw.json",
@@ -440,7 +523,9 @@ describe("server/routes/onboarding", () => {
     );
     expect(
       deps.shellCmd.mock.calls.some(([cmd]) =>
-        cmd.includes('git remote set-url origin "https://github.com/owner/target-repo.git"'),
+        cmd.includes(
+          'git init -b main && git remote add origin "https://github.com/owner/target-repo.git"',
+        ),
       ),
     ).toBe(true);
     expect(deps.shellCmd).toHaveBeenCalledWith(
@@ -448,6 +533,325 @@ describe("server/routes/onboarding", () => {
       expect.objectContaining({
         env: { OPENCLAW_GATEWAY_TOKEN: "tok" },
       }),
+    );
+  });
+
+  it("does not treat nested openclaw config as an imported config during completion", async () => {
+    const deps = createBaseDeps();
+    mockGithubVerifyAndCreate();
+    const files = new Map([
+      [
+        "/tmp/openclaw/.openclaw/openclaw.json",
+        JSON.stringify({
+          agents: {
+            defaults: {
+              model: {
+                primary: "openai/gpt-5.1-codex",
+              },
+            },
+          },
+        }),
+      ],
+      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
+      [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
+      [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
+    ]);
+    deps.fs.existsSync.mockImplementation((targetPath) => files.has(targetPath));
+    deps.fs.readFileSync.mockImplementation((targetPath) => files.get(targetPath) || "{}");
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      ...makeValidBody(),
+      importMode: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.startsWith("openclaw onboard ")),
+    ).toBe(true);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.includes('git remote set-url origin')),
+    ).toBe(false);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) =>
+        cmd.includes('git init -b main && git remote add origin "https://github.com/owner/repo.git"'),
+      ),
+    ).toBe(true);
+  });
+
+  it("creates the target repo during import onboarding before git-sync", async () => {
+    const deps = createBaseDeps();
+    mockGithubVerifyAndCreate({
+      repoStatus: 404,
+      repoOk: false,
+      createOk: true,
+      login: "owner",
+    });
+    const files = new Map([
+      ["/tmp/openclaw/openclaw.json", JSON.stringify({ gateway: { auth: {} } })],
+      ["/tmp/openclaw/.git", "gitdir"],
+      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
+      [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
+      [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
+    ]);
+    deps.fs.existsSync.mockImplementation((targetPath) => files.has(targetPath));
+    deps.fs.readFileSync.mockImplementation((targetPath) => files.get(targetPath) || "{}");
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      ...makeValidBody(),
+      vars: makeValidBody().vars.map((entry) =>
+        entry.key === "GITHUB_WORKSPACE_REPO"
+          ? { ...entry, value: "owner/import-target" }
+          : entry,
+      ),
+      importMode: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(global.fetch).toHaveBeenCalledWith(
+      "https://api.github.com/user/repos",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "import-target",
+          private: true,
+          auto_init: false,
+        }),
+      }),
+    );
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) =>
+        cmd.includes(
+          'git init -b main && git remote add origin "https://github.com/owner/import-target.git"',
+        ),
+      ),
+    ).toBe(true);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) =>
+        cmd.includes('alphaclaw git-sync -m "imported existing setup via AlphaClaw"'),
+      ),
+    ).toBe(true);
+  });
+
+  it("rejects nested .openclaw import sources during scan", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-nested");
+    deps.fs.existsSync.mockImplementation((targetPath) => targetPath === tempDir);
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir || targetPath === `${tempDir}/.openclaw`) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (targetPath === `${tempDir}/.openclaw/openclaw.json`) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [{ name: ".openclaw", isFile: () => false, isDirectory: () => true }];
+      }
+      if (targetPath === `${tempDir}/.openclaw`) {
+        return [{ name: "openclaw.json", isFile: () => true, isDirectory: () => false }];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation((targetPath) =>
+      targetPath === `${tempDir}/.openclaw/openclaw.json` ? "{}" : "{}",
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/scan").send({ tempDir });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error:
+        "This import source contains a nested .openclaw config. Point the source at the OpenClaw root itself, or at a workspace-only repo instead.",
+    });
+  });
+
+  it("promotes workspace-only imports into WORKSPACE_DIR", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-workspace");
+    deps.fs.existsSync.mockImplementation((targetPath) => {
+      if (
+        targetPath === tempDir ||
+        targetPath === `${tempDir}/workspace` ||
+        targetPath === `${tempDir}/workspace/skills` ||
+        targetPath === `${tempDir}/workspace/skills/email`
+      ) {
+        return true;
+      }
+      return false;
+    });
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (
+        targetPath === tempDir ||
+        targetPath === `${tempDir}/workspace` ||
+        targetPath === `${tempDir}/workspace/skills` ||
+        targetPath === `${tempDir}/workspace/skills/email`
+      ) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (targetPath === `${tempDir}/workspace/skills/email/SKILL.md`) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [{ name: "workspace", isFile: () => false, isDirectory: () => true }];
+      }
+      if (targetPath === `${tempDir}/workspace`) {
+        return [{ name: "skills", isFile: () => false, isDirectory: () => true }];
+      }
+      if (targetPath === `${tempDir}/workspace/skills`) {
+        return [{ name: "email", isFile: () => false, isDirectory: () => true }];
+      }
+      if (targetPath === `${tempDir}/workspace/skills/email`) {
+        return [{ name: "SKILL.md", isFile: () => true, isDirectory: () => false }];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation(() => "{}");
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [],
+      skipSecretExtraction: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({
+      ok: true,
+      sourceLayout: {
+        kind: "workspace-only",
+        supported: true,
+        promoteSourceSubdir: "workspace",
+      },
+    });
+    expect(deps.fs.renameSync).toHaveBeenCalledWith(
+      `${tempDir}/workspace`,
+      deps.constants.WORKSPACE_DIR,
+    );
+  });
+
+  it("returns unresolved placeholder review data after import apply", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-placeholder-review");
+    const fileEntry = (name) => ({
+      name,
+      isFile: () => true,
+      isDirectory: () => false,
+    });
+    const dirEntry = (name) => ({
+      name,
+      isFile: () => false,
+      isDirectory: () => true,
+    });
+    const files = new Map([
+      [
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify({
+          env: {
+            vars: {
+              NOTION_API_KEY: "${NOTION_API_KEY}",
+            },
+          },
+          channels: {
+            $include: "channels.json",
+          },
+          gateway: {
+            auth: {
+              token: "${GATEWAY_AUTH_TOKEN}",
+            },
+          },
+        }),
+      ],
+      [
+        path.join(tempDir, "channels.json"),
+        JSON.stringify({
+          slack: {
+            botToken: "${SLACK_BOT_TOKEN}",
+            appToken: "${SLACK_APP_TOKEN}",
+          },
+        }),
+      ],
+    ]);
+    const directories = new Set([tempDir]);
+    deps.readEnvFile.mockReturnValue([
+      { key: "NOTION_API_KEY", value: "notion-live-value" },
+    ]);
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => directories.has(targetPath) || files.has(targetPath),
+    );
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (directories.has(targetPath)) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (files.has(targetPath)) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [fileEntry("openclaw.json"), fileEntry("channels.json")];
+      }
+      if (targetPath === deps.constants.OPENCLAW_DIR) {
+        return [];
+      }
+      if (targetPath === path.join(tempDir, "workspace")) {
+        return [];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation((targetPath) => files.get(targetPath) || "{}");
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    deps.fs.renameSync.mockImplementation((sourcePath, targetPath) => {
+      if (sourcePath === tempDir && targetPath === deps.constants.OPENCLAW_DIR) {
+        directories.delete(tempDir);
+        directories.add(targetPath);
+        for (const [filePath, contents] of [...files.entries()]) {
+          if (!filePath.startsWith(`${sourcePath}/`)) continue;
+          files.delete(filePath);
+          files.set(`${targetPath}${filePath.slice(sourcePath.length)}`, contents);
+        }
+        return;
+      }
+      throw new Error(`Unexpected rename from ${sourcePath} to ${targetPath}`);
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [],
+      skipSecretExtraction: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.placeholderReview).toEqual({
+      found: true,
+      count: 2,
+      vars: [
+        { key: "SLACK_APP_TOKEN", status: "missing" },
+        { key: "SLACK_BOT_TOKEN", status: "missing" },
+      ],
+    });
+    expect(files.get(path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"))).toContain(
+      '"token": "${OPENCLAW_GATEWAY_TOKEN}"',
     );
   });
 });

@@ -4,7 +4,7 @@ const path = require("path");
 
 const {
   alignHookTransforms,
-} = require("../../lib/server/onboarding/import-applier");
+} = require("../../lib/server/onboarding/import/import-applier");
 
 const kTempDirs = [];
 

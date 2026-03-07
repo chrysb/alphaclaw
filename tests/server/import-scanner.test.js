@@ -1,5 +1,7 @@
 const path = require("path");
-const { scanWorkspace } = require("../../lib/server/onboarding/import-scanner");
+const {
+  scanWorkspace,
+} = require("../../lib/server/onboarding/import/import-scanner");
 
 const createMockFs = (files = {}, dirs = []) => {
   const fileMap = new Map(Object.entries(files));
@@ -8,8 +10,10 @@ const createMockFs = (files = {}, dirs = []) => {
   return {
     statSync: (p) => {
       const rel = p;
-      if (fileMap.has(rel)) return { isFile: () => true, isDirectory: () => false };
-      if (dirSet.has(rel)) return { isFile: () => false, isDirectory: () => true };
+      if (fileMap.has(rel))
+        return { isFile: () => true, isDirectory: () => false };
+      if (dirSet.has(rel))
+        return { isFile: () => false, isDirectory: () => true };
       throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
     },
     readFileSync: (p, enc) => {
@@ -67,15 +71,63 @@ describe("import-scanner", () => {
     expect(result.hasOpenclawSetup).toBe(true);
     expect(result.gatewayConfig.found).toBe(true);
     expect(result.gatewayConfig.files).toContain("openclaw.json");
+    expect(result.sourceLayout).toEqual({
+      kind: "full-openclaw-root",
+      supported: true,
+      promoteSourceSubdir: "",
+    });
   });
 
-  it("detects nested .openclaw/openclaw.json", () => {
+  it("ignores openclaw.json5 as an unsupported config filename", () => {
+    const fs = createMockFs({
+      "/tmp/test/openclaw.json5": JSON.stringify({
+        channels: { telegram: { botToken: "123" } },
+      }),
+    });
+    const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
+    expect(result.hasOpenclawSetup).toBe(false);
+    expect(result.gatewayConfig.found).toBe(false);
+    expect(result.sourceLayout).toEqual({
+      kind: "empty",
+      supported: true,
+      promoteSourceSubdir: "",
+    });
+  });
+
+  it("rejects nested .openclaw/openclaw.json sources", () => {
     const fs = createMockFs({
       "/tmp/test/.openclaw/openclaw.json": "{}",
     });
     const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
-    expect(result.gatewayConfig.found).toBe(true);
-    expect(result.gatewayConfig.files).toContain(".openclaw/openclaw.json");
+    expect(result.gatewayConfig.found).toBe(false);
+    expect(result.unsupportedNested).toEqual({
+      found: true,
+      files: [".openclaw/openclaw.json"],
+    });
+    expect(result.sourceLayout).toEqual({
+      kind: "unsupported-nested-openclaw",
+      supported: false,
+      error:
+        "This import source contains a nested .openclaw config. Point the source at the OpenClaw root itself, or at a workspace-only repo instead.",
+    });
+  });
+
+  it("rejects nested .openclaw env files as unsupported", () => {
+    const fs = createMockFs({
+      "/tmp/test/.openclaw/.env": "FOO=bar",
+    });
+    const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
+    expect(result.envFiles.found).toBe(false);
+    expect(result.unsupportedNested).toEqual({
+      found: true,
+      files: [".openclaw/.env"],
+    });
+    expect(result.sourceLayout).toEqual({
+      kind: "unsupported-nested-openclaw",
+      supported: false,
+      error:
+        "This import source contains a nested .openclaw config. Point the source at the OpenClaw root itself, or at a workspace-only repo instead.",
+    });
   });
 
   it("detects .env files", () => {
@@ -227,7 +279,8 @@ describe("import-scanner", () => {
           },
         },
       }),
-      "/tmp/test/.env": "OPENCLAW_GATEWAY_TOKEN=runtime\nWEBHOOK_TOKEN=repo-value\n",
+      "/tmp/test/.env":
+        "OPENCLAW_GATEWAY_TOKEN=runtime\nWEBHOOK_TOKEN=repo-value\n",
     });
     const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
     expect(result.managedEnvConflicts).toEqual({
@@ -257,5 +310,38 @@ describe("import-scanner", () => {
     });
     const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
     expect(result.gatewayConfig.files).toContain("channels.json");
+  });
+
+  it("classifies root workspace content as workspace-only", () => {
+    const fs = createMockFs({
+      "/tmp/test/AGENTS.md": "# agents",
+      "/tmp/test/skills/email/SKILL.md": "# skill",
+    });
+    const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
+    expect(result.sourceLayout).toEqual({
+      kind: "workspace-only",
+      supported: true,
+      promoteSourceSubdir: "",
+    });
+  });
+
+  it("classifies nested workspace directory repos as workspace-only", () => {
+    const fs = createMockFs(
+      {
+        "/tmp/test/workspace/skills/email/SKILL.md": "# skill",
+      },
+      [
+        "/tmp/test/workspace",
+        "/tmp/test/workspace/skills",
+        "/tmp/test/workspace/skills/email",
+      ],
+    );
+    const result = scanWorkspace({ fs, baseDir: "/tmp/test" });
+    expect(result.skills.files).toContain("email/SKILL.md");
+    expect(result.sourceLayout).toEqual({
+      kind: "workspace-only",
+      supported: true,
+      promoteSourceSubdir: "workspace",
+    });
   });
 });
