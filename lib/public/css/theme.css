@@ -513,6 +513,11 @@ textarea:focus {
   height: 28px;
 }
 
+.ac-segmented-control-full {
+  display: flex;
+  width: 100%;
+}
+
 .ac-segmented-control-button {
   border: 0;
   background: transparent;
@@ -525,6 +530,20 @@ textarea:focus {
   padding: 0 10px;
   cursor: pointer;
   transition: color 0.12s, background 0.12s;
+}
+
+.ac-segmented-control-full .ac-segmented-control-button {
+  flex: 1 1 0%;
+}
+
+.ac-segmented-control-lg {
+  height: 36px;
+  border-radius: 12px;
+}
+
+.ac-segmented-control-lg .ac-segmented-control-button {
+  font-size: 14px;
+  padding: 0 16px;
 }
 
 .ac-segmented-control-button:hover {

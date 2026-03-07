@@ -216,21 +216,7 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 5. Symlink <rootDir>/.openclaw/.env -> <rootDir>/.env
-// ---------------------------------------------------------------------------
-
-const openclawEnvLink = path.join(openclawDir, ".env");
-try {
-  if (!fs.existsSync(openclawEnvLink)) {
-    fs.symlinkSync(envFilePath, openclawEnvLink);
-    console.log(`[alphaclaw] Symlinked ${openclawEnvLink} -> ${envFilePath}`);
-  }
-} catch (e) {
-  console.log(`[alphaclaw] .env symlink skipped: ${e.message}`);
-}
-
-// ---------------------------------------------------------------------------
-// 6. Load .env into process.env
+// 5. Load .env into process.env
 // ---------------------------------------------------------------------------
 
 if (fs.existsSync(envFilePath)) {
@@ -530,23 +516,7 @@ if (!gogInstalled) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Configure gog keyring (file backend for headless environments)
-// ---------------------------------------------------------------------------
-
-process.env.GOG_KEYRING_PASSWORD =
-  process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
-const gogConfigFile = path.join(openclawDir, "gogcli", "config.json");
-
-if (!fs.existsSync(gogConfigFile)) {
-  fs.mkdirSync(path.join(openclawDir, "gogcli"), { recursive: true });
-  try {
-    execSync("gog auth keyring file", { stdio: "ignore" });
-    console.log("[alphaclaw] gog keyring configured (file backend)");
-  } catch {}
-}
-
-// ---------------------------------------------------------------------------
-// 8. Install/reconcile system cron entry
+// 7. Install/reconcile system cron entry
 // ---------------------------------------------------------------------------
 
 const packagedHourlyGitSyncPath = path.join(setupDir, "hourly-git-sync.sh");
