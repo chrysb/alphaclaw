@@ -59,7 +59,7 @@ Use this release flow when promoting tested beta builds to production:
    - `npm version prerelease --preid=beta`
    - `git push && git push --tags`
    - `npm publish --tag beta`
-3. For beta template testing (~/Projects/openclaw-railway template, beta branch), pin exact beta in template `package.json` (for example `0.3.2-beta.4`) to avoid Docker layer cache reusing old installs.
+3. Immediately after each beta publish, update `~/Projects/openclaw-railway-template` on the `beta` branch to pin the exact beta version in `package.json` (for example `0.3.2-beta.4`), then commit and push that template change. Do not leave the beta template on `latest`, or Docker layer cache can reuse an older install.
 4. When ready for production, publish a stable release version (for example `0.3.2`):
    - `npm version 0.3.2`
    - `git push && git push --tags`
