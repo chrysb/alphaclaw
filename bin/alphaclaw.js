@@ -481,6 +481,8 @@ if (!kSetupPassword) {
 
 process.env.OPENCLAW_HOME = rootDir;
 process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
+process.env.GOG_KEYRING_PASSWORD =
+  process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
 
 // ---------------------------------------------------------------------------
 // 8. Install gog (Google Workspace CLI) if not present
@@ -516,7 +518,7 @@ if (!gogInstalled) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Install/reconcile system cron entry
+// 9. Install/reconcile system cron entry
 // ---------------------------------------------------------------------------
 
 const packagedHourlyGitSyncPath = path.join(setupDir, "hourly-git-sync.sh");
