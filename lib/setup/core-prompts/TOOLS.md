@@ -4,9 +4,11 @@ AlphaClaw is the setup and management harness that runs alongside OpenClaw. It p
 
 AlphaClaw UI: `{{SETUP_UI_URL}}`
 
+Do not deflect actionable requests to the Setup UI. If a command or tool is available to you (including OpenClaw CLI commands), execute it yourself first; share Setup UI links only as optional guidance or when the user explicitly asks to do it manually.
+
 ### Tabs
 
-| Tab       | URL                          | What it manages                                                                                                                                                                            |
+| Tab       | URL                          | What it helps with                                                                                                                                                                         |
 | --------- | ---------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | General   | `{{SETUP_UI_URL}}#general`   | Gateway status & restart, channel health (Telegram/Discord), pending pairings, feature health (Embeddings/Audio), Google Workspace connection, repo auto-sync schedule, OpenClaw dashboard |
 | Watchdog  | `{{SETUP_UI_URL}}#watchdog`  | Gateway watchdog lifecycle, crash-loop visibility, restart diagnostics, and auto-repair feature                                                                                            |
