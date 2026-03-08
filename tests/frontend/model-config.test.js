@@ -5,6 +5,12 @@ describe("frontend/model-config", () => {
   it("maps openai-codex auth provider to openai", async () => {
     const modelConfig = await loadModelConfig();
     expect(modelConfig.getAuthProviderFromModelProvider("openai-codex")).toBe("openai");
+    expect(modelConfig.getAuthProviderFromModelProvider("volcengine-plan")).toBe(
+      "volcengine",
+    );
+    expect(modelConfig.getAuthProviderFromModelProvider("byteplus-plan")).toBe(
+      "byteplus",
+    );
     expect(modelConfig.getAuthProviderFromModelProvider("google")).toBe("google");
   });
 
@@ -13,6 +19,10 @@ describe("frontend/model-config", () => {
     const keys = modelConfig.getVisibleAiFieldKeys("openai-codex");
     expect(keys.has("OPENAI_API_KEY")).toBe(false);
     expect(keys.has("ANTHROPIC_API_KEY")).toBe(false);
+    const zaiKeys = modelConfig.getVisibleAiFieldKeys("zai");
+    expect(zaiKeys.has("ZAI_API_KEY")).toBe(true);
+    const volcengineKeys = modelConfig.getVisibleAiFieldKeys("volcengine-plan");
+    expect(volcengineKeys.has("VOLCANO_ENGINE_API_KEY")).toBe(true);
   });
 
   it("picks featured models in defined preference order", async () => {

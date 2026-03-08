@@ -271,7 +271,7 @@ describe("import-scanner", () => {
     const fs = createMockFs({
       "/tmp/test/openclaw.json": JSON.stringify({
         hooks: {
-          token: "${WEBHOOK_TOKEN}",
+          token: "repo-hook-token",
         },
         gateway: {
           auth: {
@@ -287,6 +287,7 @@ describe("import-scanner", () => {
       found: true,
       vars: ["OPENCLAW_GATEWAY_TOKEN", "WEBHOOK_TOKEN"],
       gatewayAuthNormalized: true,
+      webhookTokenNormalized: true,
     });
   });
 

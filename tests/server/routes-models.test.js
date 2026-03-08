@@ -197,4 +197,31 @@ describe("server/routes/models", () => {
     ]);
     expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
   });
+
+  it("writes newly supported provider API keys back to env vars", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    deps.authProfiles.getEnvVarForApiKeyProvider.mockImplementation((provider) =>
+      provider === "zai" ? "ZAI_API_KEY" : "",
+    );
+    deps.readEnvFile.mockReturnValue([{ key: "ZAI_API_KEY", value: "" }]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      profiles: [
+        {
+          id: "zai:default",
+          type: "api_key",
+          provider: "zai",
+          key: "zai-live-123",
+        },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "ZAI_API_KEY", value: "zai-live-123" },
+    ]);
+    expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
+  });
 });

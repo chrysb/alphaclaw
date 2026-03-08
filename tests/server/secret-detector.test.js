@@ -108,9 +108,98 @@ describe("secret-detector", () => {
       expect(anthropic).toBeDefined();
     });
 
+    it("uses documented explicit env names for known providers", () => {
+      const cfg = {
+        models: {
+          providers: {
+            zai: { apiKey: "zai-secret-value-12345" },
+            xai: { apiKey: "xai-secret-value-12345" },
+            minimax: { apiKey: "minimax-secret-value-12345" },
+            moonshot: { apiKey: "moonshot-secret-value-12345" },
+            "kimi-coding": { apiKey: "kimi-secret-value-12345" },
+            "vercel-ai-gateway": { apiKey: "gateway-secret-value-12345" },
+            volcengine: { apiKey: "volcengine-secret-value-12345" },
+          },
+        },
+      };
+      const fs = createMockFs({
+        "/base/openclaw.json": JSON.stringify(cfg),
+      });
+      const secrets = detectSecrets({
+        fs,
+        baseDir: "/base",
+        configFiles: ["openclaw.json"],
+        envFiles: [],
+      });
+      expect(
+        secrets.find((s) => s.configPath === "models.providers.zai.apiKey")
+          ?.suggestedEnvVar,
+      ).toBe("ZAI_API_KEY");
+      expect(
+        secrets.find((s) => s.configPath === "models.providers.xai.apiKey")
+          ?.suggestedEnvVar,
+      ).toBe("XAI_API_KEY");
+      expect(
+        secrets.find((s) => s.configPath === "models.providers.minimax.apiKey")
+          ?.suggestedEnvVar,
+      ).toBe("MINIMAX_API_KEY");
+      expect(
+        secrets.find((s) => s.configPath === "models.providers.moonshot.apiKey")
+          ?.suggestedEnvVar,
+      ).toBe("MOONSHOT_API_KEY");
+      expect(
+        secrets.find(
+          (s) => s.configPath === "models.providers.kimi-coding.apiKey",
+        )?.suggestedEnvVar,
+      ).toBe("KIMI_API_KEY");
+      expect(
+        secrets.find(
+          (s) => s.configPath === "models.providers.vercel-ai-gateway.apiKey",
+        )?.suggestedEnvVar,
+      ).toBe("AI_GATEWAY_API_KEY");
+      expect(
+        secrets.find(
+          (s) => s.configPath === "models.providers.volcengine.apiKey",
+        )?.suggestedEnvVar,
+      ).toBe("VOLCANO_ENGINE_API_KEY");
+    });
+
+    it("falls back to provider-scoped env names for unmapped model providers", () => {
+      const cfg = {
+        models: {
+          providers: {
+            "kimi-code": { apiKey: "kimi-secret-value-12345" },
+            customproxy: { apiKey: "custom-secret-value-12345" },
+          },
+        },
+      };
+      const fs = createMockFs({
+        "/base/openclaw.json": JSON.stringify(cfg),
+      });
+      const secrets = detectSecrets({
+        fs,
+        baseDir: "/base",
+        configFiles: ["openclaw.json"],
+        envFiles: [],
+      });
+      const kimi = secrets.find(
+        (s) => s.configPath === "models.providers.kimi-code.apiKey",
+      );
+      const customproxy = secrets.find(
+        (s) => s.configPath === "models.providers.customproxy.apiKey",
+      );
+      expect(kimi?.suggestedEnvVar).toBe("KIMI_CODE_API_KEY");
+      expect(customproxy?.suggestedEnvVar).toBe("CUSTOMPROXY_API_KEY");
+    });
+
     it("detects secrets by value prefix", () => {
       const cfg = {
         custom: { myField: "ghp_abcdef1234567890123456" },
+        models: {
+          providers: {
+            xai: { apiKey: "xai-abcdef1234567890" },
+          },
+        },
       };
       const fs = createMockFs({
         "/base/openclaw.json": JSON.stringify(cfg),
@@ -122,8 +211,12 @@ describe("secret-detector", () => {
         envFiles: [],
       });
       const ghp = secrets.find((s) => s.source === "value-prefix");
+      const xai = secrets.find(
+        (s) => s.configPath === "models.providers.xai.apiKey",
+      );
       expect(ghp).toBeDefined();
       expect(ghp.confidence).toBe("high");
+      expect(xai?.suggestedEnvVar).toBe("XAI_API_KEY");
     });
 
     it("skips values that are already env var references", () => {
@@ -199,6 +292,23 @@ describe("secret-detector", () => {
       });
       const gw = secrets.find((s) => s.configPath === "gateway.auth.token");
       expect(gw).toBeUndefined();
+    });
+
+    it("drops hooks.token because import normalizes it to WEBHOOK_TOKEN", () => {
+      const cfg = {
+        hooks: { token: "some-webhook-token-value" },
+      };
+      const fs = createMockFs({
+        "/base/openclaw.json": JSON.stringify(cfg),
+      });
+      const secrets = detectSecrets({
+        fs,
+        baseDir: "/base",
+        configFiles: ["openclaw.json"],
+        envFiles: [],
+      });
+      const webhook = secrets.find((s) => s.configPath === "hooks.token");
+      expect(webhook).toBeUndefined();
     });
   });
 

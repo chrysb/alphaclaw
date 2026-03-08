@@ -59,6 +59,8 @@ describe("server/helpers", () => {
       { key: "unknown/model-a", name: "Ignore me" },
       { key: "openai/gpt-5.1-codex", name: "OpenAI A" },
       { key: "anthropic/claude-opus-4-6", name: "Opus 4.6" },
+      { key: "zai/glm-5", name: "GLM 5" },
+      { key: "minimax/MiniMax-M2.5", name: "MiniMax M2.5" },
       { key: "openai/gpt-5.1-codex", name: "Duplicate" },
       { key: "google/gemini-3-pro-preview" },
       { bad: "shape" },
@@ -76,9 +78,19 @@ describe("server/helpers", () => {
         label: "google/gemini-3-pro-preview",
       },
       {
+        key: "minimax/MiniMax-M2.5",
+        provider: "minimax",
+        label: "MiniMax M2.5",
+      },
+      {
         key: "openai/gpt-5.1-codex",
         provider: "openai",
         label: "OpenAI A",
+      },
+      {
+        key: "zai/glm-5",
+        provider: "zai",
+        label: "GLM 5",
       },
     ]);
   });

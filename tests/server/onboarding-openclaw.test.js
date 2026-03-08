@@ -18,7 +18,11 @@ describe("server/onboarding/openclaw", () => {
       configPath,
       JSON.stringify(
         {
-          plugins: { load: { paths: [pluginPath] }, entries: {} },
+          plugins: {
+            allow: ["memory-core"],
+            load: { paths: [pluginPath] },
+            entries: {},
+          },
           channels: {},
           notes: "alphaclaw",
         },
@@ -36,9 +40,37 @@ describe("server/onboarding/openclaw", () => {
 
     const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(next.notes).toBe("${GOG_KEYRING_PASSWORD}");
+    expect(next.plugins.allow).toEqual(["memory-core", "usage-tracker"]);
     expect(next.plugins.load.paths).toContain(pluginPath);
     expect(next.plugins.load.paths).not.toContain(
       "/app/node_modules/@chrysb/${GOG_KEYRING_PASSWORD}/lib/plugin/usage-tracker",
     );
+  });
+
+  it("creates plugins.allow when missing before adding usage-tracker", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: { load: { paths: [] }, entries: {} },
+          channels: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: {},
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.plugins.allow).toEqual(["usage-tracker"]);
+    expect(next.plugins.entries["usage-tracker"]).toEqual({ enabled: true });
   });
 });

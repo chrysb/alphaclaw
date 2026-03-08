@@ -48,6 +48,15 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
     resolveModelProvider: vi.fn((modelKey) => String(modelKey).split("/")[0]),
     hasCodexOauthProfile: vi.fn(() => hasCodexOauth),
     authProfiles: {
+      getEnvVarForApiKeyProvider: vi.fn((provider) => {
+        const envKeys = {
+          anthropic: "ANTHROPIC_API_KEY",
+          openai: "OPENAI_API_KEY",
+          google: "GEMINI_API_KEY",
+        };
+        return envKeys[provider] || "";
+      }),
+      upsertApiKeyProfileForEnvVar: vi.fn(),
       syncConfigAuthReferencesForAgent: vi.fn(),
     },
     ensureGatewayProxyConfig: vi.fn(),
@@ -296,6 +305,10 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect(deps.startGateway).toHaveBeenCalledTimes(1);
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "openai",
+      "sk-test-123456789",
+    );
     expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledTimes(1);
     expect(deps.fs.copyFileSync).toHaveBeenCalledWith(
       path.join(kSetupDir, "core-prompts", "AGENTS.md"),
@@ -365,6 +378,36 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(400);
     expect(res.body.ok).toBe(false);
     expect(res.body.error).toContain('Repository "owner/repo" already exists');
+  });
+
+  it("seeds anthropic api key auth profile during onboarding", async () => {
+    const deps = createBaseDeps();
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") return "{}";
+      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
+      if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
+      if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
+      return "{}";
+    });
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send({
+      modelKey: "anthropic/claude-opus-4-6",
+      vars: [
+        { key: "ANTHROPIC_API_KEY", value: "sk-ant-test-123456789" },
+        { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "anthropic",
+      "sk-ant-test-123456789",
+    );
+    expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledTimes(1);
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {
@@ -792,6 +835,9 @@ describe("server/routes/onboarding", () => {
               token: "${GATEWAY_AUTH_TOKEN}",
             },
           },
+          hooks: {
+            token: "repo-hook-token",
+          },
         }),
       ],
       [
@@ -869,6 +915,111 @@ describe("server/routes/onboarding", () => {
     expect(files.get(path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"))).toContain(
       '"token": "${OPENCLAW_GATEWAY_TOKEN}"',
     );
+    expect(files.get(path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"))).toContain(
+      '"token": "${WEBHOOK_TOKEN}"',
+    );
+  });
+
+  it("canonicalizes imported env refs for known config paths during import apply", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-canonical-env-ref");
+    const fileEntry = (name) => ({
+      name,
+      isFile: () => true,
+      isDirectory: () => false,
+    });
+    const files = new Map([
+      [
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify({
+          tools: {
+            web: {
+              search: {
+                provider: "brave",
+                apiKey: "${REDACTED_USE_ENV_VAR}",
+              },
+            },
+          },
+        }),
+      ],
+      [path.join(tempDir, ".env"), "REDACTED_USE_ENV_VAR=brave-live-value\n"],
+    ]);
+    const directories = new Set([tempDir]);
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => directories.has(targetPath) || files.has(targetPath),
+    );
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (directories.has(targetPath)) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (files.has(targetPath)) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [fileEntry("openclaw.json"), fileEntry(".env")];
+      }
+      if (targetPath === deps.constants.OPENCLAW_DIR) {
+        return [];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation(
+      (targetPath) => files.get(targetPath) || "{}",
+    );
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    deps.fs.renameSync.mockImplementation((sourcePath, targetPath) => {
+      if (sourcePath === tempDir && targetPath === deps.constants.OPENCLAW_DIR) {
+        directories.delete(tempDir);
+        directories.add(targetPath);
+        for (const [filePath, contents] of [...files.entries()]) {
+          if (!filePath.startsWith(`${sourcePath}/`)) continue;
+          files.delete(filePath);
+          files.set(`${targetPath}${filePath.slice(sourcePath.length)}`, contents);
+        }
+        return;
+      }
+      throw new Error(`Unexpected rename from ${sourcePath} to ${targetPath}`);
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [
+        {
+          file: ".env",
+          configPath: ".env:REDACTED_USE_ENV_VAR",
+          key: "REDACTED_USE_ENV_VAR",
+          value: "brave-live-value",
+          maskedValue: "brav****alue",
+          suggestedEnvVar: "REDACTED_USE_ENV_VAR",
+          confidence: "high",
+          source: "env-file",
+          fileName: ".env",
+        },
+      ],
+      skipSecretExtraction: false,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.placeholderReview).toEqual({
+      found: false,
+      count: 0,
+      vars: [],
+    });
+    expect(res.body.canonicalizedEnvRefs).toBe(1);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "BRAVE_API_KEY", value: "brave-live-value" },
+    ]);
+    const importedConfig = files.get(
+      path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"),
+    );
+    expect(importedConfig).toContain('"apiKey": "${BRAVE_API_KEY}"');
+    expect(importedConfig).not.toContain("REDACTED_USE_ENV_VAR");
   });
 
   it("rejects import apply when approved secrets were not in the server scan", async () => {
