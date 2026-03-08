@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.5.3",
+  "version": "0.5.4-beta.0",
   "publishConfig": {
     "access": "public"
   },
