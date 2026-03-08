@@ -4,6 +4,7 @@ const path = require("path");
 
 const {
   alignHookTransforms,
+  applySecretExtraction,
 } = require("../../lib/server/onboarding/import/import-applier");
 
 const kTempDirs = [];
@@ -120,5 +121,54 @@ describe("import-applier", () => {
     expect(updatedConfig.hooks.mappings[0].transform.module).toBe(
       "fathom/fathom-transform.mjs",
     );
+  });
+
+  it("rewrites approved config secrets by config path before fallback replacement", () => {
+    const baseDir = createTempDir();
+    const configPath = path.join(baseDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          channels: {
+            discord: {
+              token: "discord-live-secret",
+            },
+          },
+          notes: {
+            repeatedToken: "discord-live-secret",
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const result = applySecretExtraction({
+      fs,
+      baseDir,
+      approvedSecrets: [
+        {
+          file: "openclaw.json",
+          configPath: "channels.discord.token",
+          value: "discord-live-secret",
+          suggestedEnvVar: "DISCORD_BOT_TOKEN",
+        },
+      ],
+    });
+
+    expect(result).toEqual({
+      envVars: [
+        {
+          key: "DISCORD_BOT_TOKEN",
+          value: "discord-live-secret",
+        },
+      ],
+    });
+
+    const updatedConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(updatedConfig.channels.discord.token).toBe("${DISCORD_BOT_TOKEN}");
+    expect(updatedConfig.notes.repeatedToken).toBe("${DISCORD_BOT_TOKEN}");
   });
 });

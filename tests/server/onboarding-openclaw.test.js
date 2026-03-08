@@ -3,6 +3,7 @@ const os = require("os");
 const path = require("path");
 
 const {
+  writeManagedImportOpenclawConfig,
   writeSanitizedOpenclawConfig,
 } = require("../../lib/server/onboarding/openclaw");
 
@@ -72,5 +73,39 @@ describe("server/onboarding/openclaw", () => {
     const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(next.plugins.allow).toEqual(["usage-tracker"]);
     expect(next.plugins.entries["usage-tracker"]).toEqual({ enabled: true });
+  });
+
+  it("resets imported allowlist dmPolicy to pairing when re-enabling discord", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: { allow: [], load: { paths: [] }, entries: {} },
+          channels: {
+            discord: {
+              enabled: false,
+              dmPolicy: "allowlist",
+              allowFrom: [],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeManagedImportOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { DISCORD_BOT_TOKEN: "discord-live-secret" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.discord.enabled).toBe(true);
+    expect(next.channels.discord.dmPolicy).toBe("pairing");
+    expect(next.channels.discord.token).toBe("${DISCORD_BOT_TOKEN}");
   });
 });

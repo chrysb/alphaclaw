@@ -360,6 +360,20 @@ describe("secret-detector", () => {
       });
       expect(preFill.TELEGRAM_BOT_TOKEN).toBeUndefined();
     });
+
+    it("reads channel prefill values from standalone channel config files", () => {
+      const fs = createMockFs({
+        "/base/channels.json": JSON.stringify({
+          discord: { token: "MTQ3xyz" },
+        }),
+      });
+      const preFill = extractPreFillValues({
+        fs,
+        baseDir: "/base",
+        configFiles: ["channels.json"],
+      });
+      expect(preFill.DISCORD_BOT_TOKEN).toBe("MTQ3xyz");
+    });
   });
 
   describe("parseEnvFileSecrets", () => {

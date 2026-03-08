@@ -577,6 +577,15 @@ describe("server/routes/onboarding", () => {
     expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
       '"token": "${OPENCLAW_GATEWAY_TOKEN}"',
     );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"botToken": "${TELEGRAM_BOT_TOKEN}"',
+    );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"usage-tracker"',
+    );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"bootstrap-extra-files"',
+    );
     expect(files.get("/tmp/openclaw/openclaw.json")).not.toContain(
       '"transformsDir"',
     );
@@ -918,6 +927,274 @@ describe("server/routes/onboarding", () => {
     expect(files.get(path.join(deps.constants.OPENCLAW_DIR, "openclaw.json"))).toContain(
       '"token": "${WEBHOOK_TOKEN}"',
     );
+  });
+
+  it("keeps imported channels enabled and clears pairing allowlists during import apply", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-reset-pairings");
+    const fileEntry = (name) => ({
+      name,
+      isFile: () => true,
+      isDirectory: () => false,
+    });
+    const dirEntry = (name) => ({
+      name,
+      isFile: () => false,
+      isDirectory: () => true,
+    });
+    const files = new Map([
+      [
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify({
+          channels: {
+            $include: "channels.json",
+          },
+        }),
+      ],
+      [
+        path.join(tempDir, "channels.json"),
+        JSON.stringify({
+          telegram: {
+            enabled: true,
+            botToken: "${TELEGRAM_BOT_TOKEN}",
+            dmPolicy: "allowlist",
+            accounts: {
+              midas: {
+                enabled: true,
+                allowFrom: ["legacy-user"],
+              },
+            },
+            groupAllowFrom: ["telegram-user"],
+            groups: {
+              "-100123": {
+                enabled: true,
+              },
+            },
+          },
+          discord: {
+            enabled: true,
+            dmPolicy: "allowlist",
+            token: "${DISCORD_BOT_TOKEN}",
+            allowFrom: ["discord-user"],
+          },
+        }),
+      ],
+      [
+        path.join(tempDir, "credentials", "telegram-main-allowFrom.json"),
+        JSON.stringify({
+          allowFrom: ["telegram-user"],
+          source: "imported",
+        }),
+      ],
+      [
+        path.join(tempDir, "credentials", "discord-main-allowFrom.json"),
+        JSON.stringify({
+          allowFrom: ["discord-user"],
+          source: "imported",
+        }),
+      ],
+    ]);
+    const directories = new Set([tempDir, path.join(tempDir, "credentials")]);
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => directories.has(targetPath) || files.has(targetPath),
+    );
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (directories.has(targetPath)) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (files.has(targetPath)) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [
+          fileEntry("openclaw.json"),
+          fileEntry("channels.json"),
+          dirEntry("credentials"),
+        ];
+      }
+      if (targetPath === path.join(tempDir, "credentials")) {
+        return [
+          fileEntry("telegram-main-allowFrom.json"),
+          fileEntry("discord-main-allowFrom.json"),
+        ];
+      }
+      if (targetPath === deps.constants.OPENCLAW_DIR) {
+        return [];
+      }
+      if (targetPath === path.join(deps.constants.OPENCLAW_DIR, "credentials")) {
+        return ["telegram-main-allowFrom.json", "discord-main-allowFrom.json"];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation(
+      (targetPath) => files.get(targetPath) || "{}",
+    );
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    deps.fs.renameSync.mockImplementation((sourcePath, targetPath) => {
+      if (sourcePath === tempDir && targetPath === deps.constants.OPENCLAW_DIR) {
+        for (const directoryPath of [...directories]) {
+          if (
+            directoryPath === sourcePath ||
+            directoryPath.startsWith(`${sourcePath}/`)
+          ) {
+            directories.delete(directoryPath);
+            directories.add(`${targetPath}${directoryPath.slice(sourcePath.length)}`);
+          }
+        }
+        for (const [filePath, contents] of [...files.entries()]) {
+          if (!filePath.startsWith(`${sourcePath}/`)) continue;
+          files.delete(filePath);
+          files.set(`${targetPath}${filePath.slice(sourcePath.length)}`, contents);
+        }
+        return;
+      }
+      throw new Error(`Unexpected rename from ${sourcePath} to ${targetPath}`);
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [],
+      skipSecretExtraction: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(
+      JSON.parse(files.get(path.join(deps.constants.OPENCLAW_DIR, "channels.json"))),
+    ).toEqual({
+      telegram: {
+        enabled: true,
+        botToken: "${TELEGRAM_BOT_TOKEN}",
+        dmPolicy: "pairing",
+        groupAllowFrom: [],
+        groups: {
+          "-100123": {
+            enabled: true,
+          },
+        },
+      },
+      discord: {
+        enabled: true,
+        dmPolicy: "pairing",
+        token: "${DISCORD_BOT_TOKEN}",
+        allowFrom: [],
+      },
+    });
+    expect(
+      JSON.parse(
+        files.get(
+          path.join(
+            deps.constants.OPENCLAW_DIR,
+            "credentials",
+            "telegram-main-allowFrom.json",
+          ),
+        ),
+      ),
+    ).toEqual({
+      allowFrom: [],
+      source: "imported",
+    });
+    expect(
+      JSON.parse(
+        files.get(
+          path.join(
+            deps.constants.OPENCLAW_DIR,
+            "credentials",
+            "discord-main-allowFrom.json",
+          ),
+        ),
+      ),
+    ).toEqual({
+      allowFrom: [],
+      source: "imported",
+    });
+  });
+
+  it("returns prefill values from included channel config files during import apply", async () => {
+    const deps = createBaseDeps();
+    const tempDir = path.join(os.tmpdir(), "alphaclaw-import-prefill-includes");
+    const fileEntry = (name) => ({
+      name,
+      isFile: () => true,
+      isDirectory: () => false,
+    });
+    const files = new Map([
+      [
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify({
+          channels: {
+            $include: "channels.json",
+          },
+        }),
+      ],
+      [
+        path.join(tempDir, "channels.json"),
+        JSON.stringify({
+          discord: {
+            enabled: true,
+            token: "MTQ3discord-secret",
+          },
+        }),
+      ],
+    ]);
+    const directories = new Set([tempDir]);
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => directories.has(targetPath) || files.has(targetPath),
+    );
+    deps.fs.statSync.mockImplementation((targetPath) => {
+      if (directories.has(targetPath)) {
+        return { isFile: () => false, isDirectory: () => true };
+      }
+      if (files.has(targetPath)) {
+        return { isFile: () => true, isDirectory: () => false };
+      }
+      throw Object.assign(new Error("ENOENT"), { code: "ENOENT" });
+    });
+    deps.fs.readdirSync.mockImplementation((targetPath) => {
+      if (targetPath === tempDir) {
+        return [fileEntry("openclaw.json"), fileEntry("channels.json")];
+      }
+      if (targetPath === deps.constants.OPENCLAW_DIR) {
+        return [];
+      }
+      return [];
+    });
+    deps.fs.readFileSync.mockImplementation(
+      (targetPath) => files.get(targetPath) || "{}",
+    );
+    deps.fs.writeFileSync.mockImplementation((targetPath, contents) => {
+      files.set(targetPath, String(contents));
+    });
+    deps.fs.renameSync.mockImplementation((sourcePath, targetPath) => {
+      if (sourcePath === tempDir && targetPath === deps.constants.OPENCLAW_DIR) {
+        directories.delete(tempDir);
+        directories.add(targetPath);
+        for (const [filePath, contents] of [...files.entries()]) {
+          if (!filePath.startsWith(`${sourcePath}/`)) continue;
+          files.delete(filePath);
+          files.set(`${targetPath}${filePath.slice(sourcePath.length)}`, contents);
+        }
+        return;
+      }
+      throw new Error(`Unexpected rename from ${sourcePath} to ${targetPath}`);
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard/import/apply").send({
+      tempDir,
+      approvedSecrets: [],
+      skipSecretExtraction: true,
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body.preFill).toEqual({
+      DISCORD_BOT_TOKEN: "MTQ3discord-secret",
+    });
   });
 
   it("canonicalizes imported env refs for known config paths during import apply", async () => {
