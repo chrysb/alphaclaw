@@ -62,7 +62,7 @@ describe("server/helpers", () => {
       { key: "zai/glm-5", name: "GLM 5" },
       { key: "minimax/MiniMax-M2.5", name: "MiniMax M2.5" },
       { key: "openai/gpt-5.1-codex", name: "Duplicate" },
-      { key: "google/gemini-3-pro-preview" },
+      { key: "google/gemini-3.1-pro-preview" },
       { bad: "shape" },
     ]);
 
@@ -73,9 +73,9 @@ describe("server/helpers", () => {
         label: "Opus 4.6",
       },
       {
-        key: "google/gemini-3-pro-preview",
+        key: "google/gemini-3.1-pro-preview",
         provider: "google",
-        label: "google/gemini-3-pro-preview",
+        label: "google/gemini-3.1-pro-preview",
       },
       {
         key: "minimax/MiniMax-M2.5",

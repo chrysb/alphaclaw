@@ -28,7 +28,7 @@ describe("frontend/model-config", () => {
   it("picks featured models in defined preference order", async () => {
     const modelConfig = await loadModelConfig();
     const featured = modelConfig.getFeaturedModels([
-      { key: "google/gemini-3-pro-preview", label: "Gemini 3 Pro Preview" },
+      { key: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
       { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
       { key: "openai-codex/gpt-5.3-codex", label: "Codex 5.3" },
     ]);
@@ -36,7 +36,8 @@ describe("frontend/model-config", () => {
     expect(featured.map((entry) => entry.key)).toEqual([
       "anthropic/claude-opus-4-6",
       "openai-codex/gpt-5.3-codex",
-      "google/gemini-3-pro-preview",
+      "google/gemini-3.1-pro-preview",
     ]);
+    expect(featured[2]?.featuredLabel).toBe("Gemini 3.1 Pro");
   });
 });

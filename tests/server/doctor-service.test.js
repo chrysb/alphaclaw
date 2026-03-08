@@ -137,6 +137,89 @@ describe("server/doctor-service", () => {
     );
   });
 
+  it("does not suppress previously fixed findings on later Doctor runs", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fixed-rerun-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fixed-rerun-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Workspace Guidance\n", "utf8");
+    fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# Initial docs\n", "utf8");
+
+    const doctorDb = loadDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    let runCount = 0;
+    const clawCmd = vi.fn(async () => {
+      runCount += 1;
+      return {
+        ok: true,
+        stdout: JSON.stringify({
+          summary: `Run ${runCount}`,
+          cards: [
+            {
+              priority: "P1",
+              category: "workspace",
+              title: "Stale docs remain",
+              summary: "README still contains stale guidance",
+              recommendation: "Update README to match the current workspace",
+              evidence: [{ type: "path", path: "README.md" }],
+              targetPaths: ["README.md"],
+              fixPrompt: "Update README safely.",
+              status: "open",
+            },
+          ],
+        }),
+        stderr: "",
+        code: 0,
+      };
+    });
+    const { createDoctorService } = loadDoctorService();
+    const buildDoctorService = () =>
+      createDoctorService({
+        clawCmd,
+        listDoctorRuns: doctorDb.listDoctorRuns,
+        listDoctorCards: doctorDb.listDoctorCards,
+        getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+        setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+        createDoctorRun: doctorDb.createDoctorRun,
+        completeDoctorRun: doctorDb.completeDoctorRun,
+        insertDoctorCards: doctorDb.insertDoctorCards,
+        getDoctorRun: doctorDb.getDoctorRun,
+        getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+        getDoctorCard: doctorDb.getDoctorCard,
+        updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+        workspaceRoot,
+        managedRoot: workspaceRoot,
+      });
+    const doctorService = buildDoctorService();
+
+    const firstRun = doctorService.runDoctor();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    const firstRunCards = doctorDb.getDoctorCardsByRunId(firstRun.runId);
+    doctorService.setCardStatus({
+      cardId: firstRunCards[0].id,
+      status: "fixed",
+    });
+
+    fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# Updated docs\n", "utf8");
+
+    const secondRun = buildDoctorService().runDoctor();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(clawCmd).toHaveBeenCalledTimes(2);
+    expect(clawCmd.mock.calls[1][0]).toContain("Previously fixed findings");
+    expect(clawCmd.mock.calls[1][0]).toContain("[fixed] Stale docs remain (workspace)");
+    expect(clawCmd.mock.calls[1][0]).toContain(
+      "Previously fixed findings may be re-suggested if the underlying issue is still present",
+    );
+    expect(doctorDb.getDoctorCardsByRunId(secondRun.runId)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          title: "Stale docs remain",
+          status: "open",
+        }),
+      ]),
+    );
+  });
+
   it("reports meaningful workspace drift only after a stale completed run", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-drift-workspace-"));
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-drift-db-"));

@@ -41,4 +41,39 @@ describe("server/doctor-prompt", () => {
       "Do not create cards whose primary recommendation is to refactor AlphaClaw-managed file structure",
     );
   });
+
+  it("frames dismissed findings as suppressed and fixed findings as context only", () => {
+    const prompt = buildDoctorPrompt({
+      workspaceRoot: "/tmp/workspace",
+      managedRoot: "/tmp/managed",
+      resolvedCards: [
+        {
+          status: "dismissed",
+          title: "Cleanup docs",
+          category: "workspace",
+        },
+        {
+          status: "fixed",
+          title: "Stale docs remain",
+          category: "workspace",
+        },
+      ],
+      promptVersion: "doctor-v1",
+    });
+
+    expect(prompt).toContain("Previously dismissed findings");
+    expect(prompt).toContain("[dismissed] Cleanup docs (workspace)");
+    expect(prompt).toContain("Previously fixed findings");
+    expect(prompt).toContain("[fixed] Stale docs remain (workspace)");
+    expect(prompt).toContain(
+      'Do not re-suggest findings that appear in the "Previously dismissed" list above',
+    );
+    expect(prompt).toContain(
+      "Previously fixed findings may be re-suggested if the underlying issue is still present",
+    );
+    expect(prompt).toContain(
+      "If a previously fixed finding is still present, you may call that out in the summary or card wording",
+    );
+    expect(prompt).not.toContain("Previously resolved findings");
+  });
 });

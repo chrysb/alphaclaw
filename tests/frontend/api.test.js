@@ -317,6 +317,64 @@ describe("frontend/api", () => {
     expect(result).toEqual({ ok: true, stdout: "sent" });
   });
 
+  it("createWebhook posts optional destination fields", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(201, { ok: true, webhook: { name: "gmail" } }));
+    const api = await loadApiModule();
+
+    const result = await api.createWebhook("gmail-alerts", {
+      destination: {
+        channel: "telegram",
+        to: "-1003709908795:4011",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/webhooks",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          name: "gmail-alerts",
+          destination: {
+            channel: "telegram",
+            to: "-1003709908795:4011",
+          },
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, webhook: { name: "gmail" } });
+  });
+
+  it("startGmailWatch posts optional destination fields", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, accountId: "acct-1" }));
+    const api = await loadApiModule();
+
+    const result = await api.startGmailWatch("acct-1", {
+      destination: {
+        channel: "telegram",
+        to: "1050",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/gmail/watch/start",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          accountId: "acct-1",
+          destination: {
+            channel: "telegram",
+            to: "1050",
+          },
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, accountId: "acct-1" });
+  });
+
   it("syncBrowseChanges posts commit message", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, committed: true }));
     const api = await loadApiModule();

@@ -74,4 +74,59 @@ describe("server/gmail-watch", () => {
       "projects/new-project/topics/gog-gmail-watch",
     );
   });
+
+  it("reports whether the Gmail transform already exists in client config", () => {
+    const statePath = "/tmp/gogcli/state.json";
+    const configDir = "/tmp/gogcli";
+    const openclawDir = "/tmp/.openclaw";
+    const fs = createMemoryFs({
+      [statePath]: JSON.stringify({
+        version: 2,
+        accounts: [
+          {
+            id: "acct-1",
+            email: "ops@example.com",
+            client: "default",
+            services: ["gmail:read"],
+            gmailWatch: {},
+          },
+        ],
+        gmailPush: {
+          token: "push-token",
+          topics: {
+            default: "projects/my-project/topics/gog-gmail-watch",
+          },
+        },
+      }),
+      [`${openclawDir}/hooks/transforms/gmail/gmail-transform.mjs`]:
+        "export default async function transform() {}",
+    });
+    const service = createGmailWatchService({
+      fs,
+      constants: {
+        GOG_STATE_PATH: statePath,
+        GOG_CONFIG_DIR: configDir,
+        OPENCLAW_DIR: openclawDir,
+      },
+      gogCmd: async () => ({ ok: true, stdout: "", stderr: "" }),
+      getBaseUrl: () => "https://alphaclaw.example",
+      readGoogleCredentials: () => ({
+        projectId: "my-project",
+      }),
+      readEnvFile: () => [],
+      writeEnvFile: () => {},
+      reloadEnv: () => {},
+      restartRequiredState: null,
+    });
+
+    const result = service.getConfig({ req: {} });
+
+    expect(result.clients).toEqual([
+      expect.objectContaining({
+        client: "default",
+        configured: true,
+        transformExists: true,
+      }),
+    ]);
+  });
 });

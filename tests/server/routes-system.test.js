@@ -76,6 +76,7 @@ const createSystemDeps = () => {
       getGroup: vi.fn(() => null),
     },
     authProfiles: {
+      listApiKeyProviders: vi.fn(() => ["openai"]),
       getEnvVarForApiKeyProvider: vi.fn((provider) =>
         provider === "openai" ? "OPENAI_API_KEY" : "",
       ),
@@ -498,8 +499,8 @@ describe("server/routes/system", () => {
         sessionId: "topic-session",
         updatedAt: 5,
         label: "Telegram AlphaClaw · Rosebud",
-        replyChannel: "",
-        replyTo: "",
+        replyChannel: "telegram",
+        replyTo: "-1003709908795:4011",
       },
     ]);
   });

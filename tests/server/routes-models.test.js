@@ -22,6 +22,12 @@ const createModelDeps = () => {
       getEnvVarForApiKeyProvider: vi.fn((provider) =>
         provider === "openai" ? "OPENAI_API_KEY" : "",
       ),
+      listApiKeyProviders: vi.fn(() => ["openai"]),
+      getDefaultProfileIdForApiKeyProvider: vi.fn((provider) =>
+        provider ? `${provider}:default` : "",
+      ),
+      upsertApiKeyProfileForEnvVar: vi.fn(),
+      removeApiKeyProfileForEnvVar: vi.fn(),
       setAuthOrder: vi.fn(),
       syncConfigAuthReferencesForAgent: vi.fn(),
       removeProfile: vi.fn(),
@@ -99,7 +105,7 @@ describe("server/routes/models", () => {
     deps.parseJsonFromNoisyOutput.mockReturnValue({
       resolvedDefault: "openai/gpt-5.1-codex",
       fallbacks: ["anthropic/claude-opus-4-6"],
-      imageModel: "google/gemini-3-pro-preview",
+      imageModel: "google/gemini-3.1-pro-preview",
     });
     const app = createApp(deps);
 
@@ -110,7 +116,7 @@ describe("server/routes/models", () => {
       ok: true,
       modelKey: "openai/gpt-5.1-codex",
       fallbacks: ["anthropic/claude-opus-4-6"],
-      imageModel: "google/gemini-3-pro-preview",
+      imageModel: "google/gemini-3.1-pro-preview",
     });
   });
 
@@ -174,6 +180,28 @@ describe("server/routes/models", () => {
     );
   });
 
+  it("prefills default api-key auth profiles from env vars on GET /api/models/config", async () => {
+    const deps = createModelDeps();
+    deps.readEnvFile.mockReturnValue([{ key: "GEMINI_API_KEY", value: "AI-live-123" }]);
+    deps.authProfiles.listApiKeyProviders.mockReturnValue(["google"]);
+    deps.authProfiles.getEnvVarForApiKeyProvider.mockImplementation((provider) =>
+      provider === "google" ? "GEMINI_API_KEY" : "",
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/models/config");
+
+    expect(res.status).toBe(200);
+    expect(res.body.authProfiles).toEqual([
+      {
+        id: "google:default",
+        type: "api_key",
+        provider: "google",
+        key: "AI-live-123",
+      },
+    ]);
+  });
+
   it("writes API-key model auth changes back to env vars", async () => {
     const deps = createModelDeps();
     deps.shellCmd.mockResolvedValue("");
@@ -223,5 +251,30 @@ describe("server/routes/models", () => {
       { key: "ZAI_API_KEY", value: "zai-live-123" },
     ]);
     expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
+  });
+
+  it("syncs env-backed api-key profiles into auth storage on PUT /api/models/config", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    deps.readEnvFile.mockReturnValue([{ key: "GEMINI_API_KEY", value: "AI-live-123" }]);
+    deps.authProfiles.listApiKeyProviders.mockReturnValue(["google"]);
+    deps.authProfiles.getEnvVarForApiKeyProvider.mockImplementation((provider) =>
+      provider === "google" ? "GEMINI_API_KEY" : "",
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      primary: "google/gemini-3.1-pro-preview",
+      configuredModels: {
+        "google/gemini-3.1-pro-preview": {},
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "google",
+      "AI-live-123",
+      undefined,
+    );
   });
 });
