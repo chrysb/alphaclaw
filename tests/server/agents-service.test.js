@@ -111,6 +111,95 @@ describe("server/agents/service", () => {
     expect(agent.workspace).toBe("/tmp/openclaw/workspace-sales-custom");
   });
 
+  it("removes the agent model key when clearing an override", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            {
+              id: "main",
+              default: true,
+              model: {
+                primary: "anthropic/claude-sonnet-4-6",
+              },
+            },
+          ],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    const updated = service.updateAgent("main", { model: null });
+    const config = fsMock.readConfig();
+
+    expect(updated).not.toHaveProperty("model");
+    expect(config.agents.list[0]).not.toHaveProperty("model");
+  });
+
+  it("calculates workspace size recursively for an agent", () => {
+    let currentConfig = {
+      agents: {
+        list: [
+          {
+            id: "main",
+            default: true,
+            workspace: "/tmp/openclaw/workspace",
+          },
+        ],
+      },
+    };
+    const statsByPath = new Map([
+      ["/tmp/openclaw/workspace", { type: "dir" }],
+      ["/tmp/openclaw/workspace/notes.txt", { type: "file", size: 120 }],
+      ["/tmp/openclaw/workspace/nested", { type: "dir" }],
+      ["/tmp/openclaw/workspace/nested/context.md", { type: "file", size: 880 }],
+    ]);
+    const entriesByDir = new Map([
+      ["/tmp/openclaw/workspace", ["notes.txt", "nested"]],
+      ["/tmp/openclaw/workspace/nested", ["context.md"]],
+    ]);
+    const fsMock = {
+      existsSync: vi.fn(() => true),
+      mkdirSync: vi.fn(),
+      rmSync: vi.fn(),
+      readFileSync: vi.fn((targetPath) => {
+        if (String(targetPath || "").endsWith("openclaw.json")) {
+          return JSON.stringify(currentConfig);
+        }
+        return "";
+      }),
+      writeFileSync: vi.fn((targetPath, content) => {
+        if (String(targetPath || "").endsWith("openclaw.json")) {
+          currentConfig = JSON.parse(String(content || "{}"));
+        }
+      }),
+      readdirSync: vi.fn((targetPath) => entriesByDir.get(String(targetPath || "")) || []),
+      statSync: vi.fn((targetPath) => {
+        const entry = statsByPath.get(String(targetPath || ""));
+        if (!entry) throw new Error("ENOENT");
+        return {
+          size: Number(entry.size || 0),
+          isFile: () => entry.type === "file",
+          isDirectory: () => entry.type === "dir",
+          isSymbolicLink: () => false,
+        };
+      }),
+    };
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    expect(service.getAgentWorkspaceSize("main")).toEqual({
+      workspacePath: "/tmp/openclaw/workspace",
+      exists: true,
+      sizeBytes: 1000,
+    });
+  });
+
   it("removes bindings when deleting an agent", () => {
     const fsMock = buildFsMock({
       initialConfig: {

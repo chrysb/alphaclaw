@@ -27,6 +27,11 @@ const createAgentsServiceMock = () => ({
   getAgent: vi.fn((id) =>
     id === "main" ? { id: "main", name: "Main Agent", default: true } : null,
   ),
+  getAgentWorkspaceSize: vi.fn(() => ({
+    workspacePath: "/tmp/openclaw/workspace",
+    exists: true,
+    sizeBytes: 3072,
+  })),
   getBindingsForAgent: vi.fn(() => [
     { agentId: "main", match: { channel: "telegram", accountId: "default" } },
   ]),
@@ -155,6 +160,18 @@ describe("server/routes/agents", () => {
       id: "ops",
       name: "Ops Agent",
     });
+  });
+
+  it("loads workspace size on GET /api/agents/:id/workspace-size", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get("/api/agents/main/workspace-size");
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.sizeBytes).toBe(3072);
+    expect(agentsService.getAgentWorkspaceSize).toHaveBeenCalledWith("main");
   });
 
   it("returns 409 for duplicate agent ids", async () => {

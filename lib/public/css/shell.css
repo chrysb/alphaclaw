@@ -222,7 +222,9 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 120px;
+  min-width: max-content;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
   background: var(--bg-sidebar);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
@@ -231,16 +233,25 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.brand-dropdown a {
+.brand-dropdown a,
+.brand-dropdown-item {
   display: block;
+  width: 100%;
   padding: 6px 10px;
+  font: inherit;
   font-size: 12px;
   color: var(--text-muted);
   text-decoration: none;
   border-radius: 5px;
   transition: background 0.1s, color 0.1s;
+  background: transparent;
+  border: none;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.brand-dropdown a:hover { background: var(--bg-hover); color: var(--text); }
+.brand-dropdown a:hover,
+.brand-dropdown-item:hover { background: var(--bg-hover); color: var(--text); }
 
 /* ── Statusbar ─────────────────────────────────── */
 

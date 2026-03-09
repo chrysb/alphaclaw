@@ -4,6 +4,10 @@
 
 AlphaClaw is the ops and setup layer around OpenClaw. It provides a browser-based setup UI, gateway lifecycle management, watchdog recovery flows, and integrations (for example Telegram, Discord, Google Workspace, and webhooks) so users can operate OpenClaw without manual server intervention.
 
+### Understanding OpenClaw
+
+If you need to understand the internals of OpenClaw, you can inspect the code at `~/Projects/openclaw/src`
+
 ### Architecture At A Glance
 
 - `bin/alphaclaw.js`: CLI entrypoint and lifecycle command surface.
