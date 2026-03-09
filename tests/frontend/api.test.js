@@ -448,4 +448,106 @@ describe("frontend/api", () => {
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:test-url");
     expect(result).toEqual({ ok: true });
   });
+
+  it("createChannelAccount posts provider, token, and agent binding fields", async () => {
+    global.fetch.mockResolvedValue(
+      mockJsonResponse(201, {
+        ok: true,
+        channel: "telegram",
+        account: { id: "alerts", envKey: "TELEGRAM_BOT_TOKEN_ALERTS" },
+      }),
+    );
+    const api = await loadApiModule();
+
+    const result = await api.createChannelAccount({
+      provider: "telegram",
+      name: "Alerts",
+      accountId: "alerts",
+      token: "123:abc",
+      agentId: "ops",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/channels/accounts",
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({
+          provider: "telegram",
+          name: "Alerts",
+          accountId: "alerts",
+          token: "123:abc",
+          agentId: "ops",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({
+      ok: true,
+      channel: "telegram",
+      account: { id: "alerts", envKey: "TELEGRAM_BOT_TOKEN_ALERTS" },
+    });
+  });
+
+  it("updateChannelAccount posts editable channel fields", async () => {
+    global.fetch.mockResolvedValue(
+      mockJsonResponse(200, {
+        ok: true,
+        channel: "telegram",
+        account: { id: "alerts", name: "Alerts Bot", boundAgentId: "main" },
+      }),
+    );
+    const api = await loadApiModule();
+
+    const result = await api.updateChannelAccount({
+      provider: "telegram",
+      accountId: "alerts",
+      name: "Alerts Bot",
+      agentId: "main",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/channels/accounts",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          provider: "telegram",
+          accountId: "alerts",
+          name: "Alerts Bot",
+          agentId: "main",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({
+      ok: true,
+      channel: "telegram",
+      account: { id: "alerts", name: "Alerts Bot", boundAgentId: "main" },
+    });
+  });
+
+  it("deleteChannelAccount sends provider and account id", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true }));
+    const api = await loadApiModule();
+
+    const result = await api.deleteChannelAccount({
+      provider: "telegram",
+      accountId: "alerts",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/channels/accounts",
+      expect.objectContaining({
+        method: "DELETE",
+        body: JSON.stringify({
+          provider: "telegram",
+          accountId: "alerts",
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true });
+  });
 });

@@ -17,6 +17,92 @@ const createApp = ({ clawCmd, isOnboarded, fsModule }) => {
 };
 
 describe("server/routes/pairings", () => {
+  it("lists pending pairings with account ids from CLI json output", async () => {
+    const clawCmd = vi.fn(async (cmd) => {
+      if (cmd === "pairing list --channel telegram --json") {
+        return {
+          ok: true,
+          stdout: JSON.stringify({
+            requests: [
+              {
+                id: "1050628644",
+                code: "ABCD1234",
+                meta: { accountId: "tester" },
+              },
+            ],
+          }),
+          stderr: "",
+        };
+      }
+      if (cmd === "pairing list --channel discord --json") {
+        return {
+          ok: true,
+          stdout: JSON.stringify({ requests: [] }),
+          stderr: "",
+        };
+      }
+      return { ok: true, stdout: "{}", stderr: "" };
+    });
+    const fsModule = {
+      existsSync: vi.fn(() => true),
+      readFileSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw/openclaw.json") {
+          return JSON.stringify({
+            channels: {
+              telegram: { enabled: true },
+              discord: { enabled: true },
+            },
+          });
+        }
+        throw new Error(`unexpected read: ${targetPath}`);
+      }),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).get("/api/pairings");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toEqual([
+      {
+        id: "ABCD1234",
+        code: "ABCD1234",
+        channel: "telegram",
+        accountId: "tester",
+        requesterId: "1050628644",
+      },
+    ]);
+  });
+
+  it("passes account id through on pairing approval", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const fsModule = {
+      existsSync: vi.fn(() => false),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).post("/api/pairings/ABCD1234/approve").send({
+      channel: "telegram",
+      accountId: "tester",
+    });
+
+    expect(res.status).toBe(200);
+    expect(clawCmd).toHaveBeenCalledWith(
+      "pairing approve --channel telegram --account tester ABCD1234",
+    );
+  });
+
   it("auto-approves the first pending CLI device request when marker is absent", async () => {
     const clawCmd = vi.fn(async (cmd) => {
       if (cmd === "devices list --json") {

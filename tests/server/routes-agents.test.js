@@ -5,15 +5,39 @@ const { registerAgentRoutes } = require("../../lib/server/routes/agents");
 
 const createAgentsServiceMock = () => ({
   listAgents: vi.fn(() => [{ id: "main", name: "Main Agent", default: true }]),
+  listConfiguredChannelAccounts: vi.fn(() => [
+    {
+      channel: "telegram",
+      accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+    },
+  ]),
+  createChannelAccount: vi.fn((input) => ({
+    channel: input.provider,
+    account: { id: input.accountId || "default", name: input.name, envKey: "TELEGRAM_BOT_TOKEN" },
+    binding: {
+      agentId: input.agentId,
+      match: { channel: input.provider, accountId: input.accountId || "default" },
+    },
+  })),
+  updateChannelAccount: vi.fn((input) => ({
+    channel: input.provider,
+    account: { id: input.accountId || "default", name: input.name, boundAgentId: input.agentId },
+  })),
+  deleteChannelAccount: vi.fn(() => ({ ok: true })),
   getAgent: vi.fn((id) =>
     id === "main" ? { id: "main", name: "Main Agent", default: true } : null,
   ),
+  getBindingsForAgent: vi.fn(() => [
+    { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+  ]),
   createAgent: vi.fn((input) => ({
     id: input.id,
     name: input.name || input.id,
     default: false,
   })),
   updateAgent: vi.fn((id, patch) => ({ id, ...patch })),
+  addBinding: vi.fn((id, input) => ({ agentId: id, match: { ...input } })),
+  removeBinding: vi.fn(() => ({ ok: true })),
   deleteAgent: vi.fn(() => ({ ok: true })),
   setDefaultAgent: vi.fn((id) => ({ id, default: true })),
 });
@@ -26,6 +50,83 @@ const createApp = (agentsService) => {
 };
 
 describe("server/routes/agents", () => {
+  it("lists configured channel accounts on GET /api/channels/accounts", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get("/api/channels/accounts");
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.channels).toEqual([
+      {
+        channel: "telegram",
+        accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+      },
+    ]);
+  });
+
+  it("creates a configured channel account on POST /api/channels/accounts", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).post("/api/channels/accounts").send({
+      provider: "telegram",
+      name: "Alerts",
+      accountId: "alerts",
+      token: "123:abc",
+      agentId: "main",
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.createChannelAccount).toHaveBeenCalledWith({
+      provider: "telegram",
+      name: "Alerts",
+      accountId: "alerts",
+      token: "123:abc",
+      agentId: "main",
+    });
+  });
+
+  it("updates a configured channel account on PUT /api/channels/accounts", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).put("/api/channels/accounts").send({
+      provider: "telegram",
+      accountId: "alerts",
+      name: "Alerts Bot",
+      agentId: "main",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.updateChannelAccount).toHaveBeenCalledWith({
+      provider: "telegram",
+      accountId: "alerts",
+      name: "Alerts Bot",
+      agentId: "main",
+    });
+  });
+
+  it("deletes a configured channel account on DELETE /api/channels/accounts", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).delete("/api/channels/accounts").send({
+      provider: "telegram",
+      accountId: "alerts",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.deleteChannelAccount).toHaveBeenCalledWith({
+      provider: "telegram",
+      accountId: "alerts",
+    });
+  });
+
   it("lists agents on GET /api/agents", async () => {
     const agentsService = createAgentsServiceMock();
     const app = createApp(agentsService);
@@ -78,5 +179,52 @@ describe("server/routes/agents", () => {
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
     expect(agentsService.setDefaultAgent).toHaveBeenCalledWith("ops");
+  });
+
+  it("lists bindings on GET /api/agents/:id/bindings", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get("/api/agents/main/bindings");
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.bindings).toEqual([
+      { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+    ]);
+  });
+
+  it("adds bindings on POST /api/agents/:id/bindings", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).post("/api/agents/main/bindings").send({
+      channel: "telegram",
+      accountId: "default",
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.addBinding).toHaveBeenCalledWith("main", {
+      channel: "telegram",
+      accountId: "default",
+    });
+  });
+
+  it("removes bindings on DELETE /api/agents/:id/bindings", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).delete("/api/agents/main/bindings").send({
+      channel: "telegram",
+      accountId: "default",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.removeBinding).toHaveBeenCalledWith("main", {
+      channel: "telegram",
+      accountId: "default",
+    });
   });
 });
