@@ -62,6 +62,8 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
     ensureGatewayProxyConfig: vi.fn(),
     getBaseUrl: vi.fn(() => "https://example.com"),
     startGateway: vi.fn(),
+    platform: "linux",
+    execFileSyncImpl: vi.fn(() => ""),
   };
 };
 
@@ -360,6 +362,29 @@ describe("server/routes/onboarding", () => {
       enabled: true,
       paths: ["hooks/bootstrap/AGENTS.md", "hooks/bootstrap/TOOLS.md"],
     });
+  });
+
+  it("installs deterministic hourly git sync config for the managed scheduler on macOS", async () => {
+    const deps = createBaseDeps();
+    deps.platform = "darwin";
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") return "{}";
+      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
+      if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
+      if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
+      return "{}";
+    });
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send(makeValidBody());
+
+    expect(res.status).toBe(200);
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/cron/system-sync.json",
+      expect.stringContaining('"schedule": "0 * * * *"'),
+    );
+    expect(deps.execFileSyncImpl).not.toHaveBeenCalled();
   });
 
   it("rejects onboarding when workspace repo already exists", async () => {
