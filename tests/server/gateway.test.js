@@ -249,6 +249,74 @@ describe("server/gateway restart behavior", () => {
     );
   });
 
+  it("adds the setup origin to gateway control UI config", () => {
+    let currentConfig = {
+      gateway: {},
+    };
+    fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+    fs.writeFileSync = vi.fn((targetPath, contents) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        currentConfig = JSON.parse(contents);
+      }
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify(currentConfig);
+      }
+      return "{}";
+    });
+
+    const changed = gateway.ensureGatewayProxyConfig("https://setup.example.com");
+
+    expect(changed).toBe(true);
+    expect(fs.writeFileSync).toHaveBeenCalledWith(
+      `${OPENCLAW_DIR}/openclaw.json`,
+      expect.any(String),
+    );
+    expect(currentConfig.gateway.trustedProxies).toEqual(["127.0.0.1"]);
+    expect(currentConfig.gateway.controlUi.allowedOrigins).toEqual([
+      "https://setup.example.com",
+    ]);
+  });
+
+  it("preserves existing allowed origins and remains idempotent", () => {
+    let currentConfig = {
+      gateway: {
+        trustedProxies: ["127.0.0.1"],
+        controlUi: {
+          allowedOrigins: ["https://existing.example.com"],
+        },
+      },
+    };
+    fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+    fs.writeFileSync = vi.fn((targetPath, contents) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        currentConfig = JSON.parse(contents);
+      }
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify(currentConfig);
+      }
+      return "{}";
+    });
+
+    const firstChanged = gateway.ensureGatewayProxyConfig("https://setup.example.com");
+    const secondChanged = gateway.ensureGatewayProxyConfig("https://setup.example.com");
+
+    expect(firstChanged).toBe(true);
+    expect(secondChanged).toBe(false);
+    expect(currentConfig.gateway.controlUi.allowedOrigins).toEqual([
+      "https://existing.example.com",
+      "https://setup.example.com",
+    ]);
+    expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
   it("reports channel status per account while preserving provider summary", () => {
     fs.existsSync = vi.fn(() => true);
     fs.readdirSync = vi.fn((targetPath) => {
