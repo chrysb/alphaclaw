@@ -97,19 +97,59 @@
 
 /* ── Sidebar agents list ─────────────────────── */
 
+.sidebar-agents-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+
+.sidebar-agents-label {
+  padding: 0;
+}
+
+.sidebar-agents-add-button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 6px;
+  margin: -6px;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: color 0.1s, opacity 0.1s;
+}
+
+.sidebar-agents-add-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.sidebar-agents-add-button:hover {
+  color: var(--text);
+  opacity: 1;
+}
+
 .sidebar-agents-list {
-  flex: 1 1 auto;
-  overflow-y: auto;
-  padding: 6px 0 0;
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 2px 0 0;
 }
 
 .sidebar-agent-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 7px 14px 7px 20px;
+  gap: 6px;
+  padding: 6px 16px 6px 24px;
   color: var(--text-muted);
   font-size: 13px;
+  line-height: 1.4;
   cursor: pointer;
   transition: background 0.1s, color 0.1s;
   position: relative;
@@ -118,7 +158,7 @@
   background: transparent;
   width: 100%;
   text-align: left;
-  font-family: inherit;
+  font: inherit;
 }
 
 .sidebar-agent-item:hover {
