@@ -79,6 +79,71 @@ describe("server/routes/pairings", () => {
     ]);
   });
 
+  it("parses noisy json stdout without duplicating requester ids as codes", async () => {
+    const clawCmd = vi.fn(async (cmd) => {
+      if (cmd === "pairing list --channel telegram --json") {
+        return {
+          ok: true,
+          stdout: JSON.stringify({ requests: [] }),
+          stderr: "",
+        };
+      }
+      if (cmd === "pairing list --channel discord --json") {
+        return {
+          ok: true,
+          stdout: [
+            "debug preface",
+            "{",
+            '  "channel": "discord",',
+            '  "requests": [',
+            "    {",
+            '      "id": "21963048",',
+            '      "code": "TTK6H5HX"',
+            "    }",
+            "  ]",
+            "}",
+          ].join("\n"),
+          stderr: "",
+        };
+      }
+      return { ok: true, stdout: "{}", stderr: "" };
+    });
+    const fsModule = {
+      existsSync: vi.fn(() => true),
+      readFileSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw/openclaw.json") {
+          return JSON.stringify({
+            channels: {
+              telegram: { enabled: true },
+              discord: { enabled: true },
+            },
+          });
+        }
+        throw new Error(`unexpected read: ${targetPath}`);
+      }),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).get("/api/pairings");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toEqual([
+      {
+        id: "TTK6H5HX",
+        code: "TTK6H5HX",
+        channel: "discord",
+        accountId: "default",
+        requesterId: "21963048",
+      },
+    ]);
+  });
+
   it("passes account id through on pairing approval", async () => {
     const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
     const fsModule = {
