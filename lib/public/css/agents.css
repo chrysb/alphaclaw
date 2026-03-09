@@ -1,0 +1,92 @@
+/* ── Agents detail layout ────────────────────── */
+
+.app-content-pane.agents-pane {
+  padding: 0;
+}
+
+/* ── Detail panel ────────────────────────────── */
+
+.agents-detail-panel {
+  height: 100%;
+  overflow-y: auto;
+  padding: 0 32px;
+}
+
+.agents-detail-inner {
+  max-width: 42rem;
+  width: 100%;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.agents-detail-header {
+  padding-top: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agents-detail-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sub-tabs ────────────────────────────────── */
+
+.agents-sub-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.agents-sub-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+
+.agents-sub-tab:hover {
+  color: var(--text);
+}
+
+.agents-sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.agents-detail-content {
+  flex: 1;
+  padding: 24px 0;
+}
+
+/* ── Empty state ─────────────────────────────── */
+
+.agents-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}
