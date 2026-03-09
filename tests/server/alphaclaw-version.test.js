@@ -74,7 +74,11 @@ describe("server/alphaclaw-version", () => {
   it("returns 409 while another update is in progress", async () => {
     let installCallback = null;
     const execMock = vi.fn().mockImplementation((cmd, opts, callback) => {
-      installCallback = callback;
+      if (typeof cmd === "string" && cmd.startsWith("cp ")) {
+        callback(null, "", "");
+      } else {
+        installCallback = callback;
+      }
     });
     const { createAlphaclawVersionService } = loadVersionModule({ execMock });
     const service = createAlphaclawVersionService();
@@ -106,13 +110,15 @@ describe("server/alphaclaw-version", () => {
     expect(result.body.ok).toBe(true);
     expect(result.body.restarting).toBe(true);
     expect(result.body.previousVersion).toBeTruthy();
+    expect(execMock).toHaveBeenCalledTimes(2);
     expect(execMock).toHaveBeenCalledWith(
-      "npm install @chrysb/alphaclaw@latest --omit=dev --no-save --save=false --package-lock=false --prefer-online",
+      "npm install --omit=dev --prefer-online --package-lock=false",
       expect.objectContaining({
         timeout: 180000,
       }),
       expect.any(Function),
     );
+    expect(execMock.mock.calls[1][0]).toMatch(/^cp -af /);
   });
 
   it("returns 500 when npm install fails", async () => {
