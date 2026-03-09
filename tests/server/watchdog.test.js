@@ -194,7 +194,7 @@ describe("server/watchdog", () => {
   it("clears crash-loop lifecycle after a healthy check recovery", async () => {
     vi.useFakeTimers();
     let healthChecks = 0;
-    const { watchdog, insertWatchdogEvent } = createHarness({
+    const { watchdog, insertWatchdogEvent, notifier } = createHarness({
       autoRepair: false,
       clawCmdImpl: async (command) => {
         if (command === "health --json") {
@@ -239,6 +239,11 @@ describe("server/watchdog", () => {
         }),
       }),
     );
+    expect(
+      notifier.notify.mock.calls.some((call) =>
+        String(call?.[0] || "").includes("🟢 Gateway healthy again"),
+      ),
+    ).toBe(true);
     watchdog.stop();
   });
 
