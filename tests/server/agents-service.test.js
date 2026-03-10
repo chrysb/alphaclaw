@@ -250,15 +250,17 @@ describe("server/agents/service", () => {
 
     expect(service.listConfiguredChannelAccounts()).toEqual([
       {
+        channel: "telegram",
+        accounts: [
+          { id: "default", name: "", envKey: "TELEGRAM_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" },
+        ],
+      },
+      {
         channel: "discord",
         accounts: [
           { id: "default", name: "", envKey: "DISCORD_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" },
           { id: "alerts", name: "", envKey: "DISCORD_BOT_TOKEN_ALERTS", token: "", boundAgentId: "", paired: 0, status: "configured" },
         ],
-      },
-      {
-        channel: "telegram",
-        accounts: [{ id: "default", name: "", envKey: "TELEGRAM_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" }],
       },
     ]);
   });

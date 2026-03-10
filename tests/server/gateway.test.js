@@ -172,6 +172,41 @@ describe("server/gateway restart behavior", () => {
     );
   });
 
+  it("signals gateway launch on each listening log line", async () => {
+    const child = createChild();
+    const spawnMock = vi.fn(() => child);
+    childProcess.spawn = spawnMock;
+    childProcess.execSync = vi.fn(() => "");
+    fs.existsSync = vi.fn(() => true);
+    net.createConnection = vi.fn(() => createSocket(false));
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn(() =>
+      JSON.stringify({
+        gateway: { port: 3456 },
+      }),
+    );
+    const launchHandler = vi.fn();
+    gateway.setGatewayLaunchHandler(launchHandler);
+
+    await gateway.startGateway();
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+
+    const stdoutRegistration = child.stdout.on.mock.calls.find(
+      (call) => call[0] === "data",
+    );
+    expect(stdoutRegistration).toBeTruthy();
+
+    const [, onStdout] = stdoutRegistration;
+    onStdout(
+      Buffer.from(
+        "booting gateway\n[gateway] listening on http://localhost:3456\n[gateway] listening on http://127.0.0.1:3456\n",
+      ),
+    );
+
+    expect(launchHandler).toHaveBeenCalledTimes(2);
+  });
+
   it("does not treat auth-only openclaw config as onboarded", () => {
     fs.existsSync = vi.fn((targetPath) => targetPath === `${OPENCLAW_DIR}/openclaw.json`);
     delete require.cache[modulePath];

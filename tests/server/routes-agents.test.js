@@ -8,20 +8,39 @@ const createAgentsServiceMock = () => ({
   listConfiguredChannelAccounts: vi.fn(() => [
     {
       channel: "telegram",
-      accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+      accounts: [
+        {
+          id: "default",
+          name: "",
+          boundAgentId: "",
+          paired: 0,
+          status: "configured",
+        },
+      ],
     },
   ]),
   createChannelAccount: vi.fn((input) => ({
     channel: input.provider,
-    account: { id: input.accountId || "default", name: input.name, envKey: "TELEGRAM_BOT_TOKEN" },
+    account: {
+      id: input.accountId || "default",
+      name: input.name,
+      envKey: "TELEGRAM_BOT_TOKEN",
+    },
     binding: {
       agentId: input.agentId,
-      match: { channel: input.provider, accountId: input.accountId || "default" },
+      match: {
+        channel: input.provider,
+        accountId: input.accountId || "default",
+      },
     },
   })),
   updateChannelAccount: vi.fn((input) => ({
     channel: input.provider,
-    account: { id: input.accountId || "default", name: input.name, boundAgentId: input.agentId },
+    account: {
+      id: input.accountId || "default",
+      name: input.name,
+      boundAgentId: input.agentId,
+    },
     tokenUpdated: !!String(input?.token || "").trim(),
   })),
   getChannelAccountToken: vi.fn((input) => ({
@@ -76,7 +95,15 @@ describe("server/routes/agents", () => {
     expect(response.body.channels).toEqual([
       {
         channel: "telegram",
-        accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+        accounts: [
+          {
+            id: "default",
+            name: "",
+            boundAgentId: "",
+            paired: 0,
+            status: "configured",
+          },
+        ],
       },
     ]);
   });
@@ -96,10 +123,8 @@ describe("server/routes/agents", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.ok).toBe(true);
-    expect(response.body.restartRequired).toBe(true);
-    expect(restartRequiredState.markRequired).toHaveBeenCalledWith(
-      "channel_token_created",
-    );
+    expect(response.body.restartRequired).toBe(false);
+    expect(restartRequiredState.markRequired).not.toHaveBeenCalled();
     expect(agentsService.createChannelAccount).toHaveBeenCalledWith({
       provider: "telegram",
       name: "Alerts",
@@ -107,6 +132,27 @@ describe("server/routes/agents", () => {
       token: "123:abc",
       agentId: "main",
     });
+  });
+
+  it("marks restart required on discord channel create", async () => {
+    const agentsService = createAgentsServiceMock();
+    const restartRequiredState = { markRequired: vi.fn() };
+    const app = createApp(agentsService, restartRequiredState);
+
+    const response = await request(app).post("/api/channels/accounts").send({
+      provider: "discord",
+      name: "Discord",
+      accountId: "default",
+      token: "discord-token",
+      agentId: "main",
+    });
+
+    expect(response.status).toBe(201);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.restartRequired).toBe(true);
+    expect(restartRequiredState.markRequired).toHaveBeenCalledWith(
+      "channel_token_created",
+    );
   });
 
   it("updates a configured channel account on PUT /api/channels/accounts", async () => {
@@ -286,10 +332,12 @@ describe("server/routes/agents", () => {
     const agentsService = createAgentsServiceMock();
     const app = createApp(agentsService);
 
-    const response = await request(app).delete("/api/agents/main/bindings").send({
-      channel: "telegram",
-      accountId: "default",
-    });
+    const response = await request(app)
+      .delete("/api/agents/main/bindings")
+      .send({
+        channel: "telegram",
+        accountId: "default",
+      });
 
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
