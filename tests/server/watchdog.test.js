@@ -433,6 +433,108 @@ describe("server/watchdog", () => {
     );
   });
 
+  it("does not set uptimeStartedAt on start — waits for onGatewayLaunch", () => {
+    const { watchdog } = createHarness();
+
+    watchdog.start();
+
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBe(0);
+    watchdog.stop();
+  });
+
+  it("sets uptimeStartedAt when onGatewayLaunch fires", () => {
+    const { watchdog } = createHarness();
+
+    watchdog.start();
+    const before = Date.now();
+    watchdog.onGatewayLaunch({ startedAt: before, pid: 1234 });
+
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBeGreaterThanOrEqual(0);
+    watchdog.stop();
+  });
+
+  it("clears uptimeStartedAt on gateway crash", () => {
+    const { watchdog } = createHarness({ autoRepair: false });
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now(), pid: 1234 });
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+
+    watchdog.onGatewayExit({ code: 1, expectedExit: false });
+
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBe(0);
+  });
+
+  it("clears uptimeStartedAt on expected restart", () => {
+    const { watchdog } = createHarness();
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now(), pid: 1234 });
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+
+    watchdog.onExpectedRestart();
+
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBe(0);
+  });
+
+  it("clears uptimeStartedAt on expected exit", () => {
+    const { watchdog } = createHarness();
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now(), pid: 1234 });
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+
+    watchdog.onGatewayExit({ code: 0, expectedExit: true });
+
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBe(0);
+  });
+
+  it("preserves uptimeStartedAt on duplicate-launch exit", () => {
+    const { watchdog } = createHarness();
+
+    const startedAt = Date.now() - 5000;
+    watchdog.onGatewayLaunch({ startedAt, pid: 1234 });
+
+    watchdog.onGatewayExit({
+      code: 1,
+      signal: null,
+      expectedExit: false,
+      stderrTail: ["another gateway instance is already listening"],
+    });
+
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBeGreaterThan(0);
+  });
+
+  it("clears uptimeStartedAt on stop", () => {
+    const { watchdog } = createHarness();
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now(), pid: 1234 });
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+
+    watchdog.stop();
+
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBe(0);
+  });
+
+  it("restores uptimeStartedAt after crash recovery via onGatewayLaunch", async () => {
+    const { watchdog } = createHarness({ autoRepair: false });
+
+    watchdog.onGatewayLaunch({ startedAt: Date.now() - 10_000, pid: 1234 });
+    watchdog.onGatewayExit({ code: 1, expectedExit: false });
+    expect(watchdog.getStatus().uptimeStartedAt).toBeNull();
+
+    const newStart = Date.now();
+    watchdog.onGatewayLaunch({ startedAt: newStart, pid: 5678 });
+
+    expect(watchdog.getStatus().uptimeStartedAt).not.toBeNull();
+    expect(watchdog.getStatus().uptimeMs).toBeGreaterThanOrEqual(0);
+    watchdog.stop();
+  });
+
   it("writes settings changes to env and updates in-memory status", () => {
     const { watchdog, readEnvFile, writeEnvFile, reloadEnv } = createHarness({
       autoRepair: false,
