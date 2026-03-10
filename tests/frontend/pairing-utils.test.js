@@ -25,6 +25,14 @@ describe("frontend/onboarding/pairing-utils", () => {
     expect(getPreferredPairingChannel({})).toBe("");
   });
 
+  it("falls back to whatsapp when telegram and discord are missing", () => {
+    const channel = getPreferredPairingChannel({
+      WHATSAPP_OWNER_NUMBER: "+15551234567",
+    });
+
+    expect(channel).toBe("whatsapp");
+  });
+
   it("treats channel as paired only when status is paired and count > 0", () => {
     const channels = {
       telegram: { status: "paired", paired: 1 },

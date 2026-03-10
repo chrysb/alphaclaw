@@ -324,6 +324,7 @@ describe("secret-detector", () => {
         channels: {
           telegram: { botToken: "123:AAH" },
           discord: { token: "MTQ3xyz" },
+          whatsapp: { allowFrom: ["+15551234567"] },
         },
         tools: {
           web: { search: { apiKey: "BSAabc" } },
@@ -341,6 +342,7 @@ describe("secret-detector", () => {
       expect(preFill.ANTHROPIC_API_KEY).toBe("sk-ant-abc");
       expect(preFill.TELEGRAM_BOT_TOKEN).toBe("123:AAH");
       expect(preFill.DISCORD_BOT_TOKEN).toBe("MTQ3xyz");
+      expect(preFill.WHATSAPP_OWNER_NUMBER).toBe("+15551234567");
       expect(preFill.BRAVE_API_KEY).toBe("BSAabc");
     });
 
@@ -365,6 +367,7 @@ describe("secret-detector", () => {
       const fs = createMockFs({
         "/base/channels.json": JSON.stringify({
           discord: { token: "MTQ3xyz" },
+          whatsapp: { allowFrom: ["+15557654321"] },
         }),
       });
       const preFill = extractPreFillValues({
@@ -373,6 +376,7 @@ describe("secret-detector", () => {
         configFiles: ["channels.json"],
       });
       expect(preFill.DISCORD_BOT_TOKEN).toBe("MTQ3xyz");
+      expect(preFill.WHATSAPP_OWNER_NUMBER).toBe("+15557654321");
     });
   });
 

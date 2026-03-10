@@ -17,6 +17,43 @@ const createApp = ({ clawCmd, isOnboarded, fsModule }) => {
 };
 
 describe("server/routes/pairings", () => {
+  it("lists pending whatsapp pairing requests when channel is enabled", async () => {
+    const clawCmd = vi.fn(async (cmd) => {
+      if (cmd === "pairing list whatsapp") {
+        return { ok: true, stdout: "Pending pairing code: ABCD1234\n", stderr: "" };
+      }
+      if (cmd === "pairing list telegram" || cmd === "pairing list discord") {
+        return { ok: true, stdout: "", stderr: "" };
+      }
+      return { ok: true, stdout: "{}", stderr: "" };
+    });
+    const fsModule = {
+      existsSync: vi.fn(() => false),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+      readFileSync: vi.fn(() =>
+        JSON.stringify({
+          channels: {
+            whatsapp: { enabled: true },
+          },
+        }),
+      ),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).get("/api/pairings");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toEqual([
+      { id: "ABCD1234", code: "ABCD1234", channel: "whatsapp" },
+    ]);
+    expect(clawCmd).toHaveBeenCalledWith("pairing list whatsapp", { quiet: true });
+  });
+
   it("auto-approves the first pending CLI device request when marker is absent", async () => {
     const clawCmd = vi.fn(async (cmd) => {
       if (cmd === "devices list --json") {

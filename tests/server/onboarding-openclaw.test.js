@@ -108,4 +108,40 @@ describe("server/onboarding/openclaw", () => {
     expect(next.channels.discord.dmPolicy).toBe("pairing");
     expect(next.channels.discord.token).toBe("${DISCORD_BOT_TOKEN}");
   });
+
+  it("configures whatsapp owner allowlist during import wiring", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: { allow: [], load: { paths: [] }, entries: {} },
+          channels: {
+            whatsapp: {
+              enabled: false,
+              allowFrom: [],
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeManagedImportOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { WHATSAPP_OWNER_NUMBER: "+15551234567" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.whatsapp.enabled).toBe(true);
+    expect(next.channels.whatsapp.allowFrom).toContain("${WHATSAPP_OWNER_NUMBER}");
+    expect(next.channels.whatsapp.groupAllowFrom).toContain(
+      "${WHATSAPP_OWNER_NUMBER}",
+    );
+    expect(next.plugins.entries.whatsapp).toEqual({ enabled: true });
+  });
 });

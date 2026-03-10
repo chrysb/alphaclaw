@@ -35,6 +35,7 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
         "GITHUB_TOKEN",
         "GITHUB_WORKSPACE_REPO",
         "TELEGRAM_BOT_TOKEN",
+        "WHATSAPP_OWNER_NUMBER",
         "SLACK_BOT_TOKEN",
       ]),
     },
@@ -79,6 +80,16 @@ const makeValidBody = () => ({
     { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
     { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
     { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+  ],
+});
+
+const makeValidWhatsappBody = () => ({
+  modelKey: "openai/gpt-5.1-codex",
+  vars: [
+    { key: "OPENAI_API_KEY", value: "sk-test-123456789" },
+    { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
+    { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+    { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
   ],
 });
 
@@ -360,6 +371,40 @@ describe("server/routes/onboarding", () => {
       enabled: true,
       paths: ["hooks/bootstrap/AGENTS.md", "hooks/bootstrap/TOOLS.md"],
     });
+  });
+
+  it("supports whatsapp-only channel onboarding", async () => {
+    const deps = createBaseDeps();
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") return "{}";
+      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
+      if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
+      if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
+      return "{}";
+    });
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send(makeValidWhatsappBody());
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    const openclawWriteCalls = deps.fs.writeFileSync.mock.calls.filter(
+      ([targetPath]) => targetPath === "/tmp/openclaw/openclaw.json",
+    );
+    const openclawWriteCall = openclawWriteCalls[openclawWriteCalls.length - 1];
+    expect(openclawWriteCall).toBeTruthy();
+    const writtenConfig = JSON.parse(openclawWriteCall[1]);
+    expect(writtenConfig.channels.whatsapp).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        dmPolicy: "allowlist",
+        allowFrom: ["+15551234567"],
+        groupPolicy: "allowlist",
+        groupAllowFrom: ["+15551234567"],
+      }),
+    );
+    expect(writtenConfig.plugins.entries.whatsapp).toEqual({ enabled: true });
   });
 
   it("rejects onboarding when workspace repo already exists", async () => {

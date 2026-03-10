@@ -30,7 +30,7 @@
 - **Guided Onboarding:** Step-by-step setup wizard — model selection, provider credentials, GitHub repo, channel pairing.
 - **Gateway Manager:** Spawns, monitors, restarts, and proxies the OpenClaw gateway as a managed child process.
 - **Watchdog:** Crash detection, crash-loop recovery, auto-repair (`openclaw doctor --fix`), and Telegram/Discord notifications.
-- **Channel Orchestration:** Telegram and Discord bot pairing, credential sync, and a guided wizard for splitting Telegram into multi-threaded topic groups as your usage grows.
+- **Channel Orchestration:** Telegram, Discord, and WhatsApp pairing support, credential sync, and a guided wizard for splitting Telegram into multi-threaded topic groups as your usage grows.
 - **Webhooks:** Named webhook endpoints with per-hook transform modules, request logging, and payload inspection.
 - **Google Workspace:** OAuth integration for Gmail, Calendar, Drive, Docs, Sheets, Tasks, Contacts, and Meet, plus guided Gmail watch setup with Google Pub/Sub topic, subscription, and push endpoint handling.
 - **File Explorer:** Browser-based workspace explorer with file visibility, inline edits, diff view, and Git-aware sync for quick fixes without SSH.
@@ -143,6 +143,7 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 | `GITHUB_WORKSPACE_REPO`           | Yes      | GitHub repo for workspace sync (e.g. `owner/repo`) |
 | `TELEGRAM_BOT_TOKEN`              | Optional | Telegram bot token                                 |
 | `DISCORD_BOT_TOKEN`               | Optional | Discord bot token                                  |
+| `WHATSAPP_OWNER_NUMBER`           | Optional | WhatsApp owner number in E.164 format (`+1555...`) |
 | `WATCHDOG_AUTO_REPAIR`            | Optional | Enable auto-repair on crash (`true`/`false`)       |
 | `WATCHDOG_NOTIFICATIONS_DISABLED` | Optional | Disable watchdog notifications (`true`/`false`)    |
 | `PORT`                            | Optional | Server port (default `3000`)                       |
@@ -156,7 +157,7 @@ AlphaClaw is a convenience wrapper — it intentionally trades some of OpenClaw'
 | Area                    | What AlphaClaw does                                                                                                                   | Trade-off                                                                                              |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
 | **Setup password**      | All gateway access is gated behind a single `SETUP_PASSWORD`. Brute-force protection is built in (exponential backoff lockout).       | Simpler than OpenClaw's pairing code flow, but the password must be strong.                            |
-| **One-click pairing**   | Channel pairings (Telegram/Discord) can be approved from the Setup UI instead of the CLI.                                             | No terminal access required, but anyone with the setup password can approve pairings.                  |
+| **One-click pairing**   | Channel pairings (Telegram/Discord/WhatsApp) can be approved from the Setup UI instead of the CLI.                                    | No terminal access required, but anyone with the setup password can approve pairings.                  |
 | **Auto CLI approval**   | The first CLI device pairing is auto-approved so you can connect without a second screen. Subsequent requests appear in the UI.       | Removes the manual pairing step for the initial CLI connection.                                        |
 | **Query-string tokens** | Webhook URLs support `?token=<WEBHOOK_TOKEN>` for providers that don't support `Authorization` headers. Warnings are shown in the UI. | Tokens may appear in server logs and referrer headers. Use header auth when your provider supports it. |
 | **Gateway token**       | `OPENCLAW_GATEWAY_TOKEN` is auto-generated and injected into the environment so the proxy can authenticate with the gateway.          | The token lives in the `.env` file on the server — standard for managed deployments but worth noting.  |
