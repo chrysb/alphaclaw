@@ -596,7 +596,75 @@ describe("server/agents/service", () => {
     );
   });
 
-  it("creates a discord channel via direct config instead of channel cli", async () => {
+  it("ensures provider plugin allowlist before channel add cli call", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        plugins: {
+          allow: ["discord", "usage-tracker"],
+          entries: {
+            discord: { enabled: true },
+            "usage-tracker": { enabled: true },
+          },
+        },
+      },
+    });
+    const readEnvFile = vi.fn(() => [{ key: "OPENAI_API_KEY", value: "sk-test" }]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const restartGateway = vi.fn(async () => {});
+    const clawCmd = vi.fn(async (command) => {
+      if (String(command).startsWith("channels add")) {
+        const currentConfig = fsMock.readConfig();
+        expect(currentConfig.plugins).toEqual({
+          allow: ["discord", "usage-tracker", "telegram"],
+          entries: {
+            discord: { enabled: true },
+            "usage-tracker": { enabled: true },
+            telegram: { enabled: true },
+          },
+        });
+      }
+      return { ok: true, stdout: "", stderr: "" };
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+      restartGateway,
+      clawCmd,
+    });
+
+    const result = await service.createChannelAccount({
+      provider: "telegram",
+      name: "Telegram",
+      accountId: "default",
+      token: "123:abc",
+      agentId: "main",
+    });
+
+    expect(result.channel).toBe("telegram");
+    expect(writeEnvFile.mock.invocationCallOrder[0]).toBeLessThan(
+      fsMock.writeFileSync.mock.invocationCallOrder[0],
+    );
+    expect(writeEnvFile.mock.invocationCallOrder[0]).toBeLessThan(
+      restartGateway.mock.invocationCallOrder[0],
+    );
+    expect(restartGateway.mock.invocationCallOrder[0]).toBeLessThan(
+      fsMock.writeFileSync.mock.invocationCallOrder[0],
+    );
+    expect(clawCmd).toHaveBeenNthCalledWith(
+      1,
+      "channels add --channel 'telegram' --name 'Telegram' --token '123:abc'",
+      { quiet: true, timeoutMs: 30000 },
+    );
+  });
+
+  it("creates a discord channel account via channels add cli", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
         agents: {
@@ -642,7 +710,16 @@ describe("server/agents/service", () => {
       { key: "DISCORD_BOT_TOKEN", value: "discord-token" },
     ]);
     expect(reloadEnv).toHaveBeenCalled();
-    expect(clawCmd).not.toHaveBeenCalled();
+    expect(clawCmd).toHaveBeenNthCalledWith(
+      1,
+      "channels add --channel 'discord' --name 'Discord' --token 'discord-token'",
+      { quiet: true, timeoutMs: 30000 },
+    );
+    expect(clawCmd).toHaveBeenNthCalledWith(
+      2,
+      "agents bind --agent 'main' --bind 'discord:default'",
+      { quiet: true, timeoutMs: 30000 },
+    );
     expect(fsMock.readConfig()).toEqual(
       expect.objectContaining({
         channels: {
@@ -664,9 +741,6 @@ describe("server/agents/service", () => {
             discord: { enabled: true },
           },
         },
-        bindings: [
-          { agentId: "main", match: { channel: "discord", accountId: "default" } },
-        ],
       }),
     );
   });

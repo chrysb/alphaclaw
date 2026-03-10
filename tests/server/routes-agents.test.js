@@ -96,10 +96,8 @@ describe("server/routes/agents", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.ok).toBe(true);
-    expect(response.body.restartRequired).toBe(true);
-    expect(restartRequiredState.markRequired).toHaveBeenCalledWith(
-      "channel_token_created",
-    );
+    expect(response.body.restartRequired).toBeUndefined();
+    expect(restartRequiredState.markRequired).not.toHaveBeenCalled();
     expect(agentsService.createChannelAccount).toHaveBeenCalledWith({
       provider: "telegram",
       name: "Alerts",
