@@ -1,12 +1,14 @@
 const childProcess = require("child_process");
 const fs = require("fs");
 const net = require("net");
+const path = require("path");
 const {
   ALPHACLAW_DIR,
-  kControlUiSkillPath,
   kOnboardingMarkerPath,
   OPENCLAW_DIR,
 } = require("../../lib/server/constants");
+
+const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
@@ -236,7 +238,7 @@ describe("server/gateway restart behavior", () => {
   });
 
   it("backfills onboarding marker from legacy onboarding artifact", () => {
-    fs.existsSync = vi.fn((targetPath) => targetPath === kControlUiSkillPath);
+    fs.existsSync = vi.fn((targetPath) => targetPath === kLegacyControlUiSkillPath);
     fs.mkdirSync = vi.fn();
     fs.writeFileSync = vi.fn();
     delete require.cache[modulePath];

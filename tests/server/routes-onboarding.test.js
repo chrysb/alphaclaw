@@ -292,7 +292,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
@@ -366,7 +365,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
     });
@@ -384,7 +382,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
@@ -535,7 +532,6 @@ describe("server/routes/onboarding", () => {
         }),
       ],
       ["/tmp/openclaw/.git", "gitdir"],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);
@@ -620,7 +616,6 @@ describe("server/routes/onboarding", () => {
           },
         }),
       ],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);
@@ -662,7 +657,6 @@ describe("server/routes/onboarding", () => {
     const files = new Map([
       ["/tmp/openclaw/openclaw.json", JSON.stringify({ gateway: { auth: {} } })],
       ["/tmp/openclaw/.git", "gitdir"],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);

@@ -54,7 +54,7 @@ describe("server/doctor-normalize", () => {
           recommendation: "Centralize the detailed guidance into one place",
           evidence: [
             { type: "path", path: "hooks/bootstrap/TOOLS.md" },
-            { type: "path", path: "skills/control-ui/SKILL.md" },
+            { type: "path", path: "hooks/bootstrap/AGENTS.md" },
           ],
           targetPaths: ["hooks/bootstrap/TOOLS.md"],
           fixPrompt: "Reduce duplication safely",
