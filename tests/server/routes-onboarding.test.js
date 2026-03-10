@@ -266,25 +266,34 @@ describe("server/routes/onboarding", () => {
     });
   });
 
-  it("rejects new workspace repos whose owner differs from the token user", async () => {
+  it("allows new workspace repos owned by organizations when github verification passes", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      headers: { get: () => "repo" },
-      json: async () => ({ login: "owner" }),
-    });
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "tokudu" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      });
 
     const res = await request(app).post("/api/onboard/github/verify").send({
-      repo: "my-org/new-repo",
+      repo: "make-stories/new-repo",
       token: "ghp_test_123456789",
       mode: "new",
     });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      ok: false,
-      error: 'New workspace repo owner must match your token user "owner"',
+      ok: true,
+      repoExists: false,
+      repoIsEmpty: false,
+      tempDir: null,
     });
   });
 
