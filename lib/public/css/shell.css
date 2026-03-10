@@ -174,7 +174,7 @@
 .sidebar-footer:empty { display: none; }
 
 .sidebar-footer:not(:empty) {
-  padding: 0 16px 12px 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
 }
 
