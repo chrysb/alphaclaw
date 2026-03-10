@@ -671,6 +671,46 @@ describe("server/agents/service", () => {
     );
   });
 
+  it("prevents creating multiple discord channel accounts", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          discord: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                token: "${DISCORD_BOT_TOKEN}",
+                dmPolicy: "pairing",
+              },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => [{ key: "DISCORD_BOT_TOKEN", value: "discord-token" }]),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      clawCmd: vi.fn(async () => ({ ok: true, stdout: "", stderr: "" })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "discord",
+        name: "Discord 2",
+        accountId: "alerts",
+        token: "discord-token-2",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("Discord supports a single channel account");
+  });
+
   it("updates channel account name and bound agent", () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -715,6 +755,7 @@ describe("server/agents/service", () => {
         name: "Alerts Bot",
         boundAgentId: "main",
       },
+      tokenUpdated: false,
     });
     expect(fsMock.readConfig()).toEqual(
       expect.objectContaining({
@@ -773,7 +814,7 @@ describe("server/agents/service", () => {
       reloadEnv,
     });
 
-    service.updateChannelAccount({
+    const result = service.updateChannelAccount({
       provider: "telegram",
       accountId: "alerts",
       name: "Alerts Bot",
@@ -786,6 +827,53 @@ describe("server/agents/service", () => {
       { key: "TELEGRAM_BOT_TOKEN_ALERTS", value: "new-alerts-token" },
     ]);
     expect(reloadEnv).toHaveBeenCalled();
+    expect(result.tokenUpdated).toBe(true);
+  });
+
+  it("does not rewrite env when updated token is unchanged", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          telegram: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}", name: "Telegram" },
+            },
+          },
+        },
+        bindings: [
+          { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+        ],
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "TELEGRAM_BOT_TOKEN", value: "same-token" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+    });
+
+    const result = service.updateChannelAccount({
+      provider: "telegram",
+      accountId: "default",
+      name: "Telegram",
+      agentId: "main",
+      token: "same-token",
+    });
+
+    expect(writeEnvFile).not.toHaveBeenCalled();
+    expect(reloadEnv).not.toHaveBeenCalled();
+    expect(result.tokenUpdated).toBe(false);
   });
 
   it("skips token update when token is empty on update", () => {
@@ -827,6 +915,42 @@ describe("server/agents/service", () => {
 
     expect(writeEnvFile).not.toHaveBeenCalled();
     expect(reloadEnv).not.toHaveBeenCalled();
+  });
+
+  it("loads channel account token by provider/account id", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          telegram: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}", name: "Telegram" },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => [{ key: "TELEGRAM_BOT_TOKEN", value: "token-123" }]),
+    });
+
+    const result = service.getChannelAccountToken({
+      provider: "telegram",
+      accountId: "default",
+    });
+
+    expect(result).toEqual({
+      provider: "telegram",
+      accountId: "default",
+      envKey: "TELEGRAM_BOT_TOKEN",
+      token: "token-123",
+    });
   });
 
   it("deletes channel accounts and removes their env entry", async () => {

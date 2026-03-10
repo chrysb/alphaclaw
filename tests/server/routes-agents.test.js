@@ -22,6 +22,13 @@ const createAgentsServiceMock = () => ({
   updateChannelAccount: vi.fn((input) => ({
     channel: input.provider,
     account: { id: input.accountId || "default", name: input.name, boundAgentId: input.agentId },
+    tokenUpdated: !!String(input?.token || "").trim(),
+  })),
+  getChannelAccountToken: vi.fn((input) => ({
+    provider: input.provider,
+    accountId: input.accountId || "default",
+    envKey: "TELEGRAM_BOT_TOKEN",
+    token: "123:abc",
   })),
   deleteChannelAccount: vi.fn(() => ({ ok: true })),
   getAgent: vi.fn((id) =>
@@ -47,10 +54,13 @@ const createAgentsServiceMock = () => ({
   setDefaultAgent: vi.fn((id) => ({ id, default: true })),
 });
 
-const createApp = (agentsService) => {
+const createApp = (
+  agentsService,
+  restartRequiredState = { markRequired: vi.fn() },
+) => {
   const app = express();
   app.use(express.json());
-  registerAgentRoutes({ app, agentsService });
+  registerAgentRoutes({ app, agentsService, restartRequiredState });
   return app;
 };
 
@@ -73,7 +83,8 @@ describe("server/routes/agents", () => {
 
   it("creates a configured channel account on POST /api/channels/accounts", async () => {
     const agentsService = createAgentsServiceMock();
-    const app = createApp(agentsService);
+    const restartRequiredState = { markRequired: vi.fn() };
+    const app = createApp(agentsService, restartRequiredState);
 
     const response = await request(app).post("/api/channels/accounts").send({
       provider: "telegram",
@@ -85,6 +96,10 @@ describe("server/routes/agents", () => {
 
     expect(response.status).toBe(201);
     expect(response.body.ok).toBe(true);
+    expect(response.body.restartRequired).toBe(true);
+    expect(restartRequiredState.markRequired).toHaveBeenCalledWith(
+      "channel_token_created",
+    );
     expect(agentsService.createChannelAccount).toHaveBeenCalledWith({
       provider: "telegram",
       name: "Alerts",
@@ -112,6 +127,45 @@ describe("server/routes/agents", () => {
       accountId: "alerts",
       name: "Alerts Bot",
       agentId: "main",
+    });
+    expect(response.body.restartRequired).toBe(false);
+  });
+
+  it("marks restart required when a channel token is updated", async () => {
+    const agentsService = createAgentsServiceMock();
+    const restartRequiredState = { markRequired: vi.fn() };
+    const app = createApp(agentsService, restartRequiredState);
+
+    const response = await request(app).put("/api/channels/accounts").send({
+      provider: "telegram",
+      accountId: "alerts",
+      name: "Alerts Bot",
+      agentId: "main",
+      token: "new-token",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.restartRequired).toBe(true);
+    expect(restartRequiredState.markRequired).toHaveBeenCalledWith(
+      "channel_token_updated",
+    );
+  });
+
+  it("loads a channel account token on GET /api/channels/accounts/token", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get(
+      "/api/channels/accounts/token?provider=telegram&accountId=default",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.token).toBe("123:abc");
+    expect(agentsService.getChannelAccountToken).toHaveBeenCalledWith({
+      provider: "telegram",
+      accountId: "default",
     });
   });
 
