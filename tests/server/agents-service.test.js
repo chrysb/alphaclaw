@@ -269,6 +269,50 @@ describe("server/agents/service", () => {
     });
   });
 
+  it("does not attempt workspace deletes when deleting main is rejected", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            { id: "main", default: true },
+            { id: "ops", default: false, workspace: "/tmp/openclaw/workspace-ops" },
+          ],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    expect(() =>
+      service.deleteAgent("main", { keepWorkspace: false }),
+    ).toThrow("The default main agent cannot be deleted");
+    expect(fsMock.rmSync).not.toHaveBeenCalled();
+  });
+
+  it("does not attempt workspace deletes when deleting current default agent is rejected", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            { id: "main", default: false },
+            { id: "ops", default: true, workspace: "/tmp/openclaw/workspace-ops" },
+          ],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    expect(() =>
+      service.deleteAgent("ops", { keepWorkspace: false }),
+    ).toThrow("Default agent cannot be deleted");
+    expect(fsMock.rmSync).not.toHaveBeenCalled();
+  });
+
   it("lists configured channel accounts including default single-account channels", () => {
     const fsMock = buildFsMock({
       initialConfig: {
