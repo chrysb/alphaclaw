@@ -250,6 +250,7 @@ describe("server/routes/pairings", () => {
   });
 
   it("auto-approves the first pending CLI device request when marker is absent", async () => {
+    let cliMarkerWritten = false;
     const clawCmd = vi.fn(async (cmd) => {
       if (cmd === "devices list --json") {
         return {
@@ -275,9 +276,13 @@ describe("server/routes/pairings", () => {
       return { ok: true, stdout: "{}", stderr: "" };
     });
     const fsModule = {
-      existsSync: vi.fn(() => false),
+      existsSync: vi.fn(() => cliMarkerWritten),
       mkdirSync: vi.fn(),
-      writeFileSync: vi.fn(),
+      writeFileSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw/.alphaclaw/.cli-device-auto-approved") {
+          cliMarkerWritten = true;
+        }
+      }),
     };
     const app = createApp({
       clawCmd,
@@ -288,7 +293,10 @@ describe("server/routes/pairings", () => {
     const res = await request(app).get("/api/devices");
 
     expect(res.status).toBe(200);
-    expect(res.body.pending).toEqual([]);
+    expect(res.body).toEqual({
+      pending: [],
+      cliAutoApproveComplete: true,
+    });
     expect(clawCmd).toHaveBeenCalledWith("devices approve req-cli-1", { quiet: true });
     expect(fsModule.writeFileSync).toHaveBeenCalledWith(
       "/tmp/openclaw/.alphaclaw/.cli-device-auto-approved",
@@ -329,13 +337,16 @@ describe("server/routes/pairings", () => {
     const res = await request(app).get("/api/devices");
 
     expect(res.status).toBe(200);
-    expect(res.body.pending).toEqual([
-      expect.objectContaining({
-        id: "req-cli-2",
-        clientId: "cli",
-        clientMode: "cli",
-      }),
-    ]);
+    expect(res.body).toEqual({
+      pending: [
+        expect.objectContaining({
+          id: "req-cli-2",
+          clientId: "cli",
+          clientMode: "cli",
+        }),
+      ],
+      cliAutoApproveComplete: true,
+    });
     expect(clawCmd).not.toHaveBeenCalledWith("devices approve req-cli-2", { quiet: true });
     expect(fsModule.writeFileSync).not.toHaveBeenCalled();
   });

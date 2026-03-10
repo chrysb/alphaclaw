@@ -8,20 +8,39 @@ const createAgentsServiceMock = () => ({
   listConfiguredChannelAccounts: vi.fn(() => [
     {
       channel: "telegram",
-      accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+      accounts: [
+        {
+          id: "default",
+          name: "",
+          boundAgentId: "",
+          paired: 0,
+          status: "configured",
+        },
+      ],
     },
   ]),
   createChannelAccount: vi.fn((input) => ({
     channel: input.provider,
-    account: { id: input.accountId || "default", name: input.name, envKey: "TELEGRAM_BOT_TOKEN" },
+    account: {
+      id: input.accountId || "default",
+      name: input.name,
+      envKey: "TELEGRAM_BOT_TOKEN",
+    },
     binding: {
       agentId: input.agentId,
-      match: { channel: input.provider, accountId: input.accountId || "default" },
+      match: {
+        channel: input.provider,
+        accountId: input.accountId || "default",
+      },
     },
   })),
   updateChannelAccount: vi.fn((input) => ({
     channel: input.provider,
-    account: { id: input.accountId || "default", name: input.name, boundAgentId: input.agentId },
+    account: {
+      id: input.accountId || "default",
+      name: input.name,
+      boundAgentId: input.agentId,
+    },
     tokenUpdated: !!String(input?.token || "").trim(),
   })),
   getChannelAccountToken: vi.fn((input) => ({
@@ -57,10 +76,16 @@ const createAgentsServiceMock = () => ({
 const createApp = (
   agentsService,
   restartRequiredState = { markRequired: vi.fn() },
+  operationEvents = null,
 ) => {
   const app = express();
   app.use(express.json());
-  registerAgentRoutes({ app, agentsService, restartRequiredState });
+  registerAgentRoutes({
+    app,
+    agentsService,
+    restartRequiredState,
+    operationEvents,
+  });
   return app;
 };
 
@@ -76,7 +101,15 @@ describe("server/routes/agents", () => {
     expect(response.body.channels).toEqual([
       {
         channel: "telegram",
-        accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+        accounts: [
+          {
+            id: "default",
+            name: "",
+            boundAgentId: "",
+            paired: 0,
+            status: "configured",
+          },
+        ],
       },
     ]);
   });
@@ -105,6 +138,66 @@ describe("server/routes/agents", () => {
       token: "123:abc",
       agentId: "main",
     });
+  });
+
+  it("starts channel create job on POST /api/channels/accounts/jobs", async () => {
+    const agentsService = createAgentsServiceMock();
+    const operationEvents = {
+      createOperation: vi.fn(() => ({ operationId: "op-1" })),
+      publish: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+      subscribe: vi.fn(() => true),
+    };
+    const app = createApp(
+      agentsService,
+      { markRequired: vi.fn() },
+      operationEvents,
+    );
+
+    const response = await request(app)
+      .post("/api/channels/accounts/jobs")
+      .send({
+        provider: "telegram",
+        name: "Alerts",
+        accountId: "alerts",
+        token: "123:abc",
+        agentId: "main",
+      });
+
+    expect(response.status).toBe(202);
+    expect(response.body).toEqual({
+      ok: true,
+      operationId: "op-1",
+      streamUrl: "/api/operations/op-1/events",
+    });
+    expect(operationEvents.createOperation).toHaveBeenCalledWith({
+      type: "channel-account-create",
+    });
+  });
+
+  it("streams operation events on GET /api/operations/:id/events", async () => {
+    const agentsService = createAgentsServiceMock();
+    const operationEvents = {
+      createOperation: vi.fn(),
+      publish: vi.fn(),
+      complete: vi.fn(),
+      fail: vi.fn(),
+      subscribe: vi.fn(({ res }) => {
+        res.status(200).send("ok");
+        return true;
+      }),
+    };
+    const app = createApp(
+      agentsService,
+      { markRequired: vi.fn() },
+      operationEvents,
+    );
+
+    const response = await request(app).get("/api/operations/op-1/events");
+
+    expect(response.status).toBe(200);
+    expect(operationEvents.subscribe).toHaveBeenCalled();
   });
 
   it("updates a configured channel account on PUT /api/channels/accounts", async () => {
@@ -284,10 +377,12 @@ describe("server/routes/agents", () => {
     const agentsService = createAgentsServiceMock();
     const app = createApp(agentsService);
 
-    const response = await request(app).delete("/api/agents/main/bindings").send({
-      channel: "telegram",
-      accountId: "default",
-    });
+    const response = await request(app)
+      .delete("/api/agents/main/bindings")
+      .send({
+        channel: "telegram",
+        accountId: "default",
+      });
 
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
