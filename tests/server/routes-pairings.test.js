@@ -164,8 +164,42 @@ describe("server/routes/pairings", () => {
 
     expect(res.status).toBe(200);
     expect(clawCmd).toHaveBeenCalledWith(
-      "pairing approve --channel telegram --account tester ABCD1234",
+      "pairing approve --channel 'telegram' --account 'tester' 'ABCD1234'",
     );
+  });
+
+  it("rejects invalid pairing approval input before running command", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const fsModule = {
+      existsSync: vi.fn(() => false),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const invalidChannelRes = await request(app)
+      .post("/api/pairings/ABCD1234/approve")
+      .send({ channel: "telegram; rm -rf /" });
+    expect(invalidChannelRes.status).toBe(400);
+    expect(invalidChannelRes.body.ok).toBe(false);
+
+    const invalidAccountRes = await request(app)
+      .post("/api/pairings/ABCD1234/approve")
+      .send({ channel: "telegram", accountId: "bad account id" });
+    expect(invalidAccountRes.status).toBe(400);
+    expect(invalidAccountRes.body.ok).toBe(false);
+
+    const invalidPairingIdRes = await request(app)
+      .post("/api/pairings/abc def/approve")
+      .send({ channel: "telegram", accountId: "tester" });
+    expect(invalidPairingIdRes.status).toBe(400);
+    expect(invalidPairingIdRes.body.ok).toBe(false);
+
+    expect(clawCmd).not.toHaveBeenCalled();
   });
 
   it("rejects pairing and removes matching request from store", async () => {

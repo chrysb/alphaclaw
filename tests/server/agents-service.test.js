@@ -237,6 +237,38 @@ describe("server/agents/service", () => {
     ]);
   });
 
+  it("deletes stored custom workspace path when keepWorkspace is false", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            { id: "main", default: true },
+            {
+              id: "ops",
+              default: false,
+              workspace: "/tmp/openclaw/workspace-ops-custom",
+            },
+          ],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    service.deleteAgent("ops", { keepWorkspace: false });
+
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/workspace-ops-custom",
+      { recursive: true, force: true },
+    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith("/tmp/openclaw/agents/ops", {
+      recursive: true,
+      force: true,
+    });
+  });
+
   it("lists configured channel accounts including default single-account channels", () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -927,6 +959,107 @@ describe("server/agents/service", () => {
         },
       }),
     );
+  });
+
+  it("rejects concurrent channel account creation requests", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    let releaseRestart = () => {};
+    const restartGateway = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          releaseRestart = resolve;
+        }),
+    );
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway,
+      clawCmd: vi.fn(async () => ({ ok: true, stdout: "", stderr: "" })),
+    });
+
+    const firstCreatePromise = service.createChannelAccount({
+      provider: "telegram",
+      name: "Telegram",
+      accountId: "default",
+      token: "123:abc",
+      agentId: "main",
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "telegram",
+        name: "Telegram 2",
+        accountId: "alerts",
+        token: "456:def",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("A channel account creation is already in progress");
+
+    releaseRestart();
+    await expect(firstCreatePromise).resolves.toEqual(
+      expect.objectContaining({
+        channel: "telegram",
+      }),
+    );
+  });
+
+  it("rolls back env and config when channel add CLI step fails", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const initialEnvVars = [{ key: "OPENAI_API_KEY", value: "sk-test" }];
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const clawCmd = vi.fn(async (command) => {
+      if (String(command).startsWith("channels add")) {
+        return { ok: false, stdout: "", stderr: "CLI add failed" };
+      }
+      return { ok: true, stdout: "", stderr: "" };
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => initialEnvVars),
+      writeEnvFile,
+      reloadEnv,
+      restartGateway: vi.fn(async () => {}),
+      clawCmd,
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "telegram",
+        name: "Telegram",
+        accountId: "default",
+        token: "123:abc",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("CLI add failed");
+
+    expect(writeEnvFile).toHaveBeenNthCalledWith(1, [
+      { key: "OPENAI_API_KEY", value: "sk-test" },
+      { key: "TELEGRAM_BOT_TOKEN", value: "123:abc" },
+    ]);
+    expect(writeEnvFile).toHaveBeenNthCalledWith(2, initialEnvVars);
+    expect(reloadEnv).toHaveBeenCalledTimes(2);
+    expect(fsMock.readConfig()).toEqual({
+      agents: {
+        list: [{ id: "main", default: true }],
+      },
+    });
   });
 
   it("prevents creating multiple discord channel accounts", async () => {

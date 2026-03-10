@@ -290,6 +290,32 @@ describe("server/routes/agents", () => {
     ]);
   });
 
+  it("loads a single agent on GET /api/agents/:id", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get("/api/agents/main");
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.agent).toEqual({
+      id: "main",
+      name: "Main Agent",
+      default: true,
+    });
+    expect(agentsService.getAgent).toHaveBeenCalledWith("main");
+  });
+
+  it("returns 404 on GET /api/agents/:id when missing", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get("/api/agents/missing");
+
+    expect(response.status).toBe(404);
+    expect(response.body.ok).toBe(false);
+  });
+
   it("creates an agent on POST /api/agents", async () => {
     const agentsService = createAgentsServiceMock();
     const app = createApp(agentsService);
@@ -319,6 +345,40 @@ describe("server/routes/agents", () => {
     expect(agentsService.getAgentWorkspaceSize).toHaveBeenCalledWith("main");
   });
 
+  it("updates an agent on PUT /api/agents/:id", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).put("/api/agents/main").send({
+      name: "Primary Agent",
+    });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.agent).toEqual({
+      id: "main",
+      name: "Primary Agent",
+    });
+    expect(agentsService.updateAgent).toHaveBeenCalledWith("main", {
+      name: "Primary Agent",
+    });
+  });
+
+  it("returns 404 on PUT /api/agents/:id when missing", async () => {
+    const agentsService = createAgentsServiceMock();
+    agentsService.updateAgent.mockImplementation(() => {
+      throw new Error('Agent "missing" not found');
+    });
+    const app = createApp(agentsService);
+
+    const response = await request(app).put("/api/agents/missing").send({
+      name: "Missing",
+    });
+
+    expect(response.status).toBe(404);
+    expect(response.body.ok).toBe(false);
+  });
+
   it("returns 409 for duplicate agent ids", async () => {
     const agentsService = createAgentsServiceMock();
     agentsService.createAgent.mockImplementation(() => {
@@ -341,6 +401,34 @@ describe("server/routes/agents", () => {
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
     expect(agentsService.setDefaultAgent).toHaveBeenCalledWith("ops");
+  });
+
+  it("deletes an agent on DELETE /api/agents/:id", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).delete(
+      "/api/agents/ops?keepWorkspace=false",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(agentsService.deleteAgent).toHaveBeenCalledWith("ops", {
+      keepWorkspace: false,
+    });
+  });
+
+  it("returns 400 on DELETE /api/agents/:id for guard rails", async () => {
+    const agentsService = createAgentsServiceMock();
+    agentsService.deleteAgent.mockImplementation(() => {
+      throw new Error("The default main agent cannot be deleted");
+    });
+    const app = createApp(agentsService);
+
+    const response = await request(app).delete("/api/agents/main");
+
+    expect(response.status).toBe(400);
+    expect(response.body.ok).toBe(false);
   });
 
   it("lists bindings on GET /api/agents/:id/bindings", async () => {
