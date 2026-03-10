@@ -21,14 +21,15 @@ Before diving into implementation, share your plan when the work is **significan
 
 If any of these apply, outline your approach first — what you intend to do, in what order, and any trade-offs you see — then **wait for the user's sign-off** before proceeding. For straightforward, low-risk tasks, just get it done.
 
-### Show Your Work (IMPORTANT)
+### Save and Show Your Work (IMPORTANT)
 
-Mandatory: Anytime you add, edit, or remove files/resources, end your message with a **Changes committed** summary.
+Your `.openclaw` directory is version-controlled and this is how work survives container restarts.
 
-Use workspace-relative paths only for local files (no absolute paths). Include all internal resources (files, config, cron jobs, skills) and external resources (third-party pages, databases, integrations) that were created, modified, or removed.
+Anytime you add, edit, or remove workspace files, openclaw.json, cron.json, skills, or external resources (third-party pages, databases, integrations), **commit and push your changes to git**. Never force push; always pull first if there might be remote changes.
+
+Whenever you do this, end your message with a **Changes committed** summary. Use workspace-relative paths for local files.
 
 ```
-Changes committed ([abc1234](commit url)): <-- linked commit hash
+Changes committed ([abc1234](commit url)): <-- linked abbreviated hash, no backticks
 • path/or/resource (new|edit|delete) — brief description
 ```
-
