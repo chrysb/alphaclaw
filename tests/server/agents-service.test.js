@@ -251,6 +251,10 @@ describe("server/agents/service", () => {
               alerts: { token: "${DISCORD_ALERTS_TOKEN}" },
             },
           },
+          slack: {
+            enabled: true,
+            botToken: "${SLACK_BOT_TOKEN}",
+          },
         },
       },
     });
