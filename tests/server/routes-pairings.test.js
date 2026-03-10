@@ -168,6 +168,87 @@ describe("server/routes/pairings", () => {
     );
   });
 
+  it("rejects pairing and removes matching request from store", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const fsModule = {
+      existsSync: vi.fn(() => false),
+      mkdirSync: vi.fn(),
+      readFileSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw/credentials/telegram-pairing.json") {
+          return JSON.stringify({
+            version: 1,
+            requests: [
+              { code: "ABCD1234", meta: { accountId: "tester" } },
+              { code: "OTHER111", meta: { accountId: "default" } },
+            ],
+          });
+        }
+        throw new Error(`unexpected read: ${targetPath}`);
+      }),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).post("/api/pairings/ABCD1234/reject").send({
+      channel: "telegram",
+      accountId: "tester",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true, removed: true });
+    expect(fsModule.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/telegram-pairing.json",
+      JSON.stringify(
+        {
+          version: 1,
+          requests: [{ code: "OTHER111", meta: { accountId: "default" } }],
+        },
+        null,
+        2,
+      ),
+    );
+  });
+
+  it("returns not found when reject target does not exist", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const fsModule = {
+      existsSync: vi.fn(() => false),
+      mkdirSync: vi.fn(),
+      readFileSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw/credentials/telegram-pairing.json") {
+          return JSON.stringify({
+            version: 1,
+            requests: [{ code: "OTHER111", meta: { accountId: "default" } }],
+          });
+        }
+        throw new Error(`unexpected read: ${targetPath}`);
+      }),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).post("/api/pairings/MISSING/reject").send({
+      channel: "telegram",
+      accountId: "tester",
+    });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({
+      ok: false,
+      removed: false,
+      error: "Pairing request not found",
+    });
+    expect(fsModule.writeFileSync).not.toHaveBeenCalled();
+  });
+
   it("auto-approves the first pending CLI device request when marker is absent", async () => {
     const clawCmd = vi.fn(async (cmd) => {
       if (cmd === "devices list --json") {

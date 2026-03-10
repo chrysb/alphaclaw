@@ -105,6 +105,7 @@ telegram topic add options:
   --thread <id>       Telegram thread ID
   --name <text>       Topic name
   --system <text>     Optional system instructions
+  --agent <id>        Optional agent ID for per-topic routing
   --group <id>        Optional group ID override (auto-resolves when one group exists)
 
 Examples:
@@ -112,6 +113,7 @@ Examples:
   alphaclaw git-sync --message "update config" --file "workspace/app/config.json"
   alphaclaw telegram topic add --thread 12 --name "Testing"
   alphaclaw telegram topic add --thread 12 --name "Testing" --system "Handle QA requests"
+  alphaclaw telegram topic add --thread 12 --name "Ops" --agent ops
 `);
   process.exit(0);
 }
@@ -375,6 +377,7 @@ const runTelegramTopicAdd = () => {
   const systemInstructions = String(
     flagValue(commandArgs, "--system") || "",
   ).trim();
+  const agentId = String(flagValue(commandArgs, "--agent") || "").trim();
   const requestedGroupId = String(
     flagValue(commandArgs, "--group") || "",
   ).trim();
@@ -423,6 +426,7 @@ const runTelegramTopicAdd = () => {
     topicRegistry.updateTopic(groupId, threadId, {
       name: topicName,
       ...(systemInstructions ? { systemInstructions } : {}),
+      ...(agentId ? { agentId } : {}),
     });
 
     const requireMention =
@@ -440,8 +444,9 @@ const runTelegramTopicAdd = () => {
       workspaceDir: path.join(openclawDir, "workspace"),
     });
 
+    const agentSuffix = agentId ? ` agent=${agentId}` : "";
     console.log(
-      `[alphaclaw] Topic mapped: group=${groupId} thread=${threadId} name=${topicName}`,
+      `[alphaclaw] Topic mapped: group=${groupId} thread=${threadId} name=${topicName}${agentSuffix}`,
     );
     console.log(
       `[alphaclaw] Concurrency updated: agent=${syncResult.maxConcurrent} subagents=${syncResult.subagentMaxConcurrent} topics=${syncResult.totalTopics}`,

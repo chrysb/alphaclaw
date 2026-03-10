@@ -252,13 +252,13 @@ describe("server/agents/service", () => {
       {
         channel: "discord",
         accounts: [
-          { id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" },
-          { id: "alerts", name: "", boundAgentId: "", paired: 0, status: "configured" },
+          { id: "default", name: "", envKey: "DISCORD_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" },
+          { id: "alerts", name: "", envKey: "DISCORD_BOT_TOKEN_ALERTS", token: "", boundAgentId: "", paired: 0, status: "configured" },
         ],
       },
       {
         channel: "telegram",
-        accounts: [{ id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" }],
+        accounts: [{ id: "default", name: "", envKey: "TELEGRAM_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" }],
       },
     ]);
   });
@@ -294,8 +294,8 @@ describe("server/agents/service", () => {
       {
         channel: "telegram",
         accounts: [
-          { id: "default", name: "", boundAgentId: "main", paired: 0, status: "configured" },
-          { id: "alerts", name: "", boundAgentId: "ops", paired: 0, status: "configured" },
+          { id: "default", name: "", envKey: "TELEGRAM_BOT_TOKEN", token: "", boundAgentId: "main", paired: 0, status: "configured" },
+          { id: "alerts", name: "", envKey: "TELEGRAM_BOT_TOKEN_ALERTS", token: "", boundAgentId: "ops", paired: 0, status: "configured" },
         ],
       },
     ]);
@@ -332,8 +332,45 @@ describe("server/agents/service", () => {
       {
         channel: "telegram",
         accounts: [
-          { id: "default", name: "", boundAgentId: "", paired: 0, status: "configured" },
-          { id: "tester", name: "", boundAgentId: "main", paired: 1, status: "paired" },
+          { id: "default", name: "", envKey: "TELEGRAM_BOT_TOKEN", token: "", boundAgentId: "", paired: 0, status: "configured" },
+          { id: "tester", name: "", envKey: "TELEGRAM_BOT_TOKEN_TESTER", token: "", boundAgentId: "main", paired: 1, status: "paired" },
+        ],
+      },
+    ]);
+  });
+
+  it("masks configured channel token values when listing accounts", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        channels: {
+          telegram: {
+            enabled: true,
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}" },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: () => [{ key: "TELEGRAM_BOT_TOKEN", value: "123:abc" }],
+    });
+
+    expect(service.listConfiguredChannelAccounts()).toEqual([
+      {
+        channel: "telegram",
+        accounts: [
+          {
+            id: "default",
+            name: "",
+            envKey: "TELEGRAM_BOT_TOKEN",
+            token: "********",
+            boundAgentId: "",
+            paired: 0,
+            status: "configured",
+          },
         ],
       },
     ]);
@@ -697,6 +734,101 @@ describe("server/agents/service", () => {
     );
   });
 
+  it("updates channel account token when provided", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            { id: "main", default: true },
+            { id: "ops", default: false },
+          ],
+        },
+        channels: {
+          telegram: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}", name: "Telegram" },
+              alerts: { botToken: "${TELEGRAM_BOT_TOKEN_ALERTS}", name: "Alerts" },
+            },
+          },
+        },
+        bindings: [
+          { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+          { agentId: "ops", match: { channel: "telegram", accountId: "alerts" } },
+        ],
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "TELEGRAM_BOT_TOKEN", value: "old-token" },
+      { key: "TELEGRAM_BOT_TOKEN_ALERTS", value: "old-alerts-token" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+    });
+
+    service.updateChannelAccount({
+      provider: "telegram",
+      accountId: "alerts",
+      name: "Alerts Bot",
+      agentId: "ops",
+      token: "new-alerts-token",
+    });
+
+    expect(writeEnvFile).toHaveBeenCalledWith([
+      { key: "TELEGRAM_BOT_TOKEN", value: "old-token" },
+      { key: "TELEGRAM_BOT_TOKEN_ALERTS", value: "new-alerts-token" },
+    ]);
+    expect(reloadEnv).toHaveBeenCalled();
+  });
+
+  it("skips token update when token is empty on update", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          telegram: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}", name: "Telegram" },
+            },
+          },
+        },
+        bindings: [
+          { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+        ],
+      },
+    });
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile,
+      reloadEnv,
+    });
+
+    service.updateChannelAccount({
+      provider: "telegram",
+      accountId: "default",
+      name: "My Bot",
+      agentId: "main",
+    });
+
+    expect(writeEnvFile).not.toHaveBeenCalled();
+    expect(reloadEnv).not.toHaveBeenCalled();
+  });
+
   it("deletes channel accounts and removes their env entry", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -825,5 +957,87 @@ describe("server/agents/service", () => {
         bindings: [],
       }),
     );
+  });
+
+  it("overwrites orphaned env var when channel is not in config", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "OPENAI_API_KEY", value: "sk-test" },
+      { key: "TELEGRAM_BOT_TOKEN_OLD_BOT", value: "123:abc" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+      clawCmd,
+    });
+
+    const result = await service.createChannelAccount({
+      provider: "telegram",
+      name: "Telegram",
+      accountId: "default",
+      token: "123:abc",
+      agentId: "main",
+    });
+
+    expect(result.account.envKey).toBe("TELEGRAM_BOT_TOKEN");
+    expect(writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "sk-test" },
+      { key: "TELEGRAM_BOT_TOKEN", value: "123:abc" },
+    ]);
+  });
+
+  it("still blocks duplicate token when the other channel is configured", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          telegram: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: { botToken: "${TELEGRAM_BOT_TOKEN}", name: "Telegram" },
+            },
+          },
+        },
+        bindings: [
+          { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+        ],
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "TELEGRAM_BOT_TOKEN", value: "123:abc" },
+    ]);
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "telegram",
+        name: "Second Bot",
+        accountId: "second",
+        token: "123:abc",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("Channel token already exists in TELEGRAM_BOT_TOKEN");
   });
 });
