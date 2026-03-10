@@ -84,6 +84,8 @@ const createSystemDeps = () => {
       removeApiKeyProfileForEnvVar: vi.fn(),
     },
     OPENCLAW_DIR: "/tmp/openclaw",
+    platform: "linux",
+    execFileSyncImpl: vi.fn(() => ""),
   };
   return deps;
 };
@@ -365,6 +367,36 @@ describe("server/routes/system", () => {
       expect.objectContaining({ mode: 0o644 }),
     );
     expect(res.body.ok).toBe(true);
+  });
+
+  it("updates sync cron config for the managed scheduler on macOS", async () => {
+    const deps = createSystemDeps();
+    deps.platform = "darwin";
+    deps.fs.readFileSync
+      .mockReturnValueOnce(JSON.stringify({ enabled: true, schedule: "0 * * * *" }))
+      .mockReturnValueOnce(JSON.stringify({ enabled: true, schedule: "*/20 * * * *" }));
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/sync-cron").send({
+      enabled: true,
+      schedule: "*/20 * * * *",
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/cron/system-sync.json",
+      expect.stringContaining('"schedule": "*/20 * * * *"'),
+    );
+    expect(deps.execFileSyncImpl).not.toHaveBeenCalled();
+    expect(res.body.syncCron).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        schedule: "*/20 * * * *",
+        installed: false,
+        platform: "darwin",
+        installMethod: "managed_scheduler",
+      }),
+    );
   });
 
   it("returns alphaclaw version status on GET /api/alphaclaw/version", async () => {

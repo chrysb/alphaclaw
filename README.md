@@ -22,7 +22,7 @@
   <a href="https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
 </p>
 
-> **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
+> **Platform:** AlphaClaw supports Docker/Linux deployments and local macOS development. Linux installs the hourly git sync via `/etc/cron.d`; macOS runs the sync schedule from AlphaClaw's managed in-process scheduler.
 
 ## Features
 

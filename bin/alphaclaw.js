@@ -9,10 +9,15 @@ const {
   normalizeGitSyncFilePath,
   validateGitSyncFilePath,
 } = require("../lib/cli/git-sync");
-const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
+const {
+  applySystemCronConfig,
+  normalizeCronPlatform,
+  readSystemCronConfig,
+  startManagedScheduler,
+} = require("../lib/server/system-cron");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -21,6 +26,76 @@ const kUsageTrackerPluginPath = path.resolve(
   "plugin",
   "usage-tracker",
 );
+const kSystemBinDir = "/usr/local/bin";
+
+const prependPathEntry = (entryPath) => {
+  const currentPath = String(process.env.PATH || "");
+  const entries = currentPath
+    .split(path.delimiter)
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (entries.includes(entryPath)) return;
+  process.env.PATH = [entryPath, ...entries].join(path.delimiter);
+};
+
+const isWritableDirectory = (dirPath) => {
+  try {
+    fs.accessSync(dirPath, fs.constants.W_OK);
+    return true;
+  } catch {
+    return false;
+  }
+};
+
+const findFileRecursive = (rootPath, fileName) => {
+  const pending = [rootPath];
+  while (pending.length) {
+    const currentPath = pending.pop();
+    let entries = [];
+    try {
+      entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+    for (const entry of entries) {
+      const entryPath = path.join(currentPath, entry.name);
+      if (entry.isFile() && entry.name === fileName) return entryPath;
+      if (entry.isDirectory()) pending.push(entryPath);
+    }
+  }
+  return "";
+};
+
+const installTarballBinary = ({
+  url,
+  binaryName,
+  installDir,
+  logLabel,
+}) => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-bin-"));
+  const tarballPath = path.join(tempDir, `${binaryName}.tar.gz`);
+  try {
+    execSync(`curl -fsSL "${url}" -o ${quoteArg(tarballPath)}`, {
+      stdio: "inherit",
+    });
+    execSync(`tar -xzf ${quoteArg(tarballPath)} -C ${quoteArg(tempDir)}`, {
+      stdio: "inherit",
+    });
+    const extractedBinaryPath = findFileRecursive(tempDir, binaryName);
+    if (!extractedBinaryPath) {
+      throw new Error(`Could not find ${binaryName} in downloaded archive`);
+    }
+    const targetPath = path.join(installDir, binaryName);
+    fs.copyFileSync(extractedBinaryPath, targetPath);
+    fs.chmodSync(targetPath, 0o755);
+    console.log(`[alphaclaw] ${logLabel} installed at ${targetPath}`);
+    return targetPath;
+  } finally {
+    try {
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    } catch {}
+  }
+};
 
 // ---------------------------------------------------------------------------
 // Parse CLI flags
@@ -146,10 +221,16 @@ if (portFlag) {
 
 const openclawDir = path.join(rootDir, ".openclaw");
 fs.mkdirSync(openclawDir, { recursive: true });
-const { hourlyGitSyncPath } = migrateManagedInternalFiles({
+const { hourlyGitSyncPath, internalDir } = migrateManagedInternalFiles({
   fs,
   openclawDir,
 });
+const managedBinDir = path.join(internalDir, "bin");
+fs.mkdirSync(managedBinDir, { recursive: true });
+prependPathEntry(managedBinDir);
+const installBinDir = isWritableDirectory(kSystemBinDir)
+  ? kSystemBinDir
+  : managedBinDir;
 console.log(`[alphaclaw] Root directory: ${rootDir}`);
 
 // Check for pending update marker (written by the update endpoint before restart).
@@ -232,6 +313,8 @@ if (fs.existsSync(envFilePath)) {
   }
   console.log("[alphaclaw] Loaded .env");
 }
+
+const { buildSecretReplacements } = require("../lib/server/helpers");
 
 const runGitSync = () => {
   const githubToken = String(process.env.GITHUB_TOKEN || "").trim();
@@ -507,11 +590,12 @@ if (!gogInstalled) {
     const arch = os.arch() === "arm64" ? "arm64" : "amd64";
     const tarball = `gogcli_${gogVersion}_${platform}_${arch}.tar.gz`;
     const url = `https://github.com/steipete/gogcli/releases/download/v${gogVersion}/${tarball}`;
-    execSync(
-      `curl -fsSL "${url}" -o /tmp/gog.tar.gz && tar -xzf /tmp/gog.tar.gz -C /tmp/ && mv /tmp/gog /usr/local/bin/gog && chmod +x /usr/local/bin/gog && rm -f /tmp/gog.tar.gz`,
-      { stdio: "inherit" },
-    );
-    console.log("[alphaclaw] gog CLI installed");
+    installTarballBinary({
+      url,
+      binaryName: "gog",
+      installDir: installBinDir,
+      logLabel: "gog CLI",
+    });
   } catch (e) {
     console.log(`[alphaclaw] gog install skipped: ${e.message}`);
   }
@@ -549,35 +633,25 @@ try {
 
 if (fs.existsSync(hourlyGitSyncPath)) {
   try {
-    const syncCronConfig = path.join(openclawDir, "cron", "system-sync.json");
-    let cronEnabled = true;
-    let cronSchedule = "0 * * * *";
-
-    if (fs.existsSync(syncCronConfig)) {
-      try {
-        const cfg = JSON.parse(fs.readFileSync(syncCronConfig, "utf8"));
-        cronEnabled = cfg.enabled !== false;
-        const schedule = String(cfg.schedule || "").trim();
-        if (/^(\S+\s+){4}\S+$/.test(schedule)) cronSchedule = schedule;
-      } catch {}
-    }
-
-    const cronFilePath = "/etc/cron.d/openclaw-hourly-sync";
-    if (cronEnabled) {
-      const cronContent = [
-        "SHELL=/bin/bash",
-        "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
-        `${cronSchedule} root bash "${hourlyGitSyncPath}" >> /var/log/openclaw-hourly-sync.log 2>&1`,
-        "",
-      ].join("\n");
-      fs.writeFileSync(cronFilePath, cronContent, { mode: 0o644 });
-      console.log("[alphaclaw] System cron entry installed");
-    } else {
-      try {
-        fs.unlinkSync(cronFilePath);
-      } catch {}
-      console.log("[alphaclaw] System cron entry disabled");
-    }
+    startManagedScheduler({
+      fs,
+      openclawDir,
+      platform: process.platform,
+    });
+    const cronConfig = readSystemCronConfig({
+      fs,
+      openclawDir,
+      platform: process.platform,
+    });
+    const cronStatus = applySystemCronConfig({
+      fs,
+      openclawDir,
+      nextConfig: cronConfig,
+      platform: process.platform,
+    });
+    console.log(
+      `[alphaclaw] System cron ${cronStatus.enabled ? "configured" : "disabled"} (${cronStatus.installMethod})`,
+    );
   } catch (e) {
     console.log(`[alphaclaw] Cron setup skipped: ${e.message}`);
   }
@@ -587,15 +661,17 @@ if (fs.existsSync(hourlyGitSyncPath)) {
 // 9. Start cron daemon if available
 // ---------------------------------------------------------------------------
 
-try {
-  execSync("command -v cron", { stdio: "ignore" });
+if (normalizeCronPlatform(process.platform) !== "darwin") {
   try {
-    execSync("pgrep -x cron", { stdio: "ignore" });
-  } catch {
-    execSync("cron", { stdio: "ignore" });
-  }
-  console.log("[alphaclaw] Cron daemon running");
-} catch {}
+    execSync("command -v cron", { stdio: "ignore" });
+    try {
+      execSync("pgrep -x cron", { stdio: "ignore" });
+    } catch {
+      execSync("cron", { stdio: "ignore" });
+    }
+    console.log("[alphaclaw] Cron daemon running");
+  } catch {}
+}
 
 // ---------------------------------------------------------------------------
 // 10. Reconcile channels if already onboarded
@@ -821,11 +897,11 @@ try {
   execSync("command -v systemctl", { stdio: "ignore" });
 } catch {
   const shimSrc = path.join(__dirname, "..", "lib", "scripts", "systemctl");
-  const shimDest = "/usr/local/bin/systemctl";
+  const shimDest = path.join(installBinDir, "systemctl");
   try {
     fs.copyFileSync(shimSrc, shimDest);
     fs.chmodSync(shimDest, 0o755);
-    console.log("[alphaclaw] systemctl shim installed");
+    console.log(`[alphaclaw] systemctl shim installed at ${shimDest}`);
   } catch (e) {
     console.log(`[alphaclaw] systemctl shim skipped: ${e.message}`);
   }
@@ -837,9 +913,9 @@ try {
 
 try {
   const gitAskPassSrc = path.join(__dirname, "..", "lib", "scripts", "git-askpass");
-  const gitAskPassDest = "/tmp/alphaclaw-git-askpass.sh";
+  const gitAskPassDest = path.join(managedBinDir, "alphaclaw-git-askpass.sh");
   const gitShimTemplatePath = path.join(__dirname, "..", "lib", "scripts", "git");
-  const gitShimDest = "/usr/local/bin/git";
+  const gitShimDest = path.join(installBinDir, "git");
 
   if (fs.existsSync(gitAskPassSrc)) {
     fs.copyFileSync(gitAskPassSrc, gitAskPassDest);
@@ -870,7 +946,7 @@ try {
       .replace("@@REAL_GIT@@", realGitPath)
       .replace("@@OPENCLAW_REPO_ROOT@@", openclawDir);
     fs.writeFileSync(gitShimDest, gitShimContent, { mode: 0o755 });
-    console.log("[alphaclaw] git auth shim installed");
+    console.log(`[alphaclaw] git auth shim installed at ${gitShimDest}`);
   }
 } catch (e) {
   console.log(`[alphaclaw] git auth shim skipped: ${e.message}`);
