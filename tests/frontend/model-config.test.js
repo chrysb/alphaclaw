@@ -30,12 +30,12 @@ describe("frontend/model-config", () => {
     const featured = modelConfig.getFeaturedModels([
       { key: "google/gemini-3.1-pro-preview", label: "Gemini 3.1 Pro" },
       { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
-      { key: "openai-codex/gpt-5.3-codex", label: "Codex 5.3" },
+      { key: "openai-codex/gpt-5.4", label: "Codex 5.4" },
     ]);
 
     expect(featured.map((entry) => entry.key)).toEqual([
       "anthropic/claude-opus-4-6",
-      "openai-codex/gpt-5.3-codex",
+      "openai-codex/gpt-5.4",
       "google/gemini-3.1-pro-preview",
     ]);
     expect(featured[2]?.featuredLabel).toBe("Gemini 3.1 Pro");
