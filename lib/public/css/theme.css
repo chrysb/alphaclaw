@@ -593,6 +593,15 @@ textarea:focus {
   flex: 1 1 0%;
 }
 
+.ac-segmented-control > .inline-flex {
+  align-self: stretch;
+  display: flex;
+}
+
+.ac-segmented-control-full > .inline-flex {
+  flex: 1 1 0%;
+}
+
 .ac-segmented-control-lg {
   height: 36px;
   border-radius: 12px;
@@ -612,3 +621,55 @@ textarea:focus {
   color: var(--accent);
   background: var(--bg-active);
 }
+
+.ac-segmented-control-dark {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ── PopActions: animated action group ───────── */
+
+.ac-pop-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ac-pop-actions-hidden {
+  display: none;
+}
+
+.ac-pop-actions-in > * {
+  animation: acPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.ac-pop-actions-in > *:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.ac-pop-actions-in .ac-btn-cyan {
+  animation: acPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s both;
+}
+
+.ac-pop-actions-out > * {
+  animation: acPopOut 0.18s ease-in both;
+}
+
+.ac-pop-actions-out > *:first-child {
+  animation-delay: 0.03s;
+}
+
+.ac-pop-actions > button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+@keyframes acPopIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes acPopOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.85); }
+}
+
