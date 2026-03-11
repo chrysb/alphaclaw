@@ -4,6 +4,10 @@
 
 AlphaClaw is the ops and setup layer around OpenClaw. It provides a browser-based setup UI, gateway lifecycle management, watchdog recovery flows, and integrations (for example Telegram, Discord, Google Workspace, and webhooks) so users can operate OpenClaw without manual server intervention.
 
+### Understanding OpenClaw
+
+If you need to understand the internals of OpenClaw, you can inspect the code at `~/Projects/openclaw/src`
+
 ### Architecture At A Glance
 
 - `bin/alphaclaw.js`: CLI entrypoint and lifecycle command surface.
@@ -42,6 +46,10 @@ Runtime model:
 - Avoid monolithic implementation files for new features. For new UI areas and new API areas, start with a decomposed structure (focused components/hooks/utilities for UI; focused route modules/services/helpers for server) rather than building one large file first and splitting later.
 - When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
 - When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
+
+### OpenClaw Config Access
+
+- When reading `openclaw.json` in server code, use the shared helper in `lib/server/openclaw-config.js` (`readOpenclawConfig`) instead of ad-hoc `JSON.parse(fs.readFileSync(...))` blocks.
 
 ### Where To Put Agent Guidance
 

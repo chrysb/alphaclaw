@@ -1,18 +1,21 @@
 const childProcess = require("child_process");
 const fs = require("fs");
 const net = require("net");
+const path = require("path");
 const {
   ALPHACLAW_DIR,
-  kControlUiSkillPath,
   kOnboardingMarkerPath,
   OPENCLAW_DIR,
 } = require("../../lib/server/constants");
+
+const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
 const originalExecSync = childProcess.execSync;
 const originalExistsSync = fs.existsSync;
 const originalMkdirSync = fs.mkdirSync;
+const originalReaddirSync = fs.readdirSync;
 const originalReadFileSync = fs.readFileSync;
 const originalWriteFileSync = fs.writeFileSync;
 const originalCreateConnection = net.createConnection;
@@ -47,6 +50,7 @@ describe("server/gateway restart behavior", () => {
     childProcess.execSync = originalExecSync;
     fs.existsSync = originalExistsSync;
     fs.mkdirSync = originalMkdirSync;
+    fs.readdirSync = originalReaddirSync;
     fs.readFileSync = originalReadFileSync;
     fs.writeFileSync = originalWriteFileSync;
     net.createConnection = originalCreateConnection;
@@ -234,7 +238,7 @@ describe("server/gateway restart behavior", () => {
   });
 
   it("backfills onboarding marker from legacy onboarding artifact", () => {
-    fs.existsSync = vi.fn((targetPath) => targetPath === kControlUiSkillPath);
+    fs.existsSync = vi.fn((targetPath) => targetPath === kLegacyControlUiSkillPath);
     fs.mkdirSync = vi.fn();
     fs.writeFileSync = vi.fn();
     delete require.cache[modulePath];
@@ -313,5 +317,89 @@ describe("server/gateway restart behavior", () => {
       "https://setup.example.com",
     ]);
     expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports channel status per account while preserving provider summary", () => {
+    fs.existsSync = vi.fn(() => true);
+    fs.readdirSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/credentials`) {
+        return ["telegram-default-allowFrom.json", "telegram-alerts-allowFrom.json"];
+      }
+      return [];
+    });
+    fs.readFileSync = vi.fn((targetPath, ...args) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({
+          channels: {
+            telegram: {
+              enabled: true,
+              accounts: {
+                default: { botToken: "${TELEGRAM_BOT_TOKEN}" },
+                alerts: { botToken: "${TELEGRAM_BOT_TOKEN_ALERTS}" },
+              },
+            },
+          },
+        });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/credentials/telegram-default-allowFrom.json`) {
+        return JSON.stringify({ allowFrom: ["1001"] });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/credentials/telegram-alerts-allowFrom.json`) {
+        return JSON.stringify({ allowFrom: [] });
+      }
+      return originalReadFileSync(targetPath, ...args);
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.getChannelStatus()).toEqual({
+      telegram: {
+        status: "paired",
+        paired: 1,
+        accounts: {
+          default: { status: "paired", paired: 1 },
+          alerts: { status: "configured", paired: 0 },
+        },
+      },
+    });
+  });
+
+  it("treats legacy single-account telegram config as default account status", () => {
+    fs.existsSync = vi.fn(() => true);
+    fs.readdirSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/credentials`) {
+        return ["telegram-allowFrom.json"];
+      }
+      return [];
+    });
+    fs.readFileSync = vi.fn((targetPath, ...args) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({
+          channels: {
+            telegram: {
+              enabled: true,
+              botToken: "${TELEGRAM_BOT_TOKEN}",
+              dmPolicy: "pairing",
+            },
+          },
+        });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/credentials/telegram-allowFrom.json`) {
+        return JSON.stringify({ allowFrom: ["1001", "1002"] });
+      }
+      return originalReadFileSync(targetPath, ...args);
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.getChannelStatus()).toEqual({
+      telegram: {
+        status: "paired",
+        paired: 2,
+        accounts: {
+          default: { status: "paired", paired: 2 },
+        },
+      },
+    });
   });
 });
