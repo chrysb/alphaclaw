@@ -226,6 +226,28 @@ describe("server/routes/models", () => {
     expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
   });
 
+  it("removes API-key env vars when profile key is cleared", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    deps.readEnvFile.mockReturnValue([{ key: "OPENAI_API_KEY", value: "sk-live-123" }]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      profiles: [
+        {
+          id: "openai:default",
+          type: "api_key",
+          provider: "openai",
+          key: "",
+        },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([]);
+    expect(deps.reloadEnv).toHaveBeenCalledTimes(1);
+  });
+
   it("writes newly supported provider API keys back to env vars", async () => {
     const deps = createModelDeps();
     deps.shellCmd.mockResolvedValue("");
