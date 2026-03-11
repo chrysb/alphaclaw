@@ -196,6 +196,107 @@
   margin-top: 8px;
 }
 
+/* ── Sidebar chat sessions ───────────────────── */
+
+.sidebar-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+
+.sidebar-chat-label {
+  padding: 0;
+}
+
+.sidebar-chat-new-button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 6px;
+  margin: -6px;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: color 0.1s, opacity 0.1s;
+}
+
+.sidebar-chat-new-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.sidebar-chat-new-button:hover {
+  color: var(--text);
+  opacity: 1;
+}
+
+.sidebar-chat-sessions-list {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 2px 0 8px;
+}
+
+.sidebar-chat-session-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 16px 6px 24px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  position: relative;
+  user-select: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+.sidebar-chat-session-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sidebar-chat-session-item.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
+.sidebar-chat-session-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+}
+
+.sidebar-chat-session-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-chat-empty {
+  padding: 10px 16px 10px 24px;
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
 .file-tree-wrap {
   width: 100%;
   display: flex;
