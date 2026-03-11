@@ -186,4 +186,73 @@ describe("server/gmail-watch", () => {
       }),
     ]);
   });
+
+  it("preserves an existing custom Gmail transform while ensuring hook wiring", () => {
+    const statePath = "/tmp/gogcli/state.json";
+    const configDir = "/tmp/gogcli";
+    const openclawDir = "/tmp/.openclaw";
+    const configPath = `${openclawDir}/openclaw.json`;
+    const transformPath = `${openclawDir}/hooks/transforms/gmail/gmail-transform.mjs`;
+    const customTransformSource =
+      "export default async function transform(payload) {\n" +
+      "  return { message: payload?.custom || \"custom\" };\n" +
+      "}\n";
+    const fs = createMemoryFs({
+      [statePath]: JSON.stringify({
+        version: 2,
+        accounts: [],
+        gmailPush: {
+          token: "push-token",
+          topics: {},
+        },
+      }),
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        hooks: {
+          enabled: true,
+          token: "${WEBHOOK_TOKEN}",
+          presets: ["gmail"],
+          mappings: [
+            {
+              match: { path: "gmail" },
+              action: "agent",
+              name: "Gmail",
+              wakeMode: "now",
+              transform: { module: "gmail/gmail-transform.mjs" },
+            },
+          ],
+        },
+      }),
+      [transformPath]: customTransformSource,
+    });
+    const service = createGmailWatchService({
+      fs,
+      constants: {
+        GOG_STATE_PATH: statePath,
+        GOG_CONFIG_DIR: configDir,
+        OPENCLAW_DIR: openclawDir,
+      },
+      gogCmd: async () => ({ ok: true, stdout: "", stderr: "" }),
+      getBaseUrl: () => "https://alphaclaw.example",
+      readGoogleCredentials: () => ({
+        projectId: "my-project",
+      }),
+      readEnvFile: () => [{ key: "WEBHOOK_TOKEN", value: "existing-token" }],
+      writeEnvFile: () => {},
+      reloadEnv: () => {},
+      restartRequiredState: null,
+    });
+
+    service.ensureHookWiring({
+      destination: {
+        channel: "telegram",
+        to: "-100123",
+        agentId: "main",
+      },
+    });
+
+    expect(fs.readFileSync(transformPath, "utf8")).toBe(customTransformSource);
+  });
 });
