@@ -3,6 +3,7 @@ const os = require("os");
 const path = require("path");
 
 const {
+  buildOnboardArgs,
   writeManagedImportOpenclawConfig,
   writeSanitizedOpenclawConfig,
 } = require("../../lib/server/onboarding/openclaw");
@@ -11,6 +12,27 @@ const createTempOpenclawDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-onboarding-openclaw-test-"));
 
 describe("server/onboarding/openclaw", () => {
+  it("builds onboarding args from submitted vars instead of stale process env auth", () => {
+    process.env.ANTHROPIC_TOKEN = "sk-ant-oat01-stale-token";
+
+    const args = buildOnboardArgs({
+      varMap: {
+        ANTHROPIC_API_KEY: "sk-ant-api-fresh-key",
+        OPENCLAW_GATEWAY_TOKEN: "gw-token",
+      },
+      selectedProvider: "anthropic",
+      hasCodexOauth: false,
+      workspaceDir: "/tmp/workspace",
+    });
+
+    expect(args).toContain("--anthropic-api-key");
+    expect(args).toContain("sk-ant-api-fresh-key");
+    expect(args).not.toContain("--token");
+    expect(args).not.toContain("sk-ant-oat01-stale-token");
+
+    delete process.env.ANTHROPIC_TOKEN;
+  });
+
   it("only scrubs exact secret string values in JSON", () => {
     const openclawDir = createTempOpenclawDir();
     const configPath = path.join(openclawDir, "openclaw.json");
