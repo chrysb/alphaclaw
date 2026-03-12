@@ -9,6 +9,7 @@
   --text: #c9d1d9;
   --text-muted: #6e7681;
   --text-dim: #424854;
+  --card-label-bright: #dbe7f6;
   --accent: #63ebff;
   --accent-dim: rgba(99, 235, 255, 0.4);
   --accent-link: rgba(99, 235, 255, 0.6);
@@ -51,6 +52,10 @@ body::before {
   font-weight: 600;
   letter-spacing: 0.04em;
   color: var(--text-muted);
+}
+
+.card-label-bright {
+  color: var(--card-label-bright);
 }
 
 .ac-small-heading {

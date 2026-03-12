@@ -126,6 +126,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Keep constants in `kName` format (e.g. `kUiTabs`, `kGroupOrder`, `kNamePattern`).
 - Keep component-level helpers near the top of the file, before the main export.
 - Treat `index.js` as a presentational shell whenever possible: keep business logic in hooks and pass derived state/actions down as props.
+- Add reusable SVG icons to `lib/public/js/components/icons.js` and import them from there; avoid introducing one-off inline SVGs in feature files when a shared icon component can be used.
 
 ### Rendering and composition
 

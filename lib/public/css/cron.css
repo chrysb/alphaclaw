@@ -257,7 +257,7 @@
 }
 
 .cron-calendar-title {
-  color: #dbe7f6;
+  color: var(--card-label-bright);
 }
 
 .cron-calendar-legend-label {
@@ -400,4 +400,136 @@
 
 .cron-calendar-slot-skipped {
   box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.45);
+}
+
+.cron-calendar-compact-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.cron-calendar-compact-chip {
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 7px;
+  padding: 4px 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 260px;
+  cursor: pointer;
+}
+
+.cron-calendar-compact-time {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.7;
+  white-space: nowrap;
+}
+
+.cron-runs-trend-bars {
+  display: grid;
+  grid-template-columns: repeat(var(--cron-runs-trend-columns, 7), minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+}
+
+.cron-runs-trend-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.cron-runs-trend-col.is-dimmed {
+  opacity: 0.35;
+}
+
+.cron-runs-trend-col.is-selected .cron-runs-trend-track {
+  border-color: rgba(148, 163, 184, 0.55);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.cron-runs-trend-col:focus-visible {
+  outline: none;
+}
+
+.cron-runs-trend-col:focus-visible .cron-runs-trend-track {
+  border-color: rgba(148, 163, 184, 0.65);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.24);
+}
+
+.cron-runs-trend-track {
+  width: 100%;
+  height: 120px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.cron-runs-trend-bar {
+  width: 100%;
+  min-height: 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.cron-runs-trend-segment-ok {
+  background: rgba(34, 197, 94, 0.75);
+}
+
+.cron-runs-trend-segment-error {
+  background: rgba(239, 68, 68, 0.78);
+}
+
+.cron-runs-trend-segment-skipped {
+  background: rgba(250, 204, 21, 0.7);
+}
+
+.cron-runs-trend-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  min-height: 12px;
+}
+
+.cron-runs-trend-legend {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cron-runs-trend-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.cron-runs-trend-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.cron-runs-trend-legend-dot.is-ok {
+  background: rgba(34, 197, 94, 0.95);
+}
+
+.cron-runs-trend-legend-dot.is-error {
+  background: rgba(239, 68, 68, 0.95);
+}
+
+.cron-runs-trend-legend-dot.is-skipped {
+  background: rgba(250, 204, 21, 0.95);
 }

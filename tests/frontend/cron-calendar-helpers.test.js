@@ -54,6 +54,21 @@ describe("frontend/cron-calendar-helpers", () => {
     expect(statusBySlotKey["job-a:future"]).toBeUndefined();
   });
 
+  it("returns upcoming slots within 24h window", async () => {
+    const { getUpcomingSlots, buildSlotKey } = await loadCalendarHelpers();
+    const nowMs = Date.UTC(2026, 2, 11, 10, 0, 0);
+    const slots = [
+      { key: buildSlotKey({ jobId: "a", scheduledAtMs: nowMs - 3600000 }), jobId: "a", scheduledAtMs: nowMs - 3600000 },
+      { key: buildSlotKey({ jobId: "b", scheduledAtMs: nowMs + 3600000 }), jobId: "b", scheduledAtMs: nowMs + 3600000 },
+      { key: buildSlotKey({ jobId: "c", scheduledAtMs: nowMs + 7200000 }), jobId: "c", scheduledAtMs: nowMs + 7200000 },
+      { key: buildSlotKey({ jobId: "d", scheduledAtMs: nowMs + 25 * 3600000 }), jobId: "d", scheduledAtMs: nowMs + 25 * 3600000 },
+    ];
+    const result = getUpcomingSlots({ slots, nowMs });
+    expect(result.length).toBe(2);
+    expect(result[0].jobId).toBe("b");
+    expect(result[1].jobId).toBe("c");
+  });
+
   it("builds token tiers from usage averages", async () => {
     const { buildTokenTierByJobId } = await loadCalendarHelpers();
     const tierByJobId = buildTokenTierByJobId({
