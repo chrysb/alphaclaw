@@ -210,6 +210,9 @@
   flex-direction: column;
   gap: 12px;
   min-height: 100%;
+  width: min(100%, 1024px);
+  margin-left: auto;
+  margin-right: auto;
 }
 
 .cron-prompt-editor-shell {
@@ -220,6 +223,11 @@
   overflow: hidden;
   resize: vertical;
   background: rgba(255, 255, 255, 0.01);
+}
+
+.cron-prompt-editor-shell .file-viewer-editor-line-num-col {
+  width: 44px;
+  padding: 16px 8px 112px 0;
 }
 
 .cron-calendar-repeating-strip {
