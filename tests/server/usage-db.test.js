@@ -259,4 +259,93 @@ describe("server/usage-db", () => {
 
     fs.rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it("aggregates usage by session key pattern", () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-pattern-"));
+    const { initUsageDb, getSessionUsageByKeyPattern } = loadUsageDb();
+    const { path: dbPath } = initUsageDb({ rootDir });
+    const database = new DatabaseSync(dbPath);
+    const now = Date.now();
+
+    const insertUsageEvent = database.prepare(`
+      INSERT INTO usage_events (
+        timestamp,
+        session_id,
+        session_key,
+        run_id,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        total_tokens
+      ) VALUES (
+        $timestamp,
+        $session_id,
+        $session_key,
+        $run_id,
+        $provider,
+        $model,
+        $input_tokens,
+        $output_tokens,
+        $cache_read_tokens,
+        $cache_write_tokens,
+        $total_tokens
+      )
+    `);
+
+    insertUsageEvent.run({
+      $timestamp: now - 1000,
+      $session_id: "raw-1",
+      $session_key: "agent:main:cron:job-123:run:1",
+      $run_id: "run-1",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 1_000_000,
+      $output_tokens: 0,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 1_000_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now,
+      $session_id: "raw-2",
+      $session_key: "agent:main:cron:job-123:run:2",
+      $run_id: "run-2",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 0,
+      $output_tokens: 500_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 500_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now,
+      $session_id: "raw-3",
+      $session_key: "agent:main:cron:job-999:run:1",
+      $run_id: "run-x",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 200_000,
+      $output_tokens: 0,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 200_000,
+    });
+
+    const usage = getSessionUsageByKeyPattern({
+      keyPattern: "%:cron:job-123%",
+      sinceMs: now - 10_000,
+    });
+
+    expect(usage.totals.totalTokens).toBe(1_500_000);
+    expect(usage.totals.runCount).toBe(2);
+    expect(usage.totals.totalCost).toBeCloseTo(7.5, 8);
+    expect(usage.modelBreakdown).toHaveLength(1);
+    expect(usage.modelBreakdown[0].model).toBe("gpt-4o");
+
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  });
 });
