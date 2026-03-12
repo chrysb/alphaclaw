@@ -377,6 +377,20 @@ describe("server/agents/service", () => {
           },
         ],
       },
+      {
+        channel: "slack",
+        accounts: [
+          {
+            id: "default",
+            name: "",
+            envKey: "SLACK_BOT_TOKEN",
+            token: "",
+            boundAgentId: "",
+            paired: 0,
+            status: "configured",
+          },
+        ],
+      },
     ]);
   });
 
