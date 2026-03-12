@@ -673,3 +673,9 @@ textarea:focus {
   to   { opacity: 0; transform: scale(0.85); }
 }
 
+.watchdog-logs-panel {
+  min-height: 160px;
+  max-height: 80vh;
+  resize: vertical;
+}
+

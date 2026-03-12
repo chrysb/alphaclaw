@@ -31,6 +31,26 @@ const createDeps = () => ({
       totals: { totalTokens: 1000, totalCost: 0.01, runCount: 2 },
       modelBreakdown: [],
     })),
+    getBulkJobUsage: vi.fn(() => ({
+      sinceMs: 0,
+      byJobId: {
+        "job-a": {
+          totalTokens: 1000,
+          totalCost: 0.01,
+          runCount: 2,
+          avgTokensPerRun: 500,
+        },
+      },
+    })),
+    getBulkJobRuns: vi.fn(() => ({
+      sinceMs: 0,
+      byJobId: {
+        "job-a": {
+          entries: [{ ts: 1773291600000, status: "ok", jobId: "job-a" }],
+          total: 1,
+        },
+      },
+    })),
   },
 });
 
@@ -101,5 +121,28 @@ describe("server/routes/cron", () => {
       jobId: "job-a",
       enabled: true,
     });
+  });
+
+  it("returns bulk usage and bulk runs", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const bulkUsageResponse = await request(app).get("/api/cron/usage/bulk?days=30");
+    expect(bulkUsageResponse.status).toBe(200);
+    expect(bulkUsageResponse.body.ok).toBe(true);
+    expect(bulkUsageResponse.body.usage.byJobId["job-a"].avgTokensPerRun).toBe(500);
+    expect(deps.cronService.getBulkJobUsage).toHaveBeenCalledWith(
+      expect.objectContaining({ sinceMs: expect.any(Number) }),
+    );
+
+    const bulkRunsResponse = await request(app).get(
+      "/api/cron/runs/bulk?sinceMs=12345&limitPerJob=40&sortDir=desc",
+    );
+    expect(bulkRunsResponse.status).toBe(200);
+    expect(bulkRunsResponse.body.ok).toBe(true);
+    expect(bulkRunsResponse.body.runs.byJobId["job-a"].entries).toHaveLength(1);
+    expect(deps.cronService.getBulkJobRuns).toHaveBeenCalledWith(
+      expect.objectContaining({ sinceMs: 12345, limitPerJob: 40, sortDir: "desc" }),
+    );
   });
 });
