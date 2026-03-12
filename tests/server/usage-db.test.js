@@ -348,4 +348,92 @@ describe("server/usage-db", () => {
 
     fs.rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it("counts distinct cron runs correctly across multi-model events", () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-pattern-run-count-"));
+    const { initUsageDb, getSessionUsageByKeyPattern } = loadUsageDb();
+    const { path: dbPath } = initUsageDb({ rootDir });
+    const database = new DatabaseSync(dbPath);
+    const now = Date.now();
+
+    const insertUsageEvent = database.prepare(`
+      INSERT INTO usage_events (
+        timestamp,
+        session_id,
+        session_key,
+        run_id,
+        provider,
+        model,
+        input_tokens,
+        output_tokens,
+        cache_read_tokens,
+        cache_write_tokens,
+        total_tokens
+      ) VALUES (
+        $timestamp,
+        $session_id,
+        $session_key,
+        $run_id,
+        $provider,
+        $model,
+        $input_tokens,
+        $output_tokens,
+        $cache_read_tokens,
+        $cache_write_tokens,
+        $total_tokens
+      )
+    `);
+
+    // Same run_id/session_key appears in multiple model rows (one cron run with tool/model fan-out).
+    insertUsageEvent.run({
+      $timestamp: now - 500,
+      $session_id: "raw-run-shared",
+      $session_key: "agent:main:cron:daily-creative:shared",
+      $run_id: "run-shared",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 100_000,
+      $output_tokens: 0,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 100_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now - 400,
+      $session_id: "raw-run-shared",
+      $session_key: "agent:main:cron:daily-creative:shared",
+      $run_id: "run-shared",
+      $provider: "anthropic",
+      $model: "claude-sonnet-4-6",
+      $input_tokens: 40_000,
+      $output_tokens: 10_000,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 50_000,
+    });
+    insertUsageEvent.run({
+      $timestamp: now - 300,
+      $session_id: "raw-run-next",
+      $session_key: "agent:main:cron:daily-creative:next",
+      $run_id: "run-next",
+      $provider: "openai",
+      $model: "gpt-4o",
+      $input_tokens: 50_000,
+      $output_tokens: 0,
+      $cache_read_tokens: 0,
+      $cache_write_tokens: 0,
+      $total_tokens: 50_000,
+    });
+
+    const usage = getSessionUsageByKeyPattern({
+      keyPattern: "%:cron:daily-creative:%",
+      sinceMs: now - 10_000,
+    });
+
+    expect(usage.totals.eventCount).toBe(3);
+    expect(usage.totals.runCount).toBe(2);
+    expect(usage.totals.totalTokens).toBe(200_000);
+
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  });
 });

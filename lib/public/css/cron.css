@@ -484,15 +484,18 @@
 }
 
 .cron-runs-trend-segment-ok {
-  background: rgba(34, 197, 94, 0.75);
+  background: rgba(34, 255, 170, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(34, 255, 170, 0.28), 0 0 8px rgba(34, 255, 170, 0.24);
 }
 
 .cron-runs-trend-segment-error {
-  background: rgba(239, 68, 68, 0.78);
+  background: rgba(255, 74, 138, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(255, 74, 138, 0.32), 0 0 8px rgba(255, 74, 138, 0.24);
 }
 
 .cron-runs-trend-segment-skipped {
-  background: rgba(250, 204, 21, 0.7);
+  background: rgba(255, 214, 64, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(255, 214, 64, 0.28), 0 0 8px rgba(255, 214, 64, 0.22);
 }
 
 .cron-runs-trend-label {
@@ -523,13 +526,16 @@
 }
 
 .cron-runs-trend-legend-dot.is-ok {
-  background: rgba(34, 197, 94, 0.95);
+  background: rgba(34, 255, 170, 0.98);
+  box-shadow: 0 0 8px rgba(34, 255, 170, 0.6);
 }
 
 .cron-runs-trend-legend-dot.is-error {
-  background: rgba(239, 68, 68, 0.95);
+  background: rgba(255, 74, 138, 0.98);
+  box-shadow: 0 0 8px rgba(255, 74, 138, 0.58);
 }
 
 .cron-runs-trend-legend-dot.is-skipped {
-  background: rgba(250, 204, 21, 0.95);
+  background: rgba(255, 214, 64, 0.98);
+  box-shadow: 0 0 8px rgba(255, 214, 64, 0.5);
 }
