@@ -27,6 +27,7 @@ const createDeps = () => ({
     runJobNow: vi.fn(async () => ({ parsed: { ok: true, ran: true } })),
     setJobEnabled: vi.fn(async () => ({ parsed: { ok: true } })),
     updateJobPrompt: vi.fn(async () => ({ parsed: { ok: true } })),
+    updateJobRouting: vi.fn(async () => ({ parsed: { ok: true } })),
     getJobUsage: vi.fn(() => ({
       totals: { totalTokens: 1000, totalCost: 0.01, runCount: 2 },
       modelBreakdown: [],
@@ -103,6 +104,19 @@ describe("server/routes/cron", () => {
     expect(deps.cronService.updateJobPrompt).toHaveBeenCalledWith({
       jobId: "job-a",
       message: "new prompt",
+    });
+
+    const routingResponse = await request(app)
+      .put("/api/cron/jobs/job-a/routing")
+      .send({ sessionTarget: "isolated", wakeMode: "next-heartbeat", deliveryMode: "announce" });
+    expect(routingResponse.status).toBe(200);
+    expect(deps.cronService.updateJobRouting).toHaveBeenCalledWith({
+      jobId: "job-a",
+      sessionTarget: "isolated",
+      wakeMode: "next-heartbeat",
+      deliveryMode: "announce",
+      deliveryChannel: "",
+      deliveryTo: "",
     });
   });
 

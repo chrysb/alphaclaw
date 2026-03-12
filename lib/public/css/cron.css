@@ -292,7 +292,7 @@
 .cron-calendar-grid-header,
 .cron-calendar-grid-row {
   display: grid;
-  grid-template-columns: 88px repeat(7, minmax(130px, 1fr));
+  grid-template-columns: 80px repeat(7, minmax(80px, 1fr));
 }
 
 .cron-calendar-day-header {
