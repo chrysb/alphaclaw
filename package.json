@@ -31,7 +31,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "^2026.3.8"
+    "openclaw": "2026.3.11"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",

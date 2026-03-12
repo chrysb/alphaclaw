@@ -70,25 +70,74 @@ describe("frontend/cron-helpers", () => {
 
   it("builds optimization warnings for risky jobs", async () => {
     const { buildCronOptimizationWarnings } = await loadCronHelpers();
-    const warnings = buildCronOptimizationWarnings([
+    const warnings = buildCronOptimizationWarnings(
+      [
+        {
+          id: "job-1",
+          name: "Delivery Mismatch",
+          delivery: { mode: "none" },
+          payload: { message: "Use message tool to send to telegram" },
+          state: { consecutiveErrors: 0 },
+        },
+        {
+          id: "job-2",
+          name: "Erroring Job",
+          delivery: { mode: "announce" },
+          payload: { message: "noop" },
+          state: { consecutiveErrors: 3 },
+        },
+        {
+          id: "job-3",
+          name: "Heartbeat Delivery",
+          delivery: { mode: "announce" },
+          payload: { message: "noop" },
+          state: {
+            consecutiveErrors: 0,
+            lastDelivered: false,
+            lastDeliveryStatus: "not-delivered",
+          },
+        },
+        {
+          id: "job-4",
+          name: "Needs Delivery",
+          delivery: { mode: "announce" },
+          payload: { message: "noop" },
+          state: {
+            consecutiveErrors: 0,
+            lastDelivered: false,
+            lastDeliveryStatus: "not-delivered",
+            lastSummary: "Work complete.",
+          },
+        },
+        {
+          id: "job-5",
+          name: "Ok But Not Delivered",
+          delivery: { mode: "announce" },
+          payload: { message: "noop" },
+          state: {
+            lastDelivered: false,
+            lastDeliveryStatus: "not-delivered",
+            lastStatus: "ok",
+          },
+        },
+      ],
       {
-        id: "job-1",
-        name: "Delivery Mismatch",
-        delivery: { mode: "none" },
-        payload: { message: "Use message tool to send to telegram" },
-        state: { consecutiveErrors: 0 },
+        "job-3": {
+          entries: [
+            {
+              ts: Date.now(),
+              summary: "HEARTBEAT_OK (Note: refresher check only)",
+            },
+          ],
+        },
       },
-      {
-        id: "job-2",
-        name: "Erroring Job",
-        delivery: { mode: "announce" },
-        payload: { message: "noop" },
-        state: { consecutiveErrors: 3 },
-      },
-    ]);
+    );
     expect(warnings.length).toBeGreaterThan(0);
     expect(warnings.some((warning) => warning.title.includes("Delivery Mismatch"))).toBe(true);
     expect(warnings.some((warning) => warning.title.includes("Erroring Job"))).toBe(true);
+    expect(warnings.some((warning) => warning.title.includes("Heartbeat Delivery"))).toBe(false);
+    expect(warnings.some((warning) => warning.title.includes("Needs Delivery"))).toBe(true);
+    expect(warnings.some((warning) => warning.title.includes("Ok But Not Delivered"))).toBe(false);
   });
 
   it("formats next run as due/overdue when timestamp is in the past", async () => {
