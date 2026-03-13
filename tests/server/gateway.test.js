@@ -168,6 +168,37 @@ describe("server/gateway restart behavior", () => {
     );
   });
 
+  it("launches the gateway with OPENCLAW_HOME pointed at the managed dir", async () => {
+    const spawnMock = vi.fn(() => createChild());
+    childProcess.spawn = spawnMock;
+    fs.existsSync = vi.fn(() => true);
+    net.createConnection = vi.fn(() => createSocket(false));
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn(() =>
+      JSON.stringify({
+        agents: {
+          defaults: {
+            model: {
+              primary: "openai/gpt-5.1-codex",
+            },
+          },
+        },
+      }),
+    );
+
+    await gateway.startGateway();
+
+    expect(spawnMock).toHaveBeenCalledWith("openclaw", ["gateway", "run"], {
+      env: expect.objectContaining({
+        OPENCLAW_HOME: OPENCLAW_DIR,
+        OPENCLAW_CONFIG_PATH: `${OPENCLAW_DIR}/openclaw.json`,
+        XDG_CONFIG_HOME: OPENCLAW_DIR,
+      }),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  });
+
   it("does not treat auth-only openclaw config as onboarded", () => {
     fs.existsSync = vi.fn((targetPath) => targetPath === `${OPENCLAW_DIR}/openclaw.json`);
     delete require.cache[modulePath];
@@ -233,17 +264,61 @@ describe("server/gateway restart behavior", () => {
     expect(fs.writeFileSync).not.toHaveBeenCalled();
   });
 
-  it("backfills onboarding marker from legacy onboarding artifact", () => {
+  it("does not backfill onboarding marker from legacy onboarding artifact", () => {
     fs.existsSync = vi.fn((targetPath) => targetPath === kControlUiSkillPath);
     fs.mkdirSync = vi.fn();
     fs.writeFileSync = vi.fn();
     delete require.cache[modulePath];
     const gateway = require(modulePath);
 
-    expect(gateway.isOnboarded()).toBe(true);
-    expect(fs.writeFileSync).toHaveBeenCalledWith(
-      kOnboardingMarkerPath,
-      expect.stringContaining('"reason": "legacy_artifact_backfill"'),
+    expect(gateway.isOnboarded()).toBe(false);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("skips proxy config writes in read-only mode", () => {
+    fs.existsSync = vi.fn(
+      (targetPath) =>
+        targetPath === kOnboardingMarkerPath ||
+        targetPath === `${OPENCLAW_DIR}/openclaw.json`,
     );
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === kOnboardingMarkerPath) {
+        return JSON.stringify({ onboarded: true, readOnly: true });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({ gateway: {} });
+      }
+      return originalReadFileSync(targetPath, "utf8");
+    });
+    fs.writeFileSync = vi.fn();
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.ensureGatewayProxyConfig("https://example.com")).toBe(false);
+    expect(fs.writeFileSync).not.toHaveBeenCalled();
+  });
+
+  it("skips channel sync writes in read-only mode", () => {
+    const execSyncMock = vi.fn(() => "");
+    childProcess.execSync = execSyncMock;
+    fs.existsSync = vi.fn(
+      (targetPath) =>
+        targetPath === kOnboardingMarkerPath ||
+        targetPath === `${OPENCLAW_DIR}/openclaw.json`,
+    );
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === kOnboardingMarkerPath) {
+        return JSON.stringify({ onboarded: true, readOnly: true });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({ channels: { telegram: { enabled: false } } });
+      }
+      return originalReadFileSync(targetPath, "utf8");
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    gateway.syncChannelConfig([{ key: "TELEGRAM_BOT_TOKEN", value: "telegram-token" }]);
+    expect(execSyncMock).not.toHaveBeenCalled();
   });
 });

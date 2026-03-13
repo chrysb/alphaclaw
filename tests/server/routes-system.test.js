@@ -7,6 +7,22 @@ const createSystemDeps = () => {
   const deps = {
     fs: {
       existsSync: vi.fn(() => true),
+      lstatSync: vi.fn((targetPath) => ({
+        isSymbolicLink: () => targetPath === "/tmp/openclaw",
+      })),
+      readlinkSync: vi.fn((targetPath) =>
+        targetPath === "/tmp/openclaw" ? "/Users/test/.openclaw" : "",
+      ),
+      realpathSync: vi.fn((targetPath) => {
+        if (targetPath === "/tmp/openclaw") return "/Users/test/.openclaw";
+        if (targetPath === "/tmp/openclaw/openclaw.json")
+          return "/Users/test/.openclaw/openclaw.json";
+        if (targetPath === "/tmp/openclaw/skills/control-ui/SKILL.md")
+          return "/Users/test/.openclaw/skills/control-ui/SKILL.md";
+        if (targetPath === "/tmp/alphaclaw/onboarded.json")
+          return "/tmp/alphaclaw/onboarded.json";
+        return targetPath;
+      }),
       readFileSync: vi.fn(() => {
         throw new Error("no config");
       }),
@@ -84,6 +100,8 @@ const createSystemDeps = () => {
       removeApiKeyProfileForEnvVar: vi.fn(),
     },
     OPENCLAW_DIR: "/tmp/openclaw",
+    kOnboardingMarkerPath: "/tmp/alphaclaw/onboarded.json",
+    kControlUiSkillPath: "/tmp/openclaw/skills/control-ui/SKILL.md",
     platform: "linux",
     execFileSyncImpl: vi.fn(() => ""),
   };
@@ -303,6 +321,16 @@ describe("server/routes/system", () => {
   it("reports running gateway status on GET /api/status", async () => {
     const deps = createSystemDeps();
     deps.fs.existsSync.mockReturnValue(true);
+    deps.fs.readFileSync.mockImplementation((targetPath) => {
+      if (targetPath === "/tmp/alphaclaw/onboarded.json") {
+        return JSON.stringify({
+          onboarded: true,
+          readOnly: true,
+          reason: "read_only_complete",
+        });
+      }
+      throw new Error("no config");
+    });
     deps.isGatewayRunning.mockResolvedValue(true);
     const app = createApp(deps);
 
@@ -317,6 +345,20 @@ describe("server/routes/system", () => {
         syncCron: expect.objectContaining({
           enabled: true,
           schedule: "0 * * * *",
+        }),
+        diagnostics: expect.objectContaining({
+          readOnlyMode: true,
+          onboardingReason: "read_only_complete",
+          openclawDir: "/tmp/openclaw",
+          openclawDirIsSymlink: true,
+          openclawDirLinkTarget: "/Users/test/.openclaw",
+          resolvedOpenclawDir: "/Users/test/.openclaw",
+          configPath: "/tmp/openclaw/openclaw.json",
+          resolvedConfigPath: "/Users/test/.openclaw/openclaw.json",
+          controlUiSkillExists: true,
+          resolvedControlUiSkillPath:
+            "/Users/test/.openclaw/skills/control-ui/SKILL.md",
+          openclawVersionSource: "openclaw --version",
         }),
       }),
     );

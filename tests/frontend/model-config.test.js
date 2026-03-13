@@ -5,6 +5,9 @@ describe("frontend/model-config", () => {
   it("maps openai-codex auth provider to openai", async () => {
     const modelConfig = await loadModelConfig();
     expect(modelConfig.getAuthProviderFromModelProvider("openai-codex")).toBe("openai");
+    expect(modelConfig.getAuthProviderFromModelProvider("minimax-portal")).toBe(
+      "minimax",
+    );
     expect(modelConfig.getAuthProviderFromModelProvider("volcengine-plan")).toBe(
       "volcengine",
     );

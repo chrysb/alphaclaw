@@ -29,6 +29,7 @@
     "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
+    "@chrysb/alphaclaw": "^0.7.0",
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
     "openclaw": "2026.3.7"
