@@ -143,6 +143,53 @@ describe("server/agents/service", () => {
     expect(config.agents.list[0]).not.toHaveProperty("model");
   });
 
+  it("persists tools config updates for agents", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [
+            {
+              id: "main",
+              default: true,
+              tools: {
+                profile: "full",
+              },
+            },
+          ],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    const updated = service.updateAgent("main", {
+      tools: {
+        profile: "minimal",
+        alsoAllow: ["read"],
+        deny: ["session_status"],
+      },
+    });
+    const listed = service.listAgents().find((entry) => entry.id === "main");
+
+    expect(updated.tools).toEqual({
+      profile: "minimal",
+      alsoAllow: ["read"],
+      deny: ["session_status"],
+    });
+    expect(listed?.tools).toEqual({
+      profile: "minimal",
+      alsoAllow: ["read"],
+      deny: ["session_status"],
+    });
+    expect(fsMock.readConfig().agents.list[0].tools).toEqual({
+      profile: "minimal",
+      alsoAllow: ["read"],
+      deny: ["session_status"],
+    });
+  });
+
   it("calculates workspace size recursively for an agent", () => {
     let currentConfig = {
       agents: {

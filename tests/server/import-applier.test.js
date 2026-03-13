@@ -118,8 +118,48 @@ describe("import-applier", () => {
     const updatedConfig = JSON.parse(
       fs.readFileSync(path.join(baseDir, "openclaw.json"), "utf8"),
     );
+    expect(updatedConfig.hooks.mappings[0].match.path).toBe("fathom");
     expect(updatedConfig.hooks.mappings[0].transform.module).toBe(
       "fathom/fathom-transform.mjs",
+    );
+  });
+
+  it("normalizes imported hook paths with leading slashes", () => {
+    const baseDir = createTempDir();
+    const configPath = path.join(baseDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          hooks: {
+            mappings: [
+              {
+                name: "Notion",
+                match: { path: "//notion-comments" },
+                transform: {
+                  module: "notion-comments/notion-comments-transform.mjs",
+                },
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const result = alignHookTransforms({
+      fs,
+      baseDir,
+      configFiles: ["openclaw.json"],
+    });
+
+    expect(result).toEqual({ alignedCount: 0 });
+    const updatedConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(updatedConfig.hooks.mappings[0].match.path).toBe("notion-comments");
+    expect(updatedConfig.hooks.mappings[0].transform.module).toBe(
+      "notion-comments/notion-comments-transform.mjs",
     );
   });
 
