@@ -377,6 +377,20 @@ describe("server/agents/service", () => {
           },
         ],
       },
+      {
+        channel: "slack",
+        accounts: [
+          {
+            id: "default",
+            name: "",
+            envKey: "SLACK_BOT_TOKEN",
+            token: "",
+            boundAgentId: "",
+            paired: 0,
+            status: "configured",
+          },
+        ],
+      },
     ]);
   });
 
@@ -1005,6 +1019,108 @@ describe("server/agents/service", () => {
     );
   });
 
+  it("creates a slack channel account with bot and app tokens", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "OPENAI_API_KEY", value: "sk-test" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+      clawCmd,
+    });
+
+    const result = await service.createChannelAccount({
+      provider: "slack",
+      name: "Slack",
+      accountId: "default",
+      token: "xoxb-bot-token",
+      appToken: "xapp-app-token",
+      agentId: "main",
+    });
+
+    expect(result).toEqual({
+      channel: "slack",
+      account: {
+        id: "default",
+        name: "Slack",
+        envKey: "SLACK_BOT_TOKEN",
+      },
+      binding: {
+        agentId: "main",
+        match: { channel: "slack", accountId: "default" },
+      },
+    });
+    expect(writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "sk-test" },
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-bot-token" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-app-token" },
+    ]);
+    expect(clawCmd).toHaveBeenNthCalledWith(
+      1,
+      "channels add --channel 'slack' --name 'Slack' --bot-token 'xoxb-bot-token' --app-token 'xapp-app-token'",
+      { quiet: true, timeoutMs: 30000 },
+    );
+    expect(fsMock.readConfig()).toEqual(
+      expect.objectContaining({
+        channels: {
+          slack: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                name: "Slack",
+                botToken: "${SLACK_BOT_TOKEN}",
+                appToken: "${SLACK_APP_TOKEN}",
+                dmPolicy: "pairing",
+              },
+            },
+          },
+        },
+      }),
+    );
+  });
+
+  it("requires app token when creating a slack channel account", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      clawCmd: vi.fn(async () => ({ ok: true, stdout: "", stderr: "" })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "slack",
+        name: "Slack",
+        accountId: "default",
+        token: "xoxb-bot-token",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("Slack App Token is required");
+  });
+
   it("rejects concurrent channel account creation requests", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -1146,6 +1262,51 @@ describe("server/agents/service", () => {
         agentId: "main",
       }),
     ).rejects.toThrow("Discord supports a single channel account");
+  });
+
+  it("prevents creating multiple slack channel accounts", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          slack: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                botToken: "${SLACK_BOT_TOKEN}",
+                appToken: "${SLACK_APP_TOKEN}",
+                dmPolicy: "pairing",
+              },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => [
+        { key: "SLACK_BOT_TOKEN", value: "xoxb-bot-token" },
+        { key: "SLACK_APP_TOKEN", value: "xapp-app-token" },
+      ]),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      clawCmd: vi.fn(async () => ({ ok: true, stdout: "", stderr: "" })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "slack",
+        name: "Slack 2",
+        accountId: "alerts",
+        token: "xoxb-bot-token-2",
+        appToken: "xapp-app-token-2",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("Slack supports a single channel account");
   });
 
   it("updates channel account name and bound agent", () => {
@@ -1294,6 +1455,63 @@ describe("server/agents/service", () => {
     expect(result.tokenUpdated).toBe(true);
   });
 
+  it("updates slack app token when provided", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          slack: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                botToken: "${SLACK_BOT_TOKEN}",
+                appToken: "${SLACK_APP_TOKEN}",
+                name: "Slack",
+              },
+            },
+          },
+        },
+        bindings: [
+          {
+            agentId: "main",
+            match: { channel: "slack", accountId: "default" },
+          },
+        ],
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-old" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-old" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+    });
+
+    const result = service.updateChannelAccount({
+      provider: "slack",
+      accountId: "default",
+      name: "Slack",
+      agentId: "main",
+      appToken: "xapp-new",
+    });
+
+    expect(writeEnvFile).toHaveBeenCalledWith([
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-old" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-new" },
+    ]);
+    expect(reloadEnv).toHaveBeenCalled();
+    expect(result.tokenUpdated).toBe(true);
+  });
+
   it("does not rewrite env when updated token is unchanged", () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -1422,6 +1640,51 @@ describe("server/agents/service", () => {
       accountId: "default",
       envKey: "TELEGRAM_BOT_TOKEN",
       token: "token-123",
+    });
+  });
+
+  it("loads slack channel bot and app tokens by provider/account id", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          slack: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                botToken: "${SLACK_BOT_TOKEN}",
+                appToken: "${SLACK_APP_TOKEN}",
+                name: "Slack",
+              },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => [
+        { key: "SLACK_BOT_TOKEN", value: "xoxb-token-123" },
+        { key: "SLACK_APP_TOKEN", value: "xapp-token-123" },
+      ]),
+    });
+
+    const result = service.getChannelAccountToken({
+      provider: "slack",
+      accountId: "default",
+    });
+
+    expect(result).toEqual({
+      provider: "slack",
+      accountId: "default",
+      envKey: "SLACK_BOT_TOKEN",
+      token: "xoxb-token-123",
+      appEnvKey: "SLACK_APP_TOKEN",
+      appToken: "xapp-token-123",
     });
   });
 
@@ -1637,6 +1900,59 @@ describe("server/agents/service", () => {
         bindings: [],
       }),
     );
+  });
+
+  it("deletes slack channel env vars including app token", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          slack: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                botToken: "${SLACK_BOT_TOKEN}",
+                appToken: "${SLACK_APP_TOKEN}",
+                name: "Slack",
+              },
+            },
+          },
+        },
+        bindings: [
+          {
+            agentId: "main",
+            match: { channel: "slack", accountId: "default" },
+          },
+        ],
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-token" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-token" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+      clawCmd,
+    });
+
+    const result = await service.deleteChannelAccount({
+      provider: "slack",
+      accountId: "default",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(writeEnvFile).toHaveBeenCalledWith([]);
+    expect(reloadEnv).toHaveBeenCalled();
   });
 
   it("overwrites orphaned env var when channel is not in config", async () => {
