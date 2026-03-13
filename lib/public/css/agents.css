@@ -1,42 +1,60 @@
 /* ── Agents detail layout ────────────────────── */
 
 .app-content-pane.agents-pane {
-  padding: 24px 32px 12px;
   overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
 }
 
 /* ── Detail panel ────────────────────────────── */
 
 .agents-detail-panel {
   height: 100%;
-  overflow-y: auto;
-  padding: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.agents-detail-inner {
+.agents-detail-header-area {
+  padding: 8px 32px 16px;
+}
+
+.agents-detail-header-area-inner {
   max-width: 42rem;
   width: 100%;
   margin: 0 auto;
-  display: flex;
-  flex-direction: column;
-  min-height: 100%;
 }
 
 .agents-detail-header {
-  padding-top: 0;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 12px;
 }
 
+.agents-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 32px;
+}
+
+.agents-detail-content {
+  max-width: 42rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 0 24px;
+}
+
 @media (max-width: 768px) {
-  .app-content-pane.agents-pane {
-    padding: 0 14px 12px;
+  .agents-detail-header-area {
+    padding: 16px 14px 0;
   }
 
-  .agents-detail-header {
-    padding-top: 12px;
+  .agents-detail-body {
+    padding: 0 14px;
   }
 }
 
@@ -81,11 +99,6 @@
 .agents-sub-tab.active {
   color: var(--accent);
   border-bottom-color: var(--accent);
-}
-
-.agents-detail-content {
-  flex: 1;
-  padding: 16px 0;
 }
 
 /* ── Empty state ─────────────────────────────── */

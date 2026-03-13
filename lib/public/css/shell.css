@@ -63,6 +63,62 @@
   padding: 0;
 }
 
+/* ── Fixed-header pane shell ────────────────────── */
+
+.app-content-pane.ac-fixed-header-pane {
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.ac-pane-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ac-pane-header {
+  padding: 16px 32px 16px;
+}
+
+.ac-pane-header-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ac-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 32px;
+}
+
+.ac-pane-body-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .ac-pane-header {
+    padding: 16px 14px 12px;
+  }
+
+  .ac-pane-body {
+    padding: 0 14px;
+  }
+}
+
 /* ── Sidebar ───────────────────────────────────── */
 
 .app-sidebar {

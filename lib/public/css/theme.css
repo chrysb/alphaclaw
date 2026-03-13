@@ -641,7 +641,8 @@ textarea:focus {
 }
 
 .ac-pop-actions-hidden {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .ac-pop-actions-in > * {
