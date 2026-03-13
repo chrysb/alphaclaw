@@ -132,6 +132,7 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Use the `htm` + `preact` pattern:
   - `const html = htm.bind(h);`
   - return `html\`...\``
+- In `htm` templates, be explicit with inline spacing around styled inline tags (`<span>`, `<code>`, `<a>`): use ` ${" "}` where needed, and verify rendered copy so words never collapse (`eventsand`) or gain double spaces.
 - Prefer early return for hidden states (e.g. `if (!visible) return null;`).
 - Use `<PageHeader />` for tab/page headers that need a title and right-side actions.
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.

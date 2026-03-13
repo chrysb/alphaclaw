@@ -222,6 +222,34 @@ describe("server/routes/system", () => {
     ]);
   });
 
+  it("hides and preserves managed slack channel tokens on /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-hidden" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-hidden" },
+    ]);
+    const app = createApp(deps);
+
+    const getRes = await request(app).get("/api/env");
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.vars.some((entry) => entry.key === "SLACK_BOT_TOKEN")).toBe(
+      false,
+    );
+    expect(getRes.body.vars.some((entry) => entry.key === "SLACK_APP_TOKEN")).toBe(
+      false,
+    );
+
+    const putRes = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "same" }],
+    });
+    expect(putRes.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "same" },
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-hidden" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-hidden" },
+    ]);
+  });
+
   it("syncs API-key auth profiles from known env vars on save", async () => {
     const deps = createSystemDeps();
     const app = createApp(deps);
