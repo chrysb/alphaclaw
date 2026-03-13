@@ -344,7 +344,6 @@
 .cron-calendar-legend-pill {
   font-size: 10px;
   line-height: 1;
-  border: 1px solid transparent;
   border-radius: 999px;
   padding: 4px 7px;
 }
@@ -590,7 +589,7 @@
 
 .cron-calendar-compact-estimate {
   font-size: 10px;
-  color: var(--text-muted);
+  color: var(--text);
   font-weight: 500;
   white-space: nowrap;
   text-align: right;
