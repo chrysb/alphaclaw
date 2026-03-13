@@ -50,6 +50,12 @@ const createAgentsServiceMock = () => ({
     token: "123:abc",
   })),
   deleteChannelAccount: vi.fn(() => ({ ok: true })),
+  runChannelAccountLogin: vi.fn(() => ({
+    ok: true,
+    stdout: "QR code displayed",
+    stderr: "",
+    completed: true,
+  })),
   getAgent: vi.fn((id) =>
     id === "main" ? { id: "main", name: "Main Agent", default: true } : null,
   ),
@@ -280,6 +286,58 @@ describe("server/routes/agents", () => {
     expect(response.body.ok).toBe(true);
     expect(response.body.token).toBe("xoxb-token");
     expect(response.body.appToken).toBe("xapp-token");
+  });
+
+  it("runs channel login on POST /api/channels/accounts/login", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app)
+      .post("/api/channels/accounts/login")
+      .send({ provider: "whatsapp", accountId: "default" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.completed).toBe(true);
+    expect(agentsService.runChannelAccountLogin).toHaveBeenCalledWith({
+      provider: "whatsapp",
+      accountId: "default",
+    });
+  });
+
+  it("returns login output with completed=false when CLI login is not complete", async () => {
+    const agentsService = createAgentsServiceMock();
+    agentsService.runChannelAccountLogin.mockReturnValue({
+      ok: false,
+      stdout: "Waiting for WhatsApp connection...",
+      stderr: "",
+      code: 1,
+    });
+    const app = createApp(agentsService);
+
+    const response = await request(app)
+      .post("/api/channels/accounts/login")
+      .send({ provider: "whatsapp", accountId: "default" });
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.completed).toBe(false);
+    expect(response.body.stdout).toContain("Waiting for WhatsApp connection");
+  });
+
+  it("returns 400 for unsupported channel login provider", async () => {
+    const agentsService = createAgentsServiceMock();
+    agentsService.runChannelAccountLogin.mockImplementation(() => {
+      throw new Error("Channel login is currently only supported for WhatsApp");
+    });
+    const app = createApp(agentsService);
+
+    const response = await request(app)
+      .post("/api/channels/accounts/login")
+      .send({ provider: "telegram", accountId: "default" });
+
+    expect(response.status).toBe(400);
+    expect(response.body.ok).toBe(false);
   });
 
   it("deletes a configured channel account on DELETE /api/channels/accounts", async () => {
