@@ -400,23 +400,6 @@
   justify-content: center;
 }
 
-.cron-calendar-expand-btn {
-  width: 22px;
-  height: 22px;
-  border-radius: 6px;
-  border: 1px solid var(--border);
-  background: rgba(255, 255, 255, 0.03);
-  color: var(--text-dim);
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.cron-calendar-expand-btn:hover {
-  color: var(--text);
-  border-color: rgba(148, 163, 184, 0.5);
-}
-
 .cron-calendar-grid-wrap {
   position: relative;
 }
@@ -464,6 +447,7 @@
   border-left: 1px solid var(--border);
   border-bottom: 1px solid var(--border);
   padding: 5px;
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -471,6 +455,29 @@
 
 .cron-calendar-grid-cell.is-today {
   background: rgba(99, 235, 255, 0.04);
+}
+
+.cron-calendar-now-indicator {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.95);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18), 0 0 8px rgba(239, 68, 68, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cron-calendar-now-indicator-dot {
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.98);
+  transform: translateY(-50%);
 }
 
 .cron-calendar-slot-chip {
@@ -485,6 +492,8 @@
   width: 100%;
   max-width: 100%;
   overflow: hidden;
+  position: relative;
+  z-index: 2;
 }
 
 .cron-calendar-slot-overflow {
