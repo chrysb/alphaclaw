@@ -1356,6 +1356,155 @@ describe("server/agents/service", () => {
     ).rejects.toThrow("Slack supports a single channel account");
   });
 
+  it("creates a whatsapp channel account with allowlist defaults", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const restartGateway = vi.fn(async () => {});
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile,
+      reloadEnv,
+      restartGateway,
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    const result = await service.createChannelAccount({
+      provider: "whatsapp",
+      name: "WhatsApp",
+      accountId: "default",
+      token: "+15551234567",
+      agentId: "main",
+    });
+
+    expect(result).toMatchObject({
+      channel: "whatsapp",
+      account: {
+        id: "default",
+        name: "WhatsApp",
+        envKey: "WHATSAPP_OWNER_NUMBER",
+      },
+      binding: {
+        agentId: "main",
+        match: { channel: "whatsapp", accountId: "default" },
+      },
+    });
+    expect(writeEnvFile).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+      ]),
+    );
+    expect(reloadEnv).toHaveBeenCalled();
+    expect(restartGateway).toHaveBeenCalled();
+    const savedConfig = fsMock.readConfig();
+    expect(savedConfig.channels?.whatsapp?.accounts?.default).toMatchObject({
+      name: "WhatsApp",
+      dmPolicy: "allowlist",
+      groupPolicy: "allowlist",
+      selfChatMode: true,
+    });
+  });
+
+  it("prevents creating multiple whatsapp channel accounts", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          whatsapp: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+              },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }]),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "whatsapp",
+        name: "WhatsApp 2",
+        accountId: "alerts",
+        token: "+15557654321",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("WhatsApp supports a single channel account");
+  });
+
+  it("runs channel account login for whatsapp", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {},
+    });
+    const clawCmd = vi.fn(async () => ({
+      ok: true,
+      stdout: "QR code displayed",
+      stderr: "",
+    }));
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd,
+    });
+
+    const result = await service.runChannelAccountLogin({
+      provider: "whatsapp",
+      accountId: "default",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.completed).toBe(true);
+    expect(clawCmd).toHaveBeenCalledWith(
+      expect.stringContaining("channels login"),
+      expect.objectContaining({ quiet: true }),
+    );
+  });
+
+  it("rejects channel login for non-whatsapp providers", async () => {
+    const fsMock = buildFsMock({ initialConfig: {} });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.runChannelAccountLogin({
+        provider: "telegram",
+        accountId: "default",
+      }),
+    ).rejects.toThrow("Channel login is currently only supported for WhatsApp");
+  });
+
   it("updates channel account name and bound agent", () => {
     const fsMock = buildFsMock({
       initialConfig: {
