@@ -1,5 +1,6 @@
 .app-content-pane.cron-pane {
-  padding: 0;
+  padding: 24px 32px 12px;
+  overflow: hidden;
 }
 
 .cron-tab-shell {
@@ -10,8 +11,7 @@
 }
 
 .cron-tab-header {
-  padding: 16px 0 12px;
-  border-bottom: 1px solid var(--border);
+  padding: 0 0 16px;
 }
 
 .cron-tab-header-content {
@@ -33,11 +33,26 @@
 }
 
 .cron-tab-main-content {
-  width: min(100% - 40px, 672px);
+  width: 100%;
+  max-width: 672px;
   margin-left: auto;
   margin-right: auto;
   padding: 0 0 24px;
   min-height: 100%;
+}
+
+.cron-tab-main-content .cron-detail-content {
+  padding-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .app-content-pane.cron-pane {
+    padding: 0 14px 12px;
+  }
+
+  .cron-tab-header {
+    padding: 0 0 12px;
+  }
 }
 
 .cron-tab-selector-shell {
@@ -370,6 +385,22 @@
   border-bottom: 1px solid var(--border);
   border-right: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.15);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.cron-calendar-grid-header .cron-calendar-hour-cell {
+  top: 0;
+  z-index: 3;
+}
+
+.cron-calendar-grid-wrap {
+  position: relative;
+}
+
+.cron-calendar-grid-row .cron-calendar-hour-cell {
+  box-shadow: 1px 0 0 var(--border);
 }
 
 .cron-calendar-grid-cell {

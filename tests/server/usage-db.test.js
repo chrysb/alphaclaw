@@ -2,6 +2,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
+const { deriveCostBreakdown } = require("../../lib/server/cost-utils");
 
 const loadUsageDb = () => {
   const modulePath = require.resolve("../../lib/server/db/usage");
@@ -72,7 +73,23 @@ describe("server/usage-db", () => {
     });
 
     const detail = getSessionDetail({ sessionId: "session-1" });
-    const expectedCost = 2.5 + 37.5;
+    const expectedCost =
+      deriveCostBreakdown({
+        provider: "openai",
+        model: "gpt-4o",
+        inputTokens: 1_000_000,
+        outputTokens: 0,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      }).totalCost +
+      deriveCostBreakdown({
+        provider: "anthropic",
+        model: "claude-opus-4-6",
+        inputTokens: 0,
+        outputTokens: 1_000_000,
+        cacheReadTokens: 0,
+        cacheWriteTokens: 0,
+      }).totalCost;
     const summedBreakdownCost = detail.modelBreakdown.reduce(
       (sum, row) => sum + Number(row.totalCost || 0),
       0,

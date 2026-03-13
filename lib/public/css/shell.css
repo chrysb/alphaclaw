@@ -336,6 +336,7 @@
   }
   .app-content-pane {
     padding: 0 14px 12px;
+    top: 52px;
   }
 
   .sidebar-resizer {
@@ -346,7 +347,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    position: sticky;
+    position: absolute;
+    left: 0;
+    right: 0;
     top: 0;
     z-index: 15;
     background: var(--panel-bg-contrast);
@@ -355,7 +358,7 @@
     border-radius: 0;
     min-height: 52px;
     padding: 8px 14px;
-    margin: 0 -14px 10px;
+    margin: 0;
   }
 
   .mobile-topbar.is-scrolled {
