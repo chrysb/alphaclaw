@@ -338,6 +338,54 @@ describe("server/routes/pairings", () => {
     );
   });
 
+  it("parses noisy json stdout from devices list", async () => {
+    const clawCmd = vi.fn(async (cmd) => {
+      if (cmd === "devices list --json") {
+        return {
+          ok: true,
+          stdout: [
+            "some warning text",
+            JSON.stringify({
+              pending: [
+                {
+                  requestId: "req-ui-1",
+                  clientId: "openclaw-control-ui",
+                  clientMode: "webchat",
+                  platform: "MacIntel",
+                  role: "operator",
+                  scopes: ["operator.admin"],
+                  ts: 1773506886016,
+                },
+              ],
+            }),
+          ].join("\n"),
+        };
+      }
+      return { ok: true, stdout: "{}", stderr: "" };
+    });
+    const fsModule = {
+      existsSync: vi.fn(() => true),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+    });
+
+    const res = await request(app).get("/api/devices");
+
+    expect(res.status).toBe(200);
+    expect(res.body.pending).toEqual([
+      expect.objectContaining({
+        id: "req-ui-1",
+        clientId: "openclaw-control-ui",
+        clientMode: "webchat",
+      }),
+    ]);
+  });
+
   it("does not auto-approve when CLI marker already exists", async () => {
     const clawCmd = vi.fn(async (cmd) => {
       if (cmd === "devices list --json") {
