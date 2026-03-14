@@ -685,3 +685,17 @@ textarea:focus {
   resize: vertical;
 }
 
+.watchdog-terminal-host {
+  position: relative;
+}
+
+.watchdog-terminal-host .xterm {
+  height: 100%;
+  letter-spacing: 0;
+  font-kerning: none;
+}
+
+.watchdog-terminal-host .xterm-viewport {
+  overflow-y: auto !important;
+}
+
