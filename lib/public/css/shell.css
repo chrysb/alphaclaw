@@ -196,7 +196,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px 6px 24px;
+  padding: 6px 16px 6px 16px;
   color: var(--text-muted);
   text-decoration: none;
   font-size: 13px;
@@ -217,6 +217,12 @@
   bottom: 0;
   width: 2px;
   background: var(--accent);
+}
+
+.sidebar-nav-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
 }
 
 /* ── Sidebar footer (update banner) ────────────── */

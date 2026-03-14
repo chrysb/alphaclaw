@@ -145,8 +145,8 @@
 .sidebar-agent-item {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 16px 6px 24px;
+  gap: 8px;
+  padding: 6px 16px 6px 16px;
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1.4;
@@ -179,6 +179,20 @@
   bottom: 0;
   width: 2px;
   background: var(--accent);
+}
+
+.sidebar-agent-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.sidebar-agent-emoji {
+  flex: 0 0 auto;
+  width: 14px;
+  line-height: 1;
+  font-size: 14px;
+  text-align: center;
 }
 
 .sidebar-agent-name {
