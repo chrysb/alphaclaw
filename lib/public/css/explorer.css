@@ -1158,6 +1158,18 @@
   background: rgba(255, 255, 255, 0.04);
 }
 
+.release-notes-preview {
+  padding: 8px 12px 24px 14px;
+}
+
+.release-notes-preview > :first-child {
+  margin-top: 0;
+}
+
+.release-notes-preview > :last-child {
+  margin-bottom: 0;
+}
+
 .file-viewer-editor-highlight-line-content .hl-comment {
   color: var(--comment);
   font-style: italic;
