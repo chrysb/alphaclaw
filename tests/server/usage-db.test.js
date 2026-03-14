@@ -181,6 +181,10 @@ describe("server/usage-db", () => {
 
     expect(summary?.costByAgent).toBeTruthy();
     expect(Array.isArray(summary.costByAgent.agents)).toBe(true);
+    expect(Array.isArray(summary.daily)).toBe(true);
+    expect(summary.daily.length).toBeGreaterThan(0);
+    expect(Array.isArray(summary.daily[0].sources)).toBe(true);
+    expect(Array.isArray(summary.daily[0].agents)).toBe(true);
 
     const mainAgent = summary.costByAgent.agents.find((row) => row.agent === "main");
     const opsAgent = summary.costByAgent.agents.find((row) => row.agent === "ops");
@@ -200,6 +204,20 @@ describe("server/usage-db", () => {
 
     const opsCron = opsAgent.sourceBreakdown.find((row) => row.source === "cron");
     expect(opsCron.totalCost).toBeCloseTo(10, 8);
+
+    const dailySources = summary.daily[0].sources;
+    const dailyAgents = summary.daily[0].agents;
+    const dailyChat = dailySources.find((row) => row.source === "chat");
+    const dailyHooks = dailySources.find((row) => row.source === "hooks");
+    const dailyCron = dailySources.find((row) => row.source === "cron");
+    const dailyMain = dailyAgents.find((row) => row.agent === "main");
+    const dailyOps = dailyAgents.find((row) => row.agent === "ops");
+
+    expect(dailyChat.totalCost).toBeCloseTo(2.5, 8);
+    expect(dailyHooks.totalCost).toBeCloseTo(10, 8);
+    expect(dailyCron.totalCost).toBeCloseTo(10, 8);
+    expect(dailyMain.totalCost).toBeCloseTo(12.5, 8);
+    expect(dailyOps.totalCost).toBeCloseTo(10, 8);
 
     expect(summary.costByAgent.totals.totalCost).toBeCloseTo(22.5, 8);
 
