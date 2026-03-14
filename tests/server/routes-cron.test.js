@@ -32,6 +32,27 @@ const createDeps = () => ({
       totals: { totalTokens: 1000, totalCost: 0.01, runCount: 2 },
       modelBreakdown: [],
     })),
+    getJobRunTrends: vi.fn(() => ({
+      sinceMs: 0,
+      nowMs: 1773291600000,
+      bucket: "day",
+      points: [
+        {
+          startMs: 1773205200000,
+          endMs: 1773291600000,
+          ok: 1,
+          error: 0,
+          skipped: 0,
+          totalRuns: 1,
+          totalTokens: 500,
+          totalCost: 0.005,
+          costSamples: 1,
+          totalDurationMs: 5000,
+          durationSamples: 1,
+          avgDurationMs: 5000,
+        },
+      ],
+    })),
     getBulkJobUsage: vi.fn(() => ({
       sinceMs: 0,
       byJobId: {
@@ -127,6 +148,13 @@ describe("server/routes/cron", () => {
     expect(usageResponse.status).toBe(200);
     expect(deps.cronService.getJobUsage).toHaveBeenCalledWith(
       expect.objectContaining({ jobId: "job-a" }),
+    );
+    const trendsResponse = await request(app).get("/api/cron/jobs/job-a/trends?range=7d");
+    expect(trendsResponse.status).toBe(200);
+    expect(trendsResponse.body.ok).toBe(true);
+    expect(Array.isArray(trendsResponse.body.trends.points)).toBe(true);
+    expect(deps.cronService.getJobRunTrends).toHaveBeenCalledWith(
+      expect.objectContaining({ jobId: "job-a", range: "7d" }),
     );
 
     const enableResponse = await request(app).post("/api/cron/jobs/job-a/enable");

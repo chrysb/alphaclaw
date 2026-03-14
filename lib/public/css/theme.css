@@ -73,10 +73,21 @@ body::before {
   gap: 8px;
 }
 
+.ac-history-list.ac-history-list-tight {
+  gap: 0;
+}
+
 .ac-history-item {
   border: 1px solid var(--panel-border-contrast);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.12);
+}
+
+.ac-history-item.ac-history-item-flat {
+  border: 0;
+  border-bottom: 1px solid var(--panel-border-contrast);
+  border-radius: 0;
+  background: transparent;
 }
 
 .snippet-collapse-fade {
@@ -113,7 +124,7 @@ body::before {
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
-.ac-history-item[open] .ac-history-toggle {
+.ac-history-item[open] > .ac-history-summary .ac-history-toggle {
   transform: rotate(90deg);
   color: #d1d5db;
 }
