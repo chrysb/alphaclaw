@@ -47,6 +47,21 @@ Runtime model:
 - When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
 - When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
 
+### Networking and Fetching
+
+- Prefer the shared cache primitives in `lib/public/js/lib/api-cache.js` for backend reads:
+  - `cachedFetch(...)` for imperative fetch paths.
+  - `getCached(...)` / `setCached(...)` / `invalidateCache(...)` for cache lifecycle.
+- For component-level read requests, prefer `useCachedFetch` from `lib/public/js/hooks/use-cached-fetch.js` over ad-hoc `useEffect(() => fetchX())` mount loads.
+- Treat the API URL (including query params) as the canonical cache key for GET-style payloads.
+- Keep cache in-memory for fast tab switches; do not add persistent storage caching unless explicitly required by product behavior.
+- Do not keep route panes mounted via `display:none` just to preserve data. Prefer conditional rendering + cache-backed remounts.
+- Use `usePolling` for recurring refreshes and always pass a stable `cacheKey` when poll results should hydrate remounts.
+- Keep `pauseWhenHidden` behavior enabled for polling unless a specific flow requires background polling while the browser tab is hidden.
+- Tune polling intervals conservatively; avoid 1-2s polling unless there is a clear real-time requirement.
+- For app-shell status streams, prefer SSE (`/api/events/status`) where available and keep polling as fallback behavior.
+- After write/mutation APIs (POST/PUT/DELETE), refresh or invalidate relevant cached keys so the UI does not show stale data.
+
 ### OpenClaw Config Access
 
 - When reading `openclaw.json` in server code, use the shared helper in `lib/server/openclaw-config.js` (`readOpenclawConfig`) instead of ad-hoc `JSON.parse(fs.readFileSync(...))` blocks.
