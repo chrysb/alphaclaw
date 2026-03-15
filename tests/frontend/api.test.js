@@ -338,6 +338,7 @@ describe("frontend/api", () => {
             channel: "telegram",
             to: "-1003709908795:4011",
           },
+          oauthCallback: false,
         }),
         headers: expect.any(Headers),
       }),
