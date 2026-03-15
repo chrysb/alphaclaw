@@ -62,6 +62,8 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
     ensureGatewayProxyConfig: vi.fn(),
     getBaseUrl: vi.fn(() => "https://example.com"),
     startGateway: vi.fn(),
+    platform: "linux",
+    execFileSyncImpl: vi.fn(() => ""),
   };
 };
 
@@ -380,6 +382,21 @@ describe("server/routes/onboarding", () => {
     expect(gitInitCall).toBeTruthy();
     expect(gitInitCall[0]).not.toContain("ghp_test_123456789");
 
+    const onboardCall = deps.shellCmd.mock.calls.find(([cmd]) =>
+      cmd.startsWith("openclaw onboard "),
+    );
+    expect(onboardCall).toBeTruthy();
+    expect(onboardCall[1]).toEqual(
+      expect.objectContaining({
+        env: expect.objectContaining({
+          OPENCLAW_HOME: "/tmp/openclaw",
+          OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+          XDG_CONFIG_HOME: "/tmp/openclaw",
+        }),
+        timeout: 120000,
+      }),
+    );
+
     const openclawWriteCall = deps.fs.writeFileSync.mock.calls.find(
       ([path]) => path === "/tmp/openclaw/openclaw.json",
     );
@@ -390,6 +407,83 @@ describe("server/routes/onboarding", () => {
       enabled: true,
       paths: ["hooks/bootstrap/AGENTS.md", "hooks/bootstrap/TOOLS.md"],
     });
+  });
+
+  it("supports read-only onboarding without rewriting the existing config", async () => {
+    const deps = createBaseDeps();
+    deps.fs.existsSync.mockImplementation(
+      (targetPath) => targetPath === "/tmp/openclaw/openclaw.json",
+    );
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") {
+        return JSON.stringify({
+          agents: { defaults: { model: { primary: "openai/gpt-5.1-codex" } } },
+          channels: { telegram: { enabled: true } },
+        });
+      }
+      return "{}";
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      modelKey: "openai/gpt-5.1-codex",
+      readOnlyMode: true,
+      vars: [
+        { key: "OPENAI_API_KEY", value: "sk-test-123456789" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({ ok: true });
+    expect(deps.startGateway).toHaveBeenCalledTimes(1);
+    expect(deps.ensureGatewayProxyConfig).not.toHaveBeenCalled();
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).not.toHaveBeenCalled();
+    expect(deps.authProfiles.syncConfigAuthReferencesForAgent).not.toHaveBeenCalled();
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.startsWith("openclaw onboard ")),
+    ).toBe(false);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.startsWith("openclaw models set ")),
+    ).toBe(false);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.startsWith("alphaclaw git-sync ")),
+    ).toBe(false);
+    expect(
+      deps.shellCmd.mock.calls.some(([cmd]) => cmd.includes("git init -b main")),
+    ).toBe(false);
+    expect(
+      deps.fs.writeFileSync.mock.calls.some(
+        ([pathValue]) => pathValue === "/tmp/openclaw/openclaw.json",
+      ),
+    ).toBe(false);
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/alphaclaw/onboarded.json",
+      expect.stringContaining('"readOnly": true'),
+    );
+  });
+
+  it("installs deterministic hourly git sync config for the managed scheduler on macOS", async () => {
+    const deps = createBaseDeps();
+    deps.platform = "darwin";
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") return "{}";
+      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
+      if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
+      if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
+      return "{}";
+    });
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send(makeValidBody());
+
+    expect(res.status).toBe(200);
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/cron/system-sync.json",
+      expect.stringContaining('"schedule": "0 * * * *"'),
+    );
+    expect(deps.execFileSyncImpl).not.toHaveBeenCalled();
   });
 
   it("rejects onboarding when workspace repo already exists", async () => {
