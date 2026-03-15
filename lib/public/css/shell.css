@@ -63,6 +63,62 @@
   padding: 0;
 }
 
+/* ── Fixed-header pane shell ────────────────────── */
+
+.app-content-pane.ac-fixed-header-pane {
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+.ac-pane-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.ac-pane-header {
+  padding: 16px 32px 16px;
+}
+
+.ac-pane-header-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.ac-pane-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 32px;
+}
+
+.ac-pane-body-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+  padding-bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+@media (max-width: 768px) {
+  .ac-pane-header {
+    padding: 16px 14px 12px;
+  }
+
+  .ac-pane-body {
+    padding: 0 14px;
+  }
+}
+
 /* ── Sidebar ───────────────────────────────────── */
 
 .app-sidebar {
@@ -140,7 +196,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px 6px 24px;
+  padding: 6px 16px 6px 16px;
   color: var(--text-muted);
   text-decoration: none;
   font-size: 13px;
@@ -163,6 +219,12 @@
   background: var(--accent);
 }
 
+.sidebar-nav-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
 /* ── Sidebar footer (update banner) ────────────── */
 
 .sidebar-footer {
@@ -174,7 +236,7 @@
 .sidebar-footer:empty { display: none; }
 
 .sidebar-footer:not(:empty) {
-  padding: 0 16px 12px 16px;
+  padding: 12px 16px;
   border-top: 1px solid var(--border);
 }
 
@@ -222,7 +284,9 @@
   position: absolute;
   top: calc(100% + 4px);
   right: 0;
-  min-width: 120px;
+  min-width: max-content;
+  width: max-content;
+  max-width: min(280px, calc(100vw - 24px));
   background: var(--bg-sidebar);
   border: 1px solid var(--border-strong);
   border-radius: 8px;
@@ -231,16 +295,25 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.brand-dropdown a {
+.brand-dropdown a,
+.brand-dropdown-item {
   display: block;
+  width: 100%;
   padding: 6px 10px;
+  font: inherit;
   font-size: 12px;
   color: var(--text-muted);
   text-decoration: none;
   border-radius: 5px;
   transition: background 0.1s, color 0.1s;
+  background: transparent;
+  border: none;
+  text-align: left;
+  white-space: nowrap;
+  cursor: pointer;
 }
-.brand-dropdown a:hover { background: var(--bg-hover); color: var(--text); }
+.brand-dropdown a:hover,
+.brand-dropdown-item:hover { background: var(--bg-hover); color: var(--text); }
 
 /* ── Statusbar ─────────────────────────────────── */
 
@@ -325,6 +398,7 @@
   }
   .app-content-pane {
     padding: 0 14px 12px;
+    top: 52px;
   }
 
   .sidebar-resizer {
@@ -335,7 +409,9 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    position: sticky;
+    position: absolute;
+    left: 0;
+    right: 0;
     top: 0;
     z-index: 15;
     background: var(--panel-bg-contrast);
@@ -344,7 +420,7 @@
     border-radius: 0;
     min-height: 52px;
     padding: 8px 14px;
-    margin: 0 -14px 10px;
+    margin: 0;
   }
 
   .mobile-topbar.is-scrolled {

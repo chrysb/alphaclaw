@@ -39,11 +39,15 @@ const createMemoryFs = (initialFiles = {}) => {
 };
 
 describe("server/webhooks", () => {
-  it("writes channel and to into the default transform when destination is provided", () => {
+  it("writes delivery routing fields onto mapping when destination is provided", () => {
     const openclawDir = "/tmp/openclaw";
     const configPath = path.join(openclawDir, "openclaw.json");
     const fs = createMemoryFs({
-      [configPath]: JSON.stringify({}),
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      }),
     });
 
     createWebhook({
@@ -55,21 +59,54 @@ describe("server/webhooks", () => {
         to: "-1003709908795:4011",
       },
     });
+    const detail = createWebhook({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "gmail-alerts-2",
+      destination: {
+        channel: "telegram",
+        to: "-1003709908795:4011",
+      },
+    });
 
     const transformPath = path.join(
       openclawDir,
       getTransformRelativePath("gmail-alerts"),
     );
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const mapping = (config?.hooks?.mappings || []).find(
+      (entry) => entry?.match?.path === "gmail-alerts",
+    );
+    expect(mapping).toEqual(
+      expect.objectContaining({
+        deliver: true,
+        channel: "telegram",
+        to: "-1003709908795:4011",
+        agentId: "main",
+      }),
+    );
     const transformSource = fs.readFileSync(transformPath, "utf8");
-    expect(transformSource).toContain('channel: "telegram"');
-    expect(transformSource).toContain('to: "-1003709908795:4011"');
+    expect(transformSource).not.toContain("channel:");
+    expect(transformSource).not.toContain("\n    to:");
+    expect(detail).toEqual(
+      expect.objectContaining({
+        deliver: true,
+        channel: "telegram",
+        to: "-1003709908795:4011",
+        agentId: "main",
+      }),
+    );
   });
 
-  it("keeps the default transform unchanged when no destination is provided", () => {
+  it("defaults mapping delivery channel to last and falls back to default agent", () => {
     const openclawDir = "/tmp/openclaw";
     const configPath = path.join(openclawDir, "openclaw.json");
     const fs = createMemoryFs({
-      [configPath]: JSON.stringify({}),
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      }),
     });
 
     createWebhook({
@@ -82,8 +119,52 @@ describe("server/webhooks", () => {
       openclawDir,
       getTransformRelativePath("plain-alerts"),
     );
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const mapping = (config?.hooks?.mappings || []).find(
+      (entry) => entry?.match?.path === "plain-alerts",
+    );
+    expect(mapping).toEqual(
+      expect.objectContaining({
+        deliver: true,
+        channel: "last",
+        agentId: "main",
+      }),
+    );
+    expect(Object.prototype.hasOwnProperty.call(mapping, "to")).toBe(false);
     const transformSource = fs.readFileSync(transformPath, "utf8");
     expect(transformSource).not.toContain("channel:");
     expect(transformSource).not.toContain("\n    to:");
+  });
+
+  it("falls back to default agent when destination agentId is unknown", () => {
+    const openclawDir = "/tmp/openclaw";
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [
+            { id: "main", default: true },
+            { id: "morpheus" },
+          ],
+        },
+      }),
+    });
+
+    createWebhook({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "agent-fallback",
+      destination: {
+        channel: "telegram",
+        to: "1050",
+        agentId: "unknown-agent",
+      },
+    });
+
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const mapping = (config?.hooks?.mappings || []).find(
+      (entry) => entry?.match?.path === "agent-fallback",
+    );
+    expect(mapping?.agentId).toBe("main");
   });
 });

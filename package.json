@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.5.5",
+  "version": "0.8.0",
   "publishConfig": {
     "access": "public"
   },
@@ -32,7 +32,8 @@
     "@chrysb/alphaclaw": "^0.7.0",
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.7"
+    "openclaw": "2026.3.13",
+    "ws": "^8.19.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",

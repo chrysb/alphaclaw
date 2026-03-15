@@ -1,0 +1,716 @@
+.app-content-pane.cron-pane {
+  padding: 24px 32px 12px;
+  overflow: hidden;
+}
+
+.cron-tab-shell {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.cron-tab-header {
+  padding: 0 0 16px;
+}
+
+.cron-tab-header-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.cron-tab-main {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.cron-tab-main-content {
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+  padding: 0 0 24px;
+  min-height: 100%;
+}
+
+.cron-tab-main-content .cron-detail-content {
+  padding-top: 8px;
+}
+
+@media (max-width: 768px) {
+  .app-content-pane.cron-pane {
+    padding: 0 14px 12px;
+  }
+
+  .cron-tab-header {
+    padding: 0 0 12px;
+  }
+}
+
+.cron-tab-selector-shell {
+  position: relative;
+  width: min(100%, 320px);
+}
+
+.cron-tab-selector-toggle {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--text);
+  text-align: left;
+  font: inherit;
+  padding: 8px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cron-tab-selector-toggle:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+}
+
+.cron-tab-selector-toggle.is-open {
+  border-color: rgba(99, 235, 255, 0.55);
+  background: rgba(99, 235, 255, 0.08);
+}
+
+.cron-tab-selector-title {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cron-tab-selector-caret {
+  color: var(--text-dim);
+  transition: transform 0.12s ease;
+}
+
+.cron-tab-selector-toggle.is-open .cron-tab-selector-caret {
+  transform: rotate(180deg);
+}
+
+.cron-tab-selector-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  width: min(100vw - 40px, 420px);
+  max-height: min(70vh, 620px);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+  z-index: 8;
+}
+
+.cron-tab-selector-dropdown .cron-list-panel-inner {
+  padding: 0 10px 10px;
+  max-height: min(70vh, 620px);
+  overflow-y: auto;
+}
+
+.cron-list-sticky-search {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 10px 0 8px;
+  background: var(--bg-sidebar);
+}
+
+.cron-list-search-input {
+  width: 100%;
+  height: 30px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
+  color: var(--text);
+  font-size: 12px;
+  padding: 0 9px;
+  outline: none;
+  font-family: inherit;
+}
+
+.cron-list-search-input::placeholder {
+  color: var(--text-dim);
+}
+
+.cron-list-search-input:focus {
+  border-color: rgba(99, 235, 255, 0.45);
+  box-shadow: 0 0 0 1px rgba(99, 235, 255, 0.18);
+}
+
+.cron-list-separator {
+  border-top: 1px solid var(--border);
+  margin: 8px 2px;
+}
+
+.cron-list-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cron-list-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cron-list-group + .cron-list-group {
+  margin-top: 2px;
+}
+
+.cron-list-group-header {
+  position: sticky;
+  top: 48px;
+  z-index: 1;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  background: var(--bg-sidebar);
+  padding: 4px 2px;
+}
+
+.cron-list-group-items {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cron-list-item {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.015);
+  color: var(--text-muted);
+  text-align: left;
+  font: inherit;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cron-list-item:hover {
+  border-color: rgba(148, 163, 184, 0.45);
+  color: var(--text);
+}
+
+.cron-list-item.is-selected {
+  border-color: rgba(99, 235, 255, 0.55);
+  background: rgba(99, 235, 255, 0.08);
+  color: var(--text);
+}
+
+.cron-list-all {
+  margin-bottom: 8px;
+}
+
+.cron-list-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cron-list-status-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+
+.cron-list-last-run {
+  font-size: 11px;
+  color: var(--text-muted);
+  line-height: 1;
+}
+
+.cron-list-item-title {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.cron-list-item-subtitle {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.cron-list-health-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.cron-detail-panel {
+  height: auto;
+  min-width: 0;
+  min-height: 100%;
+  overflow: visible;
+}
+
+.cron-detail-scroll {
+  height: auto;
+  overflow: visible;
+}
+
+.cron-detail-content {
+  padding: 16px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-height: 100%;
+  width: 100%;
+  max-width: 672px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.cron-prompt-editor-shell {
+  height: 280px;
+  min-height: 180px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  resize: vertical;
+  background: rgba(255, 255, 255, 0.01);
+}
+
+.cron-prompt-editor-shell .file-viewer-editor-line-num-col {
+  width: 44px;
+  padding: 16px 10px 112px 0;
+}
+
+.cron-calendar-repeating-strip {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.015);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.cron-calendar-repeating-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.cron-calendar-repeating-pill {
+  min-width: 220px;
+  max-width: 100%;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  padding: 6px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cron-calendar-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.cron-calendar-title {
+  color: var(--card-label-bright);
+}
+
+.cron-calendar-legend-label {
+  font-size: 11px;
+  color: var(--text-dim);
+  margin-right: 2px;
+}
+
+.cron-calendar-legend-pill {
+  font-size: 10px;
+  line-height: 1;
+  border-radius: 999px;
+  padding: 4px 7px;
+}
+
+.cron-calendar-grid-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: auto;
+  background: var(--bg-surface);
+}
+
+.cron-calendar-grid-header,
+.cron-calendar-grid-row {
+  display: grid;
+  grid-template-columns: 72px repeat(7, minmax(80px, 1fr));
+}
+
+.cron-calendar-day-header {
+  font-size: 11px;
+  color: var(--text-muted);
+  padding: 8px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.12);
+  position: sticky;
+  top: 0;
+  z-index: 1;
+}
+
+.cron-calendar-day-header.is-today {
+  background: rgba(99, 235, 255, 0.08);
+}
+
+.cron-calendar-hour-cell {
+  font-size: 11px;
+  color: var(--text-dim);
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+  border-right: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.15);
+  position: sticky;
+  left: 0;
+  z-index: 2;
+}
+
+.cron-calendar-grid-header .cron-calendar-hour-cell {
+  top: 0;
+  z-index: 3;
+}
+
+.cron-calendar-grid-corner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cron-calendar-grid-wrap {
+  position: relative;
+}
+
+.cron-calendar-lightbox-panel {
+  width: min(96vw, 1200px);
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg-sidebar);
+}
+
+.cron-calendar-lightbox-close {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text-dim);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.cron-calendar-lightbox-close:hover {
+  color: var(--text);
+  border-color: rgba(148, 163, 184, 0.5);
+}
+
+.cron-calendar-lightbox-body {
+  min-height: 0;
+  overflow: auto;
+}
+
+.cron-calendar-grid-row .cron-calendar-hour-cell {
+  box-shadow: 1px 0 0 var(--border);
+}
+
+.cron-calendar-grid-cell {
+  min-height: 44px;
+  border-left: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  padding: 5px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cron-calendar-grid-cell.is-today {
+  background: rgba(99, 235, 255, 0.04);
+}
+
+.cron-calendar-now-indicator {
+  position: absolute;
+  left: 5px;
+  right: 5px;
+  height: 2px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.95);
+  box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.18), 0 0 8px rgba(239, 68, 68, 0.55);
+  pointer-events: none;
+  z-index: 1;
+}
+
+.cron-calendar-now-indicator-dot {
+  position: absolute;
+  left: -3px;
+  top: 50%;
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: rgba(248, 113, 113, 0.98);
+  transform: translateY(-50%);
+}
+
+.cron-calendar-slot-chip {
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 4px 6px;
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  position: relative;
+  z-index: 2;
+}
+
+.cron-calendar-slot-overflow {
+  font-size: 10px;
+  color: var(--text-dim);
+  padding-left: 2px;
+}
+
+.cron-calendar-slot-tier-low {
+  background: rgba(34, 211, 238, 0.14);
+  border-color: rgba(34, 211, 238, 0.38);
+  color: #c8f6ff;
+}
+
+.cron-calendar-slot-tier-unknown {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.24);
+  color: #c9d2df;
+}
+
+.cron-calendar-slot-tier-medium {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.38);
+  color: #d6e6ff;
+}
+
+.cron-calendar-slot-tier-high {
+  background: rgba(251, 191, 36, 0.14);
+  border-color: rgba(251, 191, 36, 0.38);
+  color: #ffecc1;
+}
+
+.cron-calendar-slot-tier-very-high {
+  background: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.38);
+  color: #ffd6d6;
+}
+
+.cron-calendar-slot-tier-disabled {
+  background: rgba(148, 163, 184, 0.08);
+  border-color: rgba(148, 163, 184, 0.28);
+  color: #98a5b8;
+}
+
+.cron-calendar-slot-upcoming {
+  opacity: 1;
+}
+
+.cron-calendar-slot-past {
+  opacity: 0.75;
+}
+
+.cron-calendar-slot-ok {
+  box-shadow: inset 0 0 0 1px rgba(34, 197, 94, 0.38);
+}
+
+.cron-calendar-slot-error {
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.45);
+}
+
+.cron-calendar-slot-skipped {
+  box-shadow: inset 0 0 0 1px rgba(250, 204, 21, 0.45);
+}
+
+.cron-calendar-compact-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cron-calendar-compact-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 8px;
+  padding: 7px 9px;
+  text-align: left;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.cron-calendar-compact-main {
+  min-width: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.cron-calendar-compact-time {
+  font-size: 10px;
+  font-family: var(--font-mono, monospace);
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.cron-calendar-compact-name {
+  color: var(--text);
+}
+
+.cron-calendar-compact-estimate {
+  font-size: 10px;
+  color: var(--text);
+  font-weight: 500;
+  white-space: nowrap;
+  text-align: right;
+}
+
+.cron-runs-trend-bars {
+  display: grid;
+  grid-template-columns: repeat(var(--cron-runs-trend-columns, 7), minmax(0, 1fr));
+  gap: 4px;
+  align-items: end;
+}
+
+.cron-runs-trend-col {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+  cursor: pointer;
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.cron-runs-trend-col.is-dimmed {
+  opacity: 0.35;
+}
+
+.cron-runs-trend-col.is-selected .cron-runs-trend-track {
+  border-color: rgba(148, 163, 184, 0.55);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.2);
+}
+
+.cron-runs-trend-col:focus-visible {
+  outline: none;
+}
+
+.cron-runs-trend-col:focus-visible .cron-runs-trend-track {
+  border-color: rgba(148, 163, 184, 0.65);
+  box-shadow: 0 0 0 1px rgba(148, 163, 184, 0.24);
+}
+
+.cron-runs-trend-track {
+  width: 100%;
+  height: 120px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.16);
+  overflow: hidden;
+  display: flex;
+  align-items: flex-end;
+}
+
+.cron-runs-trend-bar {
+  width: 100%;
+  min-height: 2px;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+}
+
+.cron-runs-trend-segment-ok {
+  background: rgba(34, 255, 170, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(34, 255, 170, 0.28), 0 0 8px rgba(34, 255, 170, 0.24);
+}
+
+.cron-runs-trend-segment-error {
+  background: rgba(255, 74, 138, 0.84);
+  box-shadow: inset 0 0 0 1px rgba(255, 74, 138, 0.32), 0 0 8px rgba(255, 74, 138, 0.24);
+}
+
+.cron-runs-trend-segment-skipped {
+  background: rgba(255, 214, 64, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(255, 214, 64, 0.28), 0 0 8px rgba(255, 214, 64, 0.22);
+}
+
+.cron-runs-trend-label {
+  font-size: 10px;
+  color: var(--text-dim);
+  min-height: 12px;
+}
+
+.cron-runs-trend-legend {
+  margin-top: 2px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.cron-runs-trend-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.cron-runs-trend-legend-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+}
+
+.cron-runs-trend-legend-dot.is-ok {
+  background: rgba(34, 255, 170, 0.98);
+  box-shadow: 0 0 8px rgba(34, 255, 170, 0.6);
+}
+
+.cron-runs-trend-legend-dot.is-error {
+  background: rgba(255, 74, 138, 0.98);
+  box-shadow: 0 0 8px rgba(255, 74, 138, 0.58);
+}
+
+.cron-runs-trend-legend-dot.is-skipped {
+  background: rgba(255, 214, 64, 0.98);
+  box-shadow: 0 0 8px rgba(255, 214, 64, 0.5);
+}

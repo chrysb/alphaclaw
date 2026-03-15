@@ -95,6 +95,121 @@
   overflow: hidden;
 }
 
+/* ── Sidebar agents list ─────────────────────── */
+
+.sidebar-agents-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px 4px;
+}
+
+.sidebar-agents-label {
+  padding: 0;
+}
+
+.sidebar-agents-add-button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  padding: 6px;
+  margin: -6px;
+  cursor: pointer;
+  opacity: 0.9;
+  transition: color 0.1s, opacity 0.1s;
+}
+
+.sidebar-agents-add-icon {
+  width: 16px;
+  height: 16px;
+  display: block;
+}
+
+.sidebar-agents-add-button:hover {
+  color: var(--text);
+  opacity: 1;
+}
+
+.sidebar-agents-list {
+  flex: 0 0 auto;
+  overflow: visible;
+  padding: 2px 0 0;
+}
+
+.sidebar-agent-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px 6px 16px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.1s, color 0.1s;
+  position: relative;
+  user-select: none;
+  border: none;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+}
+
+.sidebar-agent-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.sidebar-agent-item.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
+.sidebar-agent-item.active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: var(--accent);
+}
+
+.sidebar-agent-icon {
+  width: 14px;
+  height: 14px;
+  flex: 0 0 auto;
+}
+
+.sidebar-agent-emoji {
+  flex: 0 0 auto;
+  width: 14px;
+  line-height: 1;
+  font-size: 14px;
+  text-align: center;
+}
+
+.sidebar-agent-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sidebar-agents-add {
+  margin: 0;
+  padding: 16px 14px 8px 20px;
+  border-top: 1px solid var(--border);
+  margin-top: 8px;
+}
+
 .file-tree-wrap {
   width: 100%;
   display: flex;
@@ -1055,6 +1170,18 @@
 .file-viewer-preview th {
   color: var(--text);
   background: rgba(255, 255, 255, 0.04);
+}
+
+.release-notes-preview {
+  padding: 8px 12px 24px 14px;
+}
+
+.release-notes-preview > :first-child {
+  margin-top: 0;
+}
+
+.release-notes-preview > :last-child {
+  margin-bottom: 0;
 }
 
 .file-viewer-editor-highlight-line-content .hl-comment {

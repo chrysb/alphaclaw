@@ -242,6 +242,34 @@ describe("server/routes/system", () => {
     ]);
   });
 
+  it("hides and preserves managed slack channel tokens on /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-hidden" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-hidden" },
+    ]);
+    const app = createApp(deps);
+
+    const getRes = await request(app).get("/api/env");
+    expect(getRes.status).toBe(200);
+    expect(getRes.body.vars.some((entry) => entry.key === "SLACK_BOT_TOKEN")).toBe(
+      false,
+    );
+    expect(getRes.body.vars.some((entry) => entry.key === "SLACK_APP_TOKEN")).toBe(
+      false,
+    );
+
+    const putRes = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "same" }],
+    });
+    expect(putRes.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "same" },
+      { key: "SLACK_BOT_TOKEN", value: "xoxb-hidden" },
+      { key: "SLACK_APP_TOKEN", value: "xapp-hidden" },
+    ]);
+  });
+
   it("syncs API-key auth profiles from known env vars on save", async () => {
     const deps = createSystemDeps();
     const app = createApp(deps);
@@ -514,6 +542,25 @@ describe("server/routes/system", () => {
 
   it("hides internal hook, cron, and doctor sessions from GET /api/agent/sessions", async () => {
     const deps = createSystemDeps();
+    deps.fs.readFileSync.mockImplementation((targetPath) => {
+      if (targetPath === "/tmp/openclaw/openclaw.json") {
+        return JSON.stringify({
+          channels: {
+            telegram: {
+              accounts: {
+                default: { name: "Tester" },
+                mac: { name: "Mac" },
+              },
+            },
+          },
+          bindings: [
+            { agentId: "main", match: { channel: "telegram", accountId: "default" } },
+            { agentId: "morpheus", match: { channel: "telegram", accountId: "mac" } },
+          ],
+        });
+      }
+      throw new Error(`unexpected read: ${targetPath}`);
+    });
     deps.topicRegistry.getGroup.mockImplementation((groupId) =>
       String(groupId) === "-1003709908795"
         ? {
@@ -529,6 +576,12 @@ describe("server/routes/system", () => {
       stdout: JSON.stringify({
         sessions: [
           { key: "agent:main:main", sessionId: "main-session", updatedAt: 10 },
+          {
+            key: "agent:morpheus:telegram:direct:1050",
+            sessionId: "morpheus-direct-session",
+            updatedAt: 11,
+            label: "Morpheus Person id: 1050",
+          },
           { key: "agent:main:hook:abc", sessionId: "hook-session", updatedAt: 9 },
           { key: "agent:main:cron:abc", sessionId: "cron-session", updatedAt: 8 },
           { key: "agent:main:doctor:42", sessionId: "doctor-session", updatedAt: 7 },
@@ -536,6 +589,7 @@ describe("server/routes/system", () => {
             key: "agent:main:telegram:direct:1050",
             sessionId: "",
             updatedAt: 6,
+            label: "Chrys (@chrysb) id: 1050",
           },
           {
             key: "agent:main:telegram:group:-1003709908795:topic:4011",
@@ -550,13 +604,25 @@ describe("server/routes/system", () => {
     const res = await request(app).get("/api/agent/sessions");
 
     expect(res.status).toBe(200);
+    expect(deps.clawCmd).toHaveBeenCalledWith(
+      "sessions --json --all-agents",
+      { quiet: true },
+    );
     expect(res.body.ok).toBe(true);
     expect(res.body.sessions).toEqual([
+      {
+        key: "agent:morpheus:telegram:direct:1050",
+        sessionId: "morpheus-direct-session",
+        updatedAt: 11,
+        label: "Morpheus - Telegram DM (Mac)",
+        replyChannel: "telegram",
+        replyTo: "1050",
+      },
       {
         key: "agent:main:main",
         sessionId: "main-session",
         updatedAt: 10,
-        label: "Main agent thread",
+        label: "Main Agent - Main Thread",
         replyChannel: "",
         replyTo: "",
       },
@@ -564,7 +630,7 @@ describe("server/routes/system", () => {
         key: "agent:main:telegram:direct:1050",
         sessionId: "",
         updatedAt: 6,
-        label: "Telegram 1050",
+        label: "Main Agent - Telegram DM (Tester)",
         replyChannel: "telegram",
         replyTo: "1050",
       },
@@ -572,7 +638,7 @@ describe("server/routes/system", () => {
         key: "agent:main:telegram:group:-1003709908795:topic:4011",
         sessionId: "topic-session",
         updatedAt: 5,
-        label: "Telegram AlphaClaw · Rosebud",
+        label: "Main Agent - Tester AlphaClaw · Rosebud",
         replyChannel: "telegram",
         replyTo: "-1003709908795:4011",
       },

@@ -4,6 +4,10 @@
 
 AlphaClaw is the ops and setup layer around OpenClaw. It provides a browser-based setup UI, gateway lifecycle management, watchdog recovery flows, and integrations (for example Telegram, Discord, Google Workspace, and webhooks) so users can operate OpenClaw without manual server intervention.
 
+### Understanding OpenClaw
+
+If you need to understand the internals of OpenClaw, you can inspect the code at `~/Projects/openclaw/src`
+
 ### Architecture At A Glance
 
 - `bin/alphaclaw.js`: CLI entrypoint and lifecycle command surface.
@@ -42,6 +46,10 @@ Runtime model:
 - Avoid monolithic implementation files for new features. For new UI areas and new API areas, start with a decomposed structure (focused components/hooks/utilities for UI; focused route modules/services/helpers for server) rather than building one large file first and splitting later.
 - When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
 - When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
+
+### OpenClaw Config Access
+
+- When reading `openclaw.json` in server code, use the shared helper in `lib/server/openclaw-config.js` (`readOpenclawConfig`) instead of ad-hoc `JSON.parse(fs.readFileSync(...))` blocks.
 
 ### Where To Put Agent Guidance
 
@@ -118,12 +126,14 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Keep constants in `kName` format (e.g. `kUiTabs`, `kGroupOrder`, `kNamePattern`).
 - Keep component-level helpers near the top of the file, before the main export.
 - Treat `index.js` as a presentational shell whenever possible: keep business logic in hooks and pass derived state/actions down as props.
+- Add reusable SVG icons to `lib/public/js/components/icons.js` and import them from there; avoid introducing one-off inline SVGs in feature files when a shared icon component can be used.
 
 ### Rendering and composition
 
 - Use the `htm` + `preact` pattern:
   - `const html = htm.bind(h);`
   - return `html\`...\``
+- In `htm` templates, be explicit with inline spacing around styled inline tags (`<span>`, `<code>`, `<a>`): use ` ${" "}` where needed, and verify rendered copy so words never collapse (`eventsand`) or gain double spaces.
 - Prefer early return for hidden states (e.g. `if (!visible) return null;`).
 - Use `<PageHeader />` for tab/page headers that need a title and right-side actions.
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.

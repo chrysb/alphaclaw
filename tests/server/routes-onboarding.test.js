@@ -198,6 +198,28 @@ describe("server/routes/onboarding", () => {
     });
   });
 
+  it("rejects anthropic setup tokens with the wrong prefix", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      modelKey: "anthropic/claude-opus-4-6",
+      vars: [
+        { key: "ANTHROPIC_TOKEN", value: "sk-ant-api03-not-a-setup-token" },
+        { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+      ],
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "ANTHROPIC_TOKEN must start with sk-ant-oat01-",
+    });
+    expect(deps.shellCmd).not.toHaveBeenCalled();
+  });
+
   it("returns github error when repository check fails", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
@@ -268,25 +290,34 @@ describe("server/routes/onboarding", () => {
     });
   });
 
-  it("rejects new workspace repos whose owner differs from the token user", async () => {
+  it("allows new workspace repos owned by organizations when github verification passes", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
-    global.fetch.mockResolvedValueOnce({
-      ok: true,
-      headers: { get: () => "repo" },
-      json: async () => ({ login: "owner" }),
-    });
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "tokudu" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      });
 
     const res = await request(app).post("/api/onboard/github/verify").send({
-      repo: "my-org/new-repo",
+      repo: "make-stories/new-repo",
       token: "ghp_test_123456789",
       mode: "new",
     });
 
-    expect(res.status).toBe(400);
+    expect(res.status).toBe(200);
     expect(res.body).toEqual({
-      ok: false,
-      error: 'New workspace repo owner must match your token user "owner"',
+      ok: true,
+      repoExists: false,
+      repoIsEmpty: false,
+      tempDir: null,
     });
   });
 
@@ -294,7 +325,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
@@ -460,7 +490,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
     });
@@ -478,7 +507,6 @@ describe("server/routes/onboarding", () => {
     const deps = createBaseDeps();
     deps.fs.readFileSync.mockImplementation((p) => {
       if (p === "/tmp/openclaw/openclaw.json") return "{}";
-      if (p === path.join(kSetupDir, "skills", "control-ui", "SKILL.md")) return "BASE={{BASE_URL}}";
       if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
       if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
       return "{}";
@@ -489,7 +517,7 @@ describe("server/routes/onboarding", () => {
     const res = await request(app).post("/api/onboard").send({
       modelKey: "anthropic/claude-opus-4-6",
       vars: [
-        { key: "ANTHROPIC_API_KEY", value: "sk-ant-test-123456789" },
+        { key: "ANTHROPIC_API_KEY", value: "sk-ant-api03-123456789" },
         { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
         { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
         { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
@@ -499,9 +527,48 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(200);
     expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
       "anthropic",
-      "sk-ant-test-123456789",
+      "sk-ant-api03-123456789",
     );
     expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledTimes(1);
+  });
+
+  it("removes stale anthropic token env state when onboarding with an api key", async () => {
+    const deps = createBaseDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "ANTHROPIC_TOKEN", value: "sk-ant-oat01-stale-token" },
+      { key: "GITHUB_TOKEN", value: "ghp_old" },
+    ]);
+    deps.fs.readFileSync.mockImplementation((p) => {
+      if (p === "/tmp/openclaw/openclaw.json") return "{}";
+      if (p === path.join(kSetupDir, "core-prompts", "TOOLS.md")) return "Setup: {{SETUP_UI_URL}}";
+      if (p === path.join(kSetupDir, "hourly-git-sync.sh")) return "echo Auto-commit hourly sync";
+      return "{}";
+    });
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send({
+      modelKey: "anthropic/claude-opus-4-6",
+      vars: [
+        { key: "ANTHROPIC_API_KEY", value: "sk-ant-api-fresh-123456789" },
+        { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalled();
+    const savedVars = deps.writeEnvFile.mock.calls.at(-1)[0];
+    expect(savedVars.some((entry) => entry.key === "ANTHROPIC_TOKEN")).toBe(false);
+
+    const onboardCall = deps.shellCmd.mock.calls.find(([cmd]) =>
+      cmd.startsWith("openclaw onboard "),
+    );
+    expect(onboardCall).toBeTruthy();
+    expect(onboardCall[0]).toContain("--anthropic-api-key");
+    expect(onboardCall[0]).not.toContain("--token-provider");
+    expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {
@@ -629,7 +696,6 @@ describe("server/routes/onboarding", () => {
         }),
       ],
       ["/tmp/openclaw/.git", "gitdir"],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);
@@ -714,7 +780,6 @@ describe("server/routes/onboarding", () => {
           },
         }),
       ],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);
@@ -756,7 +821,6 @@ describe("server/routes/onboarding", () => {
     const files = new Map([
       ["/tmp/openclaw/openclaw.json", JSON.stringify({ gateway: { auth: {} } })],
       ["/tmp/openclaw/.git", "gitdir"],
-      [path.join(kSetupDir, "skills", "control-ui", "SKILL.md"), "BASE={{BASE_URL}}"],
       [path.join(kSetupDir, "core-prompts", "TOOLS.md"), "Setup: {{SETUP_UI_URL}}"],
       [path.join(kSetupDir, "hourly-git-sync.sh"), "echo Auto-commit hourly sync"],
     ]);

@@ -9,6 +9,7 @@
   --text: #c9d1d9;
   --text-muted: #6e7681;
   --text-dim: #424854;
+  --card-label-bright: #dbe7f6;
   --accent: #63ebff;
   --accent-dim: rgba(99, 235, 255, 0.4);
   --accent-link: rgba(99, 235, 255, 0.6);
@@ -53,6 +54,10 @@ body::before {
   color: var(--text-muted);
 }
 
+.card-label-bright {
+  color: var(--card-label-bright);
+}
+
 .ac-small-heading {
   font-size: 11px;
   font-weight: 500;
@@ -68,10 +73,21 @@ body::before {
   gap: 8px;
 }
 
+.ac-history-list.ac-history-list-tight {
+  gap: 0;
+}
+
 .ac-history-item {
   border: 1px solid var(--panel-border-contrast);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.12);
+}
+
+.ac-history-item.ac-history-item-flat {
+  border: 0;
+  border-bottom: 1px solid var(--panel-border-contrast);
+  border-radius: 0;
+  background: transparent;
 }
 
 .snippet-collapse-fade {
@@ -108,7 +124,7 @@ body::before {
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
-.ac-history-item[open] .ac-history-toggle {
+.ac-history-item[open] > .ac-history-summary .ac-history-toggle {
   transform: rotate(90deg);
   color: #d1d5db;
 }
@@ -593,6 +609,15 @@ textarea:focus {
   flex: 1 1 0%;
 }
 
+.ac-segmented-control > .inline-flex {
+  align-self: stretch;
+  display: flex;
+}
+
+.ac-segmented-control-full > .inline-flex {
+  flex: 1 1 0%;
+}
+
 .ac-segmented-control-lg {
   height: 36px;
   border-radius: 12px;
@@ -612,3 +637,76 @@ textarea:focus {
   color: var(--accent);
   background: var(--bg-active);
 }
+
+.ac-segmented-control-dark {
+  background: rgba(0, 0, 0, 0.25);
+}
+
+/* ── PopActions: animated action group ───────── */
+
+.ac-pop-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.ac-pop-actions-hidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+
+.ac-pop-actions-in > * {
+  animation: acPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+
+.ac-pop-actions-in > *:nth-child(2) {
+  animation-delay: 0.06s;
+}
+
+.ac-pop-actions-in .ac-btn-cyan {
+  animation: acPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) 0.06s both;
+}
+
+.ac-pop-actions-out > * {
+  animation: acPopOut 0.18s ease-in both;
+}
+
+.ac-pop-actions-out > *:first-child {
+  animation-delay: 0.03s;
+}
+
+.ac-pop-actions > button:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+}
+
+@keyframes acPopIn {
+  from { opacity: 0; transform: scale(0.85); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+@keyframes acPopOut {
+  from { opacity: 1; transform: scale(1); }
+  to   { opacity: 0; transform: scale(0.85); }
+}
+
+.watchdog-logs-panel {
+  min-height: 160px;
+  max-height: 80vh;
+  resize: vertical;
+}
+
+.watchdog-terminal-host {
+  position: relative;
+}
+
+.watchdog-terminal-host .xterm {
+  height: 100%;
+  letter-spacing: 0;
+  font-kerning: none;
+}
+
+.watchdog-terminal-host .xterm-viewport {
+  overflow-y: auto !important;
+}
+

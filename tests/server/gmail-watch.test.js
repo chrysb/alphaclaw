@@ -126,7 +126,133 @@ describe("server/gmail-watch", () => {
         client: "default",
         configured: true,
         transformExists: true,
+        webhookExists: false,
       }),
     ]);
+  });
+
+  it("reports webhookExists when gmail mapping is present in openclaw config", () => {
+    const statePath = "/tmp/gogcli/state.json";
+    const configDir = "/tmp/gogcli";
+    const openclawDir = "/tmp/.openclaw";
+    const fs = createMemoryFs({
+      [statePath]: JSON.stringify({
+        version: 2,
+        accounts: [
+          {
+            id: "acct-1",
+            email: "ops@example.com",
+            client: "default",
+            services: ["gmail:read"],
+            gmailWatch: {},
+          },
+        ],
+        gmailPush: {
+          token: "push-token",
+          topics: {
+            default: "projects/my-project/topics/gog-gmail-watch",
+          },
+        },
+      }),
+      [`${openclawDir}/openclaw.json`]: JSON.stringify({
+        hooks: {
+          mappings: [{ match: { path: "gmail" } }],
+        },
+      }),
+    });
+    const service = createGmailWatchService({
+      fs,
+      constants: {
+        GOG_STATE_PATH: statePath,
+        GOG_CONFIG_DIR: configDir,
+        OPENCLAW_DIR: openclawDir,
+      },
+      gogCmd: async () => ({ ok: true, stdout: "", stderr: "" }),
+      getBaseUrl: () => "https://alphaclaw.example",
+      readGoogleCredentials: () => ({
+        projectId: "my-project",
+      }),
+      readEnvFile: () => [],
+      writeEnvFile: () => {},
+      reloadEnv: () => {},
+      restartRequiredState: null,
+    });
+
+    const result = service.getConfig({ req: {} });
+    expect(result.clients).toEqual([
+      expect.objectContaining({
+        client: "default",
+        webhookExists: true,
+      }),
+    ]);
+  });
+
+  it("preserves an existing custom Gmail transform while ensuring hook wiring", () => {
+    const statePath = "/tmp/gogcli/state.json";
+    const configDir = "/tmp/gogcli";
+    const openclawDir = "/tmp/.openclaw";
+    const configPath = `${openclawDir}/openclaw.json`;
+    const transformPath = `${openclawDir}/hooks/transforms/gmail/gmail-transform.mjs`;
+    const customTransformSource =
+      "export default async function transform(payload) {\n" +
+      "  return { message: payload?.custom || \"custom\" };\n" +
+      "}\n";
+    const fs = createMemoryFs({
+      [statePath]: JSON.stringify({
+        version: 2,
+        accounts: [],
+        gmailPush: {
+          token: "push-token",
+          topics: {},
+        },
+      }),
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        hooks: {
+          enabled: true,
+          token: "${WEBHOOK_TOKEN}",
+          presets: ["gmail"],
+          mappings: [
+            {
+              match: { path: "gmail" },
+              action: "agent",
+              name: "Gmail",
+              wakeMode: "now",
+              transform: { module: "gmail/gmail-transform.mjs" },
+            },
+          ],
+        },
+      }),
+      [transformPath]: customTransformSource,
+    });
+    const service = createGmailWatchService({
+      fs,
+      constants: {
+        GOG_STATE_PATH: statePath,
+        GOG_CONFIG_DIR: configDir,
+        OPENCLAW_DIR: openclawDir,
+      },
+      gogCmd: async () => ({ ok: true, stdout: "", stderr: "" }),
+      getBaseUrl: () => "https://alphaclaw.example",
+      readGoogleCredentials: () => ({
+        projectId: "my-project",
+      }),
+      readEnvFile: () => [{ key: "WEBHOOK_TOKEN", value: "existing-token" }],
+      writeEnvFile: () => {},
+      reloadEnv: () => {},
+      restartRequiredState: null,
+    });
+
+    service.ensureHookWiring({
+      destination: {
+        channel: "telegram",
+        to: "-100123",
+        agentId: "main",
+      },
+    });
+
+    expect(fs.readFileSync(transformPath, "utf8")).toBe(customTransformSource);
   });
 });

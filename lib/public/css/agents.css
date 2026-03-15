@@ -1,0 +1,116 @@
+/* ── Agents detail layout ────────────────────── */
+
+.app-content-pane.agents-pane {
+  overflow: hidden;
+  padding-left: 0;
+  padding-right: 0;
+  padding-bottom: 0;
+}
+
+/* ── Detail panel ────────────────────────────── */
+
+.agents-detail-panel {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.agents-detail-header-area {
+  padding: 8px 32px 16px;
+}
+
+.agents-detail-header-area-inner {
+  max-width: 42rem;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.agents-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.agents-detail-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  padding: 0 32px;
+}
+
+.agents-detail-content {
+  max-width: 42rem;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 0 24px;
+}
+
+@media (max-width: 768px) {
+  .agents-detail-header-area {
+    padding: 16px 14px 0;
+  }
+
+  .agents-detail-body {
+    padding: 0 14px;
+  }
+}
+
+.agents-detail-header-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Sub-tabs ────────────────────────────────── */
+
+.agents-sub-tabs {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding-top: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.agents-sub-tab {
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: color 0.12s, border-color 0.12s;
+  font-family: inherit;
+  margin-bottom: -1px;
+}
+
+.agents-sub-tab:hover {
+  color: var(--text);
+}
+
+.agents-sub-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+/* ── Empty state ─────────────────────────────── */
+
+.agents-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--text-dim);
+  gap: 12px;
+  padding: 32px;
+  text-align: center;
+}

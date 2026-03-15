@@ -71,6 +71,26 @@ describe("server/openclaw-version", () => {
     });
   });
 
+  it("parses update status json from noisy CLI output", async () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock
+      .mockReturnValueOnce("openclaw 1.2.3")
+      .mockReturnValueOnce(
+        `[plugins] [auth]\n${JSON.stringify({
+          availability: { available: true, latestVersion: "1.3.0" },
+        })}`,
+      );
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status).toEqual({
+      ok: true,
+      currentVersion: "1.2.3",
+      latestVersion: "1.3.0",
+      hasUpdate: true,
+    });
+  });
+
   it("returns error status when update status command fails", async () => {
     const { service, execSyncMock } = createService();
     execSyncMock
