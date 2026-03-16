@@ -257,20 +257,11 @@ describe("server/routes/onboarding", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        headers: { get: () => "repo" },
-        json: async () => ({ login: "owner" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         status: 200,
-        statusText: "OK",
-        json: async () => ({ full_name: "my-org/source-repo" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: async () => [{ sha: "abc123" }],
+        json: async () => [
+          { name: "package.json", type: "file" },
+          { name: "src", type: "dir" },
+        ],
       });
     deps.shellCmd.mockResolvedValueOnce("");
 
