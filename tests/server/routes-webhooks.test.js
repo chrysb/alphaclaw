@@ -2,7 +2,10 @@ const path = require("path");
 const express = require("express");
 const request = require("supertest");
 
-const { createWebhook } = require("../../lib/server/webhooks");
+const {
+  createWebhook,
+  getTransformRelativePath,
+} = require("../../lib/server/webhooks");
 const { registerWebhookRoutes } = require("../../lib/server/routes/webhooks");
 
 const createMemoryFs = (initialFiles = {}) => {
@@ -100,6 +103,15 @@ describe("server/routes/webhooks", () => {
     );
     expect(response.body?.webhook?.oauthCallbackUrl).toBe(
       "https://alphaclaw.example.com/oauth/0123456789abcdef0123456789abcdef",
+    );
+    const transformPath = path.join(
+      openclawDir,
+      getTransformRelativePath("schwab-oauth"),
+    );
+    const transformSource = fs.readFileSync(transformPath, "utf8");
+    expect(transformSource).toContain("message: message || fallbackMessage");
+    expect(transformSource).toContain(
+      "OAuth callback received (authorization code present)",
     );
   });
 
