@@ -44,6 +44,26 @@
   flex-shrink: 0;
 }
 
+.global-restart-banner__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.global-restart-banner__dismiss {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px;
+  color: #fde68a;
+  opacity: 0.85;
+}
+
+.global-restart-banner__dismiss:hover {
+  opacity: 1;
+}
+
 .app-content {
   grid-column: 3;
   grid-row: 2;
@@ -391,6 +411,10 @@
   .global-restart-banner__button {
     position: static;
     transform: none;
+  }
+  .global-restart-banner__actions {
+    width: 100%;
+    justify-content: flex-end;
   }
   .app-content {
     grid-column: 1;
