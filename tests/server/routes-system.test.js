@@ -540,7 +540,7 @@ describe("server/routes/system", () => {
         key: "agent:morpheus:telegram:direct:1050",
         sessionId: "morpheus-direct-session",
         updatedAt: 11,
-        label: "Morpheus - Telegram DM (Mac)",
+        label: "Morpheus Agent - Telegram DM (Mac)",
         replyChannel: "telegram",
         replyTo: "1050",
       },
