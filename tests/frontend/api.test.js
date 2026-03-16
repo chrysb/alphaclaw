@@ -347,6 +347,36 @@ describe("frontend/api", () => {
     expect(result).toEqual({ ok: true, webhook: { name: "gmail" } });
   });
 
+  it("updateWebhookDestination puts destination fields", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, webhook: { name: "gmail-alerts" } }));
+    const api = await loadApiModule();
+
+    const result = await api.updateWebhookDestination("gmail-alerts", {
+      destination: {
+        channel: "telegram",
+        to: "1050",
+        agentId: "main",
+      },
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/webhooks/gmail-alerts/destination",
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          destination: {
+            channel: "telegram",
+            to: "1050",
+            agentId: "main",
+          },
+        }),
+        headers: expect.any(Headers),
+      }),
+    );
+    expectLastFetchHeaders("application/json");
+    expect(result).toEqual({ ok: true, webhook: { name: "gmail-alerts" } });
+  });
+
   it("startGmailWatch posts optional destination fields", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, accountId: "acct-1" }));
     const api = await loadApiModule();

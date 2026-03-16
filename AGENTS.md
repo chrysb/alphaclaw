@@ -209,6 +209,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Add new formatter helpers to `lib/public/js/lib/format.js` when the behavior is cross-feature and likely to be reused; keep feature-specific transforms local to the feature folder.
 - Avoid wrapper pass-through helpers that only rename a global formatter without adding feature-specific behavior.
 
+### Session key utilities
+
+- Keep shared session-key parsing/filtering helpers in `lib/public/js/lib/session-keys.js` (for example extracting `agentId`, destination-session matching checks, and destination payload derivation).
+- Before adding session-key logic in a hook/component, check `lib/public/js/lib/session-keys.js` first and reuse existing helpers.
+- When session-key behavior is reused across features, add/extend helpers in `lib/public/js/lib/session-keys.js` instead of duplicating regex/string parsing in feature files.
+
 ### localStorage keys
 
 - All standalone `localStorage` keys are defined in `lib/public/js/lib/storage-keys.js`. Import keys from this file — never define raw localStorage key strings inline in components.

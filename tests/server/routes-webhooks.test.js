@@ -157,4 +157,59 @@ describe("server/routes/webhooks", () => {
     expect(deleteOauthCallbackCalls).toEqual(["schwab-oauth"]);
     expect(response.body?.ok).toBe(true);
   });
+
+  it("updates webhook destination mapping", async () => {
+    const openclawDir = "/tmp/openclaw";
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [
+            { id: "main", default: true },
+            { id: "alpha" },
+          ],
+        },
+      }),
+    });
+    createWebhook({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "route-test",
+      destination: {
+        channel: "direct",
+        to: "old-session",
+        agentId: "main",
+      },
+    });
+    const app = createApp({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      webhooksDb: {
+        getHookSummaries: () => [],
+        getRequests: () => [],
+        getRequestById: () => null,
+        deleteRequestsByHook: () => 0,
+        createOauthCallback: () => null,
+        getOauthCallbackByHook: () => null,
+        rotateOauthCallback: () => null,
+        deleteOauthCallback: () => 0,
+      },
+    });
+
+    const response = await request(app)
+      .put("/api/webhooks/route-test/destination")
+      .send({
+        destination: {
+          channel: "group",
+          to: "new-session",
+          agentId: "alpha",
+        },
+      });
+
+    expect(response.status).toBe(200);
+    expect(response.body?.ok).toBe(true);
+    expect(response.body?.webhook?.channel).toBe("group");
+    expect(response.body?.webhook?.to).toBe("new-session");
+    expect(response.body?.webhook?.agentId).toBe("alpha");
+  });
 });
