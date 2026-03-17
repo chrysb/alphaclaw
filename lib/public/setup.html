@@ -17,7 +17,11 @@
     <link rel="stylesheet" href="./css/cron.css" />
     <script>
       // Apply saved theme before render to prevent flash.
-      try { document.documentElement.dataset.theme = localStorage.getItem("ac-theme") || "dark"; } catch {}
+      try {
+        var t = localStorage.getItem("ac-theme");
+        if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+      } catch {}
     </script>
   </head>
   <body>

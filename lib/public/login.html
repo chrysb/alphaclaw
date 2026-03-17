@@ -12,7 +12,11 @@
     <link rel="stylesheet" href="./css/theme.css" />
     <link rel="stylesheet" href="./css/tailwind.generated.css" />
     <script>
-      try { document.documentElement.dataset.theme = localStorage.getItem("ac-theme") || "dark"; } catch {}
+      try {
+        var t = localStorage.getItem("ac-theme");
+        if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        document.documentElement.dataset.theme = t;
+      } catch {}
     </script>
   </head>
   <body class="min-h-screen flex items-center justify-center p-4">
