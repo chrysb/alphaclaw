@@ -22,6 +22,34 @@
   --panel-border-contrast: rgba(255, 255, 255, 0.11);
   --field-bg-contrast: rgba(0, 0, 0, 0.3);
   --field-border-contrast: rgba(255, 255, 255, 0.13);
+
+  /* ── Semantic theme tokens ────────────────────── */
+  --text-bright: #f3f4f6;
+  --overlay: rgba(0, 0, 0, 0.7);
+
+  /* Status: error */
+  --status-error: #fca5a5;
+  --status-error-muted: #f87171;
+  --status-error-bg: rgba(127, 29, 29, 0.95);
+  --status-error-border: rgba(185, 28, 28, 0.8);
+
+  /* Status: warning */
+  --status-warning: #fde047;
+  --status-warning-muted: #facc15;
+  --status-warning-bg: rgba(66, 32, 6, 0.95);
+  --status-warning-border: rgba(161, 98, 7, 0.8);
+
+  /* Status: success */
+  --status-success: #86efac;
+  --status-success-muted: #22c55e;
+  --status-success-bg: rgba(5, 46, 22, 0.5);
+  --status-success-border: rgba(21, 128, 61, 0.8);
+
+  /* Status: info */
+  --status-info: #a5f3fc;
+  --status-info-muted: #06b6d4;
+  --status-info-bg: rgba(8, 51, 68, 0.95);
+  --status-info-border: rgba(14, 116, 144, 0.8);
 }
 
 html, body { height: 100%; }
