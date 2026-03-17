@@ -15,6 +15,10 @@
     <link rel="stylesheet" href="./css/explorer.css" />
     <link rel="stylesheet" href="./css/agents.css" />
     <link rel="stylesheet" href="./css/cron.css" />
+    <script>
+      // Apply saved theme before render to prevent flash.
+      try { document.documentElement.dataset.theme = localStorage.getItem("ac-theme") || "dark"; } catch {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

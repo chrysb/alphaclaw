@@ -11,6 +11,9 @@
     <link rel="icon" type="image/svg+xml" href="./img/logo.svg" />
     <link rel="stylesheet" href="./css/theme.css" />
     <link rel="stylesheet" href="./css/tailwind.generated.css" />
+    <script>
+      try { document.documentElement.dataset.theme = localStorage.getItem("ac-theme") || "dark"; } catch {}
+    </script>
   </head>
   <body class="min-h-screen flex items-center justify-center p-4">
     <div class="max-w-sm w-full relative z-10">
