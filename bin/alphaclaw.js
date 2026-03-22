@@ -131,13 +131,13 @@ const resolveGithubRepoPath = (value) =>
 // ---------------------------------------------------------------------------
 
 const rootDir =
-  flagValue(globalArgs, "--root-dir") ||
+  flagValue(args, "--root-dir") ||
   process.env.ALPHACLAW_ROOT_DIR ||
   path.join(os.homedir(), ".alphaclaw");
 
 process.env.ALPHACLAW_ROOT_DIR = rootDir;
 
-const portFlag = flagValue(globalArgs, "--port");
+const portFlag = flagValue(args, "--port");
 if (portFlag) {
   process.env.PORT = portFlag;
 }
@@ -464,6 +464,17 @@ if (
   commandAction === "add"
 ) {
   process.exit(runTelegramTopicAdd());
+}
+
+const kPort = String(process.env.PORT || "3000").trim();
+if (kPort === "18789") {
+  console.error(
+    [
+      "[alphaclaw] Fatal config error: AlphaClaw cannot be started on port 18789.",
+      "[alphaclaw] Port 18789 is reserved for the OpenClaw gateway.",
+    ].join("\n"),
+  );
+  process.exit(1);
 }
 
 const kSetupPassword = String(process.env.SETUP_PASSWORD || "").trim();
