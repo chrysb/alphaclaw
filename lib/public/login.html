@@ -13,7 +13,7 @@
     <link rel="stylesheet" href="./css/tailwind.generated.css" />
     <script>
       try {
-        var t = localStorage.getItem("ac-theme");
+        var t = localStorage.getItem("alphaclaw.ui.theme");
         if (!t) t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
         document.documentElement.dataset.theme = t;
       } catch {}
@@ -60,10 +60,6 @@
       </form>
     </div>
     <script>
-      try {
-        window.localStorage?.clear?.();
-      } catch {}
-
       const formEl = document.getElementById("login-form");
       const passwordEl = document.getElementById("password");
       const submitButtonEl = document.getElementById("submit-btn");
