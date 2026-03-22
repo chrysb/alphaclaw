@@ -155,6 +155,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - For nested "surface on surface" blocks (content inside a `bg-surface` card), use `ac-surface-inset` for the inner container treatment so inset sections match shared history/sessions styling.
 - For internal section dividers, use `border-t border-border` (avoid opacity variants) with comfortable vertical spacing around the divider.
 
+### Color and theme tokens
+
+- Prefer semantic Tailwind color utilities backed by theme tokens (`text-body`, `text-fg-muted`, `text-fg-dim`, `bg-field`, `bg-status-error-bg`, `border-status-warning-border`) instead of raw palette classes like `text-gray-300` or `bg-red-900/30`.
+- When a new reusable UI color role is needed, add the CSS variable in `lib/public/css/theme.css` and expose it through `tailwind.config.cjs` rather than introducing one-off hardcoded color classes in components.
+- Keep component refactors token-based so future theme changes stay centralized in the token layer instead of requiring per-component color rewrites.
+
 ### Buttons
 
 - Primary actions: `ac-btn-cyan`
@@ -185,9 +191,9 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Reuse `<SecretInput />` for sensitive values and token/key inputs.
 - Reuse `<ToggleSwitch />` for boolean on/off controls instead of ad-hoc checkbox/switch markup.
 - Base input look should remain consistent:
-  - `bg-black/30 border border-border rounded-lg ... focus:border-gray-500`
+  - `bg-field border border-border rounded-lg ... focus:border-fg-muted`
 - Preserve monospace for technical values (`font-mono`) and codes/paths.
-- Prefer inline helper text under fields (`text-xs text-gray-500/600`) for setup guidance.
+- Prefer inline helper text under fields (`text-xs text-fg-muted` / `text-fg-dim`) for setup guidance.
 - For tip/help links in helper text, use the shared `ac-tip-link` class (token-backed via `--accent-link`) instead of per-file ad-hoc cyan classes.
 
 ### Feedback and state
