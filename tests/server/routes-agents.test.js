@@ -54,7 +54,13 @@ const createAgentsServiceMock = () => ({
     ok: true,
     stdout: "QR code displayed",
     stderr: "",
+    code: 0,
     completed: true,
+  })),
+  getChannelAccountLoginStatus: vi.fn((input) => ({
+    provider: input.provider,
+    accountId: input.accountId || "default",
+    linked: true,
   })),
   getAgent: vi.fn((id) =>
     id === "main" ? { id: "main", name: "Main Agent", default: true } : null,
@@ -299,6 +305,7 @@ describe("server/routes/agents", () => {
     expect(response.status).toBe(200);
     expect(response.body.ok).toBe(true);
     expect(response.body.completed).toBe(true);
+    expect(response.body.code).toBe(0);
     expect(agentsService.runChannelAccountLogin).toHaveBeenCalledWith({
       provider: "whatsapp",
       accountId: "default",
@@ -338,6 +345,27 @@ describe("server/routes/agents", () => {
 
     expect(response.status).toBe(400);
     expect(response.body.ok).toBe(false);
+  });
+
+  it("returns whatsapp login status on GET /api/channels/accounts/login-status", async () => {
+    const agentsService = createAgentsServiceMock();
+    const app = createApp(agentsService);
+
+    const response = await request(app).get(
+      "/api/channels/accounts/login-status?provider=whatsapp&accountId=default",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body).toEqual({
+      ok: true,
+      provider: "whatsapp",
+      accountId: "default",
+      linked: true,
+    });
+    expect(agentsService.getChannelAccountLoginStatus).toHaveBeenCalledWith({
+      provider: "whatsapp",
+      accountId: "default",
+    });
   });
 
   it("deletes a configured channel account on DELETE /api/channels/accounts", async () => {
