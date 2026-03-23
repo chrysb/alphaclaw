@@ -72,28 +72,55 @@ test("slack-api: addReaction cleans emoji names", async () => {
 });
 
 test("slack-api: uploadTextSnippet converts string to buffer", async () => {
-  let capturedFields = null;
-  let capturedFiles = null;
+  let uploadUrlCalled = false;
+  let externalUploadCalled = false;
+  let completeUploadCalled = false;
 
-  // Mock callMultipart by intercepting uploadFile
-  const api = createSlackApi(() => "test-token");
-  const originalUploadFile = api.uploadFile;
-  
-  api.uploadFile = async (channels, content, opts) => {
-    capturedFields = { channels, ...opts };
-    capturedFiles = content;
-    return { ok: true, file: { id: "F123" } };
+  // Mock fetch to handle 3-step upload flow
+  global.fetch = async (url, options) => {
+    if (url.includes("files.getUploadURLExternal")) {
+      uploadUrlCalled = true;
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          upload_url: "https://files.slack.com/upload/v1/ABC123",
+          file_id: "F123ABC"
+        })
+      };
+    } else if (url.includes("files.slack.com/upload")) {
+      // External upload (step 2)
+      externalUploadCalled = true;
+      assert.ok(Buffer.isBuffer(options.body), "Should upload buffer to external URL");
+      return { ok: true };
+    } else if (url.includes("files.completeUploadExternal")) {
+      completeUploadCalled = true;
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          files: [{ id: "F123ABC", title: "Test Code" }]
+        })
+      };
+    }
+    
+    return { ok: true, json: async () => ({ ok: true }) };
   };
 
-  await api.uploadTextSnippet("C123", "console.log('test');", {
+  const api = createSlackApi(() => "test-token");
+  
+  const result = await api.uploadTextSnippet("C123", "console.log('test');", {
     filename: "test.js",
     title: "Test Code"
   });
 
-  assert.equal(capturedFields.filename, "test.js");
-  assert.equal(capturedFields.title, "Test Code");
-  assert.equal(capturedFields.contentType, "text/plain");
-  assert.ok(Buffer.isBuffer(capturedFiles), "Content should be a Buffer");
+  // Verify 3-step flow was executed
+  assert.ok(uploadUrlCalled, "Should call getUploadURLExternal");
+  assert.ok(externalUploadCalled, "Should upload to external URL");
+  assert.ok(completeUploadCalled, "Should call completeUploadExternal");
+  
+  // Verify result
+  assert.equal(result.files[0].id, "F123ABC");
 });
 
 test("slack-api: handles API errors gracefully", async () => {
