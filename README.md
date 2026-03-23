@@ -175,6 +175,7 @@ If you need OpenClaw's full security posture (manual pairing codes, no query-str
 
 ```bash
 npm install
+npm run build:ui        # Generate Setup UI bundle, Tailwind CSS, and vendor CSS (required for local runs from a git checkout)
 npm test                # Full suite (440 tests)
 npm run test:watchdog   # Watchdog-focused suite (14 tests)
 npm run test:watch      # Watch mode
