@@ -9,6 +9,7 @@
   --text: #c9d1d9;
   --text-muted: #6e7681;
   --text-dim: #424854;
+  --card-label-bright: #dbe7f6;
   --accent: #63ebff;
   --accent-dim: rgba(99, 235, 255, 0.4);
   --accent-link: rgba(99, 235, 255, 0.6);
@@ -21,6 +22,34 @@
   --panel-border-contrast: rgba(255, 255, 255, 0.11);
   --field-bg-contrast: rgba(0, 0, 0, 0.3);
   --field-border-contrast: rgba(255, 255, 255, 0.13);
+
+  /* ── Semantic theme tokens ────────────────────── */
+  --text-bright: #f3f4f6;
+  --overlay: rgba(0, 0, 0, 0.7);
+
+  /* Status: error */
+  --status-error: #fca5a5;
+  --status-error-muted: #f87171;
+  --status-error-bg: rgba(127, 29, 29, 0.95);
+  --status-error-border: rgba(185, 28, 28, 0.8);
+
+  /* Status: warning */
+  --status-warning: #fde047;
+  --status-warning-muted: #facc15;
+  --status-warning-bg: rgba(66, 32, 6, 0.95);
+  --status-warning-border: rgba(161, 98, 7, 0.8);
+
+  /* Status: success */
+  --status-success: #86efac;
+  --status-success-muted: #22c55e;
+  --status-success-bg: rgba(5, 46, 22, 0.5);
+  --status-success-border: rgba(21, 128, 61, 0.8);
+
+  /* Status: info */
+  --status-info: #a5f3fc;
+  --status-info-muted: #06b6d4;
+  --status-info-bg: rgba(8, 51, 68, 0.95);
+  --status-info-border: rgba(14, 116, 144, 0.8);
 }
 
 html, body { height: 100%; }
@@ -53,6 +82,10 @@ body::before {
   color: var(--text-muted);
 }
 
+.card-label-bright {
+  color: var(--card-label-bright);
+}
+
 .ac-small-heading {
   font-size: 11px;
   font-weight: 500;
@@ -68,10 +101,21 @@ body::before {
   gap: 8px;
 }
 
+.ac-history-list.ac-history-list-tight {
+  gap: 0;
+}
+
 .ac-history-item {
   border: 1px solid var(--panel-border-contrast);
   border-radius: 10px;
   background: rgba(0, 0, 0, 0.12);
+}
+
+.ac-history-item.ac-history-item-flat {
+  border: 0;
+  border-bottom: 1px solid var(--panel-border-contrast);
+  border-radius: 0;
+  background: transparent;
 }
 
 .snippet-collapse-fade {
@@ -108,7 +152,7 @@ body::before {
   transition: transform 0.15s ease, color 0.15s ease;
 }
 
-.ac-history-item[open] .ac-history-toggle {
+.ac-history-item[open] > .ac-history-summary .ac-history-toggle {
   transform: rotate(90deg);
   color: #d1d5db;
 }
@@ -636,7 +680,8 @@ textarea:focus {
 }
 
 .ac-pop-actions-hidden {
-  display: none;
+  visibility: hidden;
+  pointer-events: none;
 }
 
 .ac-pop-actions-in > * {
@@ -671,5 +716,25 @@ textarea:focus {
 @keyframes acPopOut {
   from { opacity: 1; transform: scale(1); }
   to   { opacity: 0; transform: scale(0.85); }
+}
+
+.watchdog-logs-panel {
+  min-height: 160px;
+  max-height: 80vh;
+  resize: vertical;
+}
+
+.watchdog-terminal-host {
+  position: relative;
+}
+
+.watchdog-terminal-host .xterm {
+  height: 100%;
+  letter-spacing: 0;
+  font-kerning: none;
+}
+
+.watchdog-terminal-host .xterm-viewport {
+  overflow-y: auto !important;
 }
 

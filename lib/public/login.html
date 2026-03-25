@@ -10,22 +10,7 @@
     />
     <link rel="icon" type="image/svg+xml" href="./img/logo.svg" />
     <link rel="stylesheet" href="./css/theme.css" />
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              surface: "var(--bg-sidebar)",
-              border: "var(--border)",
-            },
-            fontFamily: {
-              mono: ["'JetBrains Mono'", "monospace"],
-            },
-          },
-        },
-      };
-    </script>
+    <link rel="stylesheet" href="./css/tailwind.generated.css" />
   </head>
   <body class="min-h-screen flex items-center justify-center p-4">
     <div class="max-w-sm w-full relative z-10">
@@ -53,10 +38,10 @@
           type="password"
           placeholder="Password"
           autofocus
-          class="w-full bg-black/30 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-500"
+          class="w-full bg-field border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-fg-muted"
           style="color: var(--text)"
         />
-        <div id="error" class="text-red-400 text-xs hidden"></div>
+        <div id="error" class="text-status-error-muted text-xs hidden"></div>
         <button
           id="submit-btn"
           type="submit"

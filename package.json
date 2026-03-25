@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.6.0",
+  "version": "0.8.2",
   "publishConfig": {
     "access": "public"
   },
@@ -23,22 +23,32 @@
   ],
   "scripts": {
     "start": "node bin/alphaclaw.js start",
+    "build:ui": "node scripts/build-ui.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepack": "npm run build:ui"
   },
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "^2026.3.8",
-    "openclaw-node": "^0.2.1",
+    "openclaw": "2026.3.13",
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
     "@vitest/coverage-v8": "^4.0.18",
+    "chart.js": "^4.5.1",
+    "esbuild": "^0.25.9",
+    "htm": "^3.1.1",
+    "marked": "^16.4.1",
+    "preact": "^10.27.2",
     "supertest": "^7.2.2",
-    "vitest": "^4.0.18"
+    "tailwindcss": "^3.4.17",
+    "vitest": "^4.0.18",
+    "wouter-preact": "^3.7.1"
   },
   "engines": {
     "node": ">=22.12.0"

@@ -260,6 +260,28 @@ describe("server/routes/agents", () => {
     });
   });
 
+  it("returns slack app token fields on GET /api/channels/accounts/token", async () => {
+    const agentsService = createAgentsServiceMock();
+    agentsService.getChannelAccountToken.mockReturnValueOnce({
+      provider: "slack",
+      accountId: "default",
+      envKey: "SLACK_BOT_TOKEN",
+      token: "xoxb-token",
+      appEnvKey: "SLACK_APP_TOKEN",
+      appToken: "xapp-token",
+    });
+    const app = createApp(agentsService);
+
+    const response = await request(app).get(
+      "/api/channels/accounts/token?provider=slack&accountId=default",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.token).toBe("xoxb-token");
+    expect(response.body.appToken).toBe("xapp-token");
+  });
+
   it("deletes a configured channel account on DELETE /api/channels/accounts", async () => {
     const agentsService = createAgentsServiceMock();
     const app = createApp(agentsService);

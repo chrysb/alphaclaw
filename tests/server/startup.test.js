@@ -3,6 +3,9 @@ const { runOnboardedBootSequence } = require("../../lib/server/startup");
 describe("server/startup", () => {
   it("syncs gateway proxy config with the resolved setup URL before startup", () => {
     const callOrder = [];
+    const ensureUsageTrackerPluginConfig = vi.fn(() =>
+      callOrder.push("ensureUsageTrackerPluginConfig"),
+    );
     const doSyncPromptFiles = vi.fn(() => callOrder.push("doSyncPromptFiles"));
     const reloadEnv = vi.fn(() => callOrder.push("reloadEnv"));
     const readEnvFile = vi.fn(() => {
@@ -24,6 +27,7 @@ describe("server/startup", () => {
     };
 
     runOnboardedBootSequence({
+      ensureUsageTrackerPluginConfig,
       doSyncPromptFiles,
       reloadEnv,
       syncChannelConfig,
@@ -37,6 +41,7 @@ describe("server/startup", () => {
 
     expect(ensureGatewayProxyConfig).toHaveBeenCalledWith("https://setup.example.com");
     expect(callOrder).toEqual([
+      "ensureUsageTrackerPluginConfig",
       "doSyncPromptFiles",
       "reloadEnv",
       "readEnvFile",

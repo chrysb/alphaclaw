@@ -47,6 +47,21 @@ Runtime model:
 - When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
 - When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
 
+### Networking and Fetching
+
+- Prefer the shared cache primitives in `lib/public/js/lib/api-cache.js` for backend reads:
+  - `cachedFetch(...)` for imperative fetch paths.
+  - `getCached(...)` / `setCached(...)` / `invalidateCache(...)` for cache lifecycle.
+- For component-level read requests, prefer `useCachedFetch` from `lib/public/js/hooks/use-cached-fetch.js` over ad-hoc `useEffect(() => fetchX())` mount loads.
+- Treat the API URL (including query params) as the canonical cache key for GET-style payloads.
+- Keep cache in-memory for fast tab switches; do not add persistent storage caching unless explicitly required by product behavior.
+- Do not keep route panes mounted via `display:none` just to preserve data. Prefer conditional rendering + cache-backed remounts.
+- Use `usePolling` for recurring refreshes and always pass a stable `cacheKey` when poll results should hydrate remounts.
+- Keep `pauseWhenHidden` behavior enabled for polling unless a specific flow requires background polling while the browser tab is hidden.
+- Tune polling intervals conservatively; avoid 1-2s polling unless there is a clear real-time requirement.
+- For app-shell status streams, prefer SSE (`/api/events/status`) where available and keep polling as fallback behavior.
+- After write/mutation APIs (POST/PUT/DELETE), refresh or invalidate relevant cached keys so the UI does not show stale data.
+
 ### OpenClaw Config Access
 
 - When reading `openclaw.json` in server code, use the shared helper in `lib/server/openclaw-config.js` (`readOpenclawConfig`) instead of ad-hoc `JSON.parse(fs.readFileSync(...))` blocks.
@@ -126,17 +141,25 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Keep constants in `kName` format (e.g. `kUiTabs`, `kGroupOrder`, `kNamePattern`).
 - Keep component-level helpers near the top of the file, before the main export.
 - Treat `index.js` as a presentational shell whenever possible: keep business logic in hooks and pass derived state/actions down as props.
+- Add reusable SVG icons to `lib/public/js/components/icons.js` and import them from there; avoid introducing one-off inline SVGs in feature files when a shared icon component can be used.
 
 ### Rendering and composition
 
 - Use the `htm` + `preact` pattern:
   - `const html = htm.bind(h);`
   - return `html\`...\``
+- In `htm` templates, be explicit with inline spacing around styled inline tags (`<span>`, `<code>`, `<a>`): use ` ${" "}` where needed, and verify rendered copy so words never collapse (`eventsand`) or gain double spaces.
 - Prefer early return for hidden states (e.g. `if (!visible) return null;`).
 - Use `<PageHeader />` for tab/page headers that need a title and right-side actions.
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.
 - For nested "surface on surface" blocks (content inside a `bg-surface` card), use `ac-surface-inset` for the inner container treatment so inset sections match shared history/sessions styling.
 - For internal section dividers, use `border-t border-border` (avoid opacity variants) with comfortable vertical spacing around the divider.
+
+### Color and theme tokens
+
+- Prefer semantic Tailwind color utilities backed by theme tokens (`text-body`, `text-fg-muted`, `text-fg-dim`, `bg-field`, `bg-status-error-bg`, `border-status-warning-border`) instead of raw palette classes like `text-gray-300` or `bg-red-900/30`.
+- When a new reusable UI color role is needed, add the CSS variable in `lib/public/css/theme.css` and expose it through `tailwind.config.cjs` rather than introducing one-off hardcoded color classes in components.
+- Keep component refactors token-based so future theme changes stay centralized in the token layer instead of requiring per-component color rewrites.
 
 ### Buttons
 
@@ -168,9 +191,9 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Reuse `<SecretInput />` for sensitive values and token/key inputs.
 - Reuse `<ToggleSwitch />` for boolean on/off controls instead of ad-hoc checkbox/switch markup.
 - Base input look should remain consistent:
-  - `bg-black/30 border border-border rounded-lg ... focus:border-gray-500`
+  - `bg-field border border-border rounded-lg ... focus:border-fg-muted`
 - Preserve monospace for technical values (`font-mono`) and codes/paths.
-- Prefer inline helper text under fields (`text-xs text-gray-500/600`) for setup guidance.
+- Prefer inline helper text under fields (`text-xs text-fg-muted` / `text-fg-dim`) for setup guidance.
 - For tip/help links in helper text, use the shared `ac-tip-link` class (token-backed via `--accent-link`) instead of per-file ad-hoc cyan classes.
 
 ### Feedback and state
@@ -191,6 +214,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Before adding a new formatter in a component, check `lib/public/js/lib/format.js` and reuse an existing helper when possible.
 - Add new formatter helpers to `lib/public/js/lib/format.js` when the behavior is cross-feature and likely to be reused; keep feature-specific transforms local to the feature folder.
 - Avoid wrapper pass-through helpers that only rename a global formatter without adding feature-specific behavior.
+
+### Session key utilities
+
+- Keep shared session-key parsing/filtering helpers in `lib/public/js/lib/session-keys.js` (for example extracting `agentId`, destination-session matching checks, and destination payload derivation).
+- Before adding session-key logic in a hook/component, check `lib/public/js/lib/session-keys.js` first and reuse existing helpers.
+- When session-key behavior is reused across features, add/extend helpers in `lib/public/js/lib/session-keys.js` instead of duplicating regex/string parsing in feature files.
 
 ### localStorage keys
 
