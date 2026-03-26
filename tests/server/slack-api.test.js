@@ -21,6 +21,12 @@ describe("server/slack-api", () => {
     expect(typeof api.removeReaction).toBe("function");
     expect(typeof api.uploadFile).toBe("function");
     expect(typeof api.uploadTextSnippet).toBe("function");
+    expect(typeof api.updateMessage).toBe("function");
+    expect(typeof api.deleteMessage).toBe("function");
+    expect(typeof api.pinMessage).toBe("function");
+    expect(typeof api.unpinMessage).toBe("function");
+    expect(typeof api.getUserInfo).toBe("function");
+    expect(typeof api.getChannelInfo).toBe("function");
   });
 
   it("postMessage requires token", async () => {
@@ -134,5 +140,128 @@ describe("server/slack-api", () => {
     const api = createSlackApi(() => "test-token");
 
     await expect(api.postMessage("INVALID", "test")).rejects.toThrow(/invalid_channel/);
+  });
+
+  it("updateMessage calls chat.update without mrkdwn field", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          channel: "C123",
+          ts: "1234.5678",
+          text: "Updated text",
+        }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    await api.updateMessage("C123", "1234.5678", "Updated text");
+
+    expect(capturedPayload.channel).toBe("C123");
+    expect(capturedPayload.ts).toBe("1234.5678");
+    expect(capturedPayload.text).toBe("Updated text");
+    expect(capturedPayload.mrkdwn).toBeUndefined();
+  });
+
+  it("deleteMessage calls chat.delete", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({ ok: true, channel: "C123", ts: "1234.5678" }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    await api.deleteMessage("C123", "1234.5678");
+
+    expect(capturedPayload.channel).toBe("C123");
+    expect(capturedPayload.ts).toBe("1234.5678");
+  });
+
+  it("pinMessage calls pins.add with channel and timestamp", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({ ok: true }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    await api.pinMessage("C123", "1234.5678");
+
+    expect(capturedPayload.channel).toBe("C123");
+    expect(capturedPayload.timestamp).toBe("1234.5678");
+  });
+
+  it("unpinMessage calls pins.remove with channel and timestamp", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({ ok: true }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    await api.unpinMessage("C123", "1234.5678");
+
+    expect(capturedPayload.channel).toBe("C123");
+    expect(capturedPayload.timestamp).toBe("1234.5678");
+  });
+
+  it("getUserInfo calls users.info with user ID", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          user: { id: "U123", name: "testuser" },
+        }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    const result = await api.getUserInfo("U123");
+
+    expect(capturedPayload.user).toBe("U123");
+    expect(result.user.id).toBe("U123");
+    expect(result.user.name).toBe("testuser");
+  });
+
+  it("getChannelInfo calls conversations.info with channel ID", async () => {
+    let capturedPayload = null;
+
+    global.fetch = async (url, options) => {
+      capturedPayload = JSON.parse(options.body);
+      return {
+        ok: true,
+        json: async () => ({
+          ok: true,
+          channel: { id: "C123", name: "general" },
+        }),
+      };
+    };
+
+    const api = createSlackApi(() => "test-token");
+    const result = await api.getChannelInfo("C123");
+
+    expect(capturedPayload.channel).toBe("C123");
+    expect(result.channel.id).toBe("C123");
+    expect(result.channel.name).toBe("general");
   });
 });
