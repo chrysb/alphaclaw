@@ -1,0 +1,13 @@
+diff --git a/node_modules/openclaw/dist/gateway-cli-SPSnwPDk.js b/node_modules/openclaw/dist/gateway-cli-SPSnwPDk.js
+index 77d93f3..ffe0b71 100644
+--- a/node_modules/openclaw/dist/gateway-cli-SPSnwPDk.js
++++ b/node_modules/openclaw/dist/gateway-cli-SPSnwPDk.js
+@@ -41355,7 +41355,7 @@ function attachGatewayWsMessageHandler(params) {
+ 					close(1008, truncateCloseReason(authMessage));
+ 				};
+ 				const clearUnboundScopes = () => {
+-					if (scopes.length > 0) {
++					if (scopes.length > 0 && !sharedAuthOk) {
+ 						scopes = [];
+ 						connectParams.scopes = scopes;
+ 					}
