@@ -24,6 +24,7 @@
   "scripts": {
     "start": "node bin/alphaclaw.js start",
     "build:ui": "node scripts/build-ui.mjs",
+    "postinstall": "patch-package",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
@@ -33,13 +34,14 @@
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.13",
+    "openclaw": "2026.3.24",
+    "patch-package": "^8.0.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {
+    "@vitest/coverage-v8": "^4.0.18",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/xterm": "^5.5.0",
-    "@vitest/coverage-v8": "^4.0.18",
     "chart.js": "^4.5.1",
     "esbuild": "^0.25.9",
     "htm": "^3.1.1",
