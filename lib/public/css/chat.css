@@ -26,6 +26,18 @@
   margin-top: 4px;
   font-size: 12px;
   color: var(--text-muted);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 6px 10px;
+}
+
+.chat-route-session-key {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-dim);
+  word-break: break-all;
+  max-width: 100%;
 }
 
 .chat-route-warning {
