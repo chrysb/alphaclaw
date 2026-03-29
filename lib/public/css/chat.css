@@ -322,7 +322,8 @@
 }
 
 .chat-typing-indicator {
-  min-width: 170px;
+  min-width: 0;
+  align-self: flex-start;
 }
 
 .chat-typing-dots {
@@ -372,14 +373,17 @@
 
 .chat-composer-input {
   flex: 1;
-  min-height: 68px;
-  max-height: 180px;
+  min-height: calc(12px * 1.4 + 20px);
+  max-height: calc(12px * 1.4 * 5 + 20px);
   border-radius: 10px;
-  resize: vertical;
+  resize: none;
+  overflow-x: hidden;
+  overflow-y: auto;
   font-family: inherit;
   font-size: 12px;
   line-height: 1.4;
   padding: 10px;
+  box-sizing: border-box;
 }
 
 .chat-composer-send {
