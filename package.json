@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.8.3-beta.0",
+  "version": "0.8.3-beta.5",
   "publishConfig": {
     "access": "public"
   },
@@ -19,12 +19,14 @@
   },
   "files": [
     "bin/",
-    "lib/"
+    "lib/",
+    "patches/",
+    "scripts/apply-openclaw-patches.js"
   ],
   "scripts": {
     "start": "node bin/alphaclaw.js start",
     "build:ui": "node scripts/build-ui.mjs",
-    "postinstall": "patch-package",
+    "postinstall": "node ./scripts/apply-openclaw-patches.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
@@ -34,7 +36,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.24",
+    "openclaw": "2026.3.28",
     "patch-package": "^8.0.1",
     "ws": "^8.19.0"
   },
@@ -53,6 +55,6 @@
     "wouter-preact": "^3.7.1"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.14.0"
   }
 }
