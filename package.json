@@ -20,12 +20,13 @@
   "files": [
     "bin/",
     "lib/",
-    "patches/"
+    "patches/",
+    "scripts/apply-openclaw-patches.js"
   ],
   "scripts": {
     "start": "node bin/alphaclaw.js start",
     "build:ui": "node scripts/build-ui.mjs",
-    "postinstall": "patch-package",
+    "postinstall": "node ./scripts/apply-openclaw-patches.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
