@@ -19,7 +19,8 @@
   },
   "files": [
     "bin/",
-    "lib/"
+    "lib/",
+    "patches/"
   ],
   "scripts": {
     "start": "node bin/alphaclaw.js start",
@@ -34,7 +35,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.24",
+    "openclaw": "^2026.3.28",
     "patch-package": "^8.0.1",
     "ws": "^8.19.0"
   },
