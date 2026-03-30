@@ -23,7 +23,7 @@ Runtime model:
 
 ### Key Technologies
 
-- Node.js 22+ runtime.
+- Node.js 22.14+ runtime.
 - Express-based HTTP API server.
 - `http-proxy` for gateway proxy behavior.
 - OpenClaw CLI/gateway process orchestration.
@@ -134,6 +134,12 @@ Use this format for any Telegram notices sent from AlphaClaw services (watchdog,
 
 Use these conventions for all UI work under `lib/public/js` and `lib/public/css`.
 
+### Setup UI bundle (esbuild)
+
+- The browser loads the compiled bundle under `lib/public/dist/` (for example `app.bundle.js` and chunk files), produced by `scripts/build-ui.mjs` (esbuild).
+- **After any UI source change** that should ship in production (`lib/public/js`, `lib/public/css`, or other inputs to the build), run **`npm run build:ui`** so `lib/public/dist/` stays in sync. Verify the app in the browser against the rebuilt bundle when the change is non-trivial.
+- **`npm publish`** runs **`prepack`** → **`npm run build:ui`**, so published packages always include a fresh bundle. Local installs, Docker builds from a git checkout, or commits that include `dist/` still require **`npm run build:ui`** when you change UI sources and expect the built assets to match.
+
 ### Component structure
 
 - Use arrow-function components and helpers.
@@ -226,5 +232,3 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - All standalone `localStorage` keys are defined in `lib/public/js/lib/storage-keys.js`. Import keys from this file — never define raw localStorage key strings inline in components.
 - Use the naming convention `alphaclaw.<area>.<purpose>` for new keys (e.g. `alphaclaw.doctor.lastSessionKey`).
 - Keys that live inside the `alphaclaw.ui.settings` JSON blob (e.g. `browseLastPath`, `doctorWarningDismissedUntilMs`) are sub-keys, not standalone localStorage entries — those stay in their consuming file.
-
-For inconsistencies tracking and DRY opportunities, see `lib/setup/core-prompts/UI-DRY-OPPORTUNITIES.md`.
