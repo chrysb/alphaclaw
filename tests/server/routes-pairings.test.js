@@ -384,6 +384,10 @@ describe("server/routes/pairings", () => {
         clientMode: "webchat",
       }),
     ]);
+    expect(clawCmd).toHaveBeenCalledWith("devices list --json", {
+      quiet: true,
+      timeoutMs: 5000,
+    });
   });
 
   it("does not auto-approve when CLI marker already exists", async () => {
