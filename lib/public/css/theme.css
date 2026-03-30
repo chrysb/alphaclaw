@@ -68,7 +68,7 @@
   --card-label-bright: #1f2937;
   --accent: #0891b2;
   --accent-dim: rgba(8, 145, 178, 0.3);
-  --accent-link: rgba(8, 145, 178, 0.7);
+  --accent-link: #0e7490;
   --orange: #c2410c;
   --comment: #9ca3af;
   --keyword: #dc2626;
@@ -84,10 +84,10 @@
   --status-error-muted: #ef4444;
   --status-error-bg: rgba(254, 226, 226, 0.95);
   --status-error-border: rgba(252, 165, 165, 0.8);
-  --status-warning: #ca8a04;
-  --status-warning-muted: #eab308;
+  --status-warning: #a16207;
+  --status-warning-muted: #854d0e;
   --status-warning-bg: rgba(254, 249, 195, 0.95);
-  --status-warning-border: rgba(253, 224, 71, 0.8);
+  --status-warning-border: rgba(202, 138, 4, 0.5);
   --status-success: #16a34a;
   --status-success-muted: #22c55e;
   --status-success-bg: rgba(220, 252, 231, 0.95);
@@ -941,13 +941,52 @@ textarea:focus {
 
 [data-theme="light"] .ac-segmented-control {
   background: rgba(0, 0, 0, 0.02);
+  border-color: rgba(0, 0, 0, 0.12);
 }
 
 [data-theme="light"] .ac-segmented-control-button:hover {
   background: rgba(0, 0, 0, 0.04);
 }
 
+[data-theme="light"] .ac-segmented-control-button.active {
+  background: rgba(8, 145, 178, 0.12);
+  color: #0e7490;
+}
+
 [data-theme="light"] .ac-segmented-control-dark {
   background: rgba(0, 0, 0, 0.04);
+}
+
+/* Modal and link overrides for light mode */
+[data-theme="light"] .bg-modal {
+  background: #ffffff;
+}
+
+[data-theme="light"] a[style*="color: rgba(99, 235, 255"] {
+  color: #0e7490 !important;
+}
+
+[data-theme="light"] a[style*="color: rgba(99, 235, 255"]:hover {
+  color: var(--text-bright) !important;
+}
+
+[data-theme="light"] .text-cyan-400 {
+  color: #0e7490 !important;
+}
+
+[data-theme="light"] .text-cyan-300 {
+  color: #0e7490 !important;
+}
+
+[data-theme="light"] .text-blue-400 {
+  color: #1d4ed8 !important;
+}
+
+[data-theme="light"] .text-indigo-300 {
+  color: #4338ca !important;
+}
+
+[data-theme="light"] .text-purple-400 {
+  color: #7e22ce !important;
 }
 

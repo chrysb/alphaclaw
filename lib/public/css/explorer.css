@@ -1736,3 +1736,18 @@
   }
 
 }
+
+/* ── Light theme overrides ─────────────────────── */
+
+[data-theme="light"] .sidebar-tab {
+  color: var(--text-muted);
+}
+
+[data-theme="light"] .sidebar-tab:hover {
+  color: var(--text-bright);
+}
+
+[data-theme="light"] .sidebar-tab.active {
+  color: #0e7490;
+  background: rgba(8, 145, 178, 0.1);
+}
