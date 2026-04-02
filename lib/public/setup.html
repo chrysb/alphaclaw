@@ -20,7 +20,8 @@
       // Apply saved theme before render to prevent flash.
       try {
         var t = localStorage.getItem("alphaclaw.ui.theme");
-        if (t !== "dark" && t !== "light") t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        if (t === "system") t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        else if (t !== "dark" && t !== "light") t = "dark";
         document.documentElement.dataset.theme = t;
       } catch {}
     </script>

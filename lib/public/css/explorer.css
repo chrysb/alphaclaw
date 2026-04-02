@@ -1895,3 +1895,36 @@
   color: #0e7490;
   background: rgba(8, 145, 178, 0.1);
 }
+
+[data-theme="light"] .file-viewer-protected-banner {
+  background: rgba(234, 179, 8, 0.12);
+}
+
+[data-theme="light"] .file-viewer-protected-banner-text {
+  color: #92400e;
+}
+
+[data-theme="light"] .file-viewer-protected-banner-unlocked {
+  color: #a16207;
+}
+
+[data-theme="light"] .file-viewer-protected-banner.is-locked {
+  background: rgba(220, 38, 38, 0.1);
+}
+
+[data-theme="light"] .file-viewer-protected-banner.is-locked .file-viewer-protected-banner-text {
+  color: #b91c1c;
+}
+
+[data-theme="light"] .file-viewer-protected-banner.is-locked .file-viewer-protected-banner-icon {
+  color: #dc2626;
+}
+
+[data-theme="light"] .file-viewer-diff-banner {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+[data-theme="light"] .file-viewer-diff-banner .file-viewer-protected-banner-text,
+[data-theme="light"] .file-viewer-diff-banner {
+  color: #1d4ed8;
+}

@@ -492,6 +492,76 @@
   }
 }
 
+/* ── Theme toggle dropdown ────────────────────── */
+
+.theme-toggle-menu {
+  position: relative;
+  display: inline-flex;
+}
+
+.theme-toggle-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.theme-toggle-trigger:hover {
+  color: var(--text-muted);
+  background: var(--bg-hover);
+}
+
+.theme-toggle-dropdown {
+  position: absolute;
+  top: calc(100% + 4px);
+  right: 0;
+  min-width: 120px;
+  padding: 4px;
+  background: var(--bg-content);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.35);
+  z-index: 50;
+  display: flex;
+  flex-direction: column;
+}
+
+[data-theme="light"] .theme-toggle-dropdown {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.theme-toggle-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 6px 10px;
+  border: none;
+  border-radius: 5px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: color 0.15s, background 0.15s;
+}
+
+.theme-toggle-option:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+
+.theme-toggle-option.active {
+  color: var(--accent);
+}
+
 /* ── Light theme overrides ─────────────────────── */
 
 [data-theme="light"] .app-sidebar {
