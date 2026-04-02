@@ -81,6 +81,11 @@ NODE
 maybe_restore_if_runtime_only "cron/jobs.json"
 maybe_restore_if_runtime_only "crons.json"
 
+# Skip alphaclaw git-sync if there are no changes; avoid empty commits.
+if git diff --quiet && git diff --cached --quiet 2>/dev/null; then
+  exit 0
+fi
+
 resolve_alphaclaw_cmd() {
   if command -v alphaclaw >/dev/null 2>&1; then
     command -v alphaclaw
