@@ -1,10 +1,15 @@
 const childProcess = require("child_process");
 const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const https = require("https");
 const { EventEmitter } = require("events");
 
-const { kNpmPackageRoot, kRootDir } = require("../../lib/server/constants");
+const {
+  kNpmPackageRoot,
+  kOpenclawUpdateCopyTimeoutMs,
+  kRootDir,
+} = require("../../lib/server/constants");
 const modulePath = require.resolve("../../lib/server/alphaclaw-version");
 const originalExec = childProcess.exec;
 const originalHttpsGet = https.get;
@@ -72,9 +77,9 @@ describe("server/alphaclaw-version", () => {
   });
 
   it("returns 409 while another update is in progress", async () => {
-    let installCallback = null;
+    const callbacks = [];
     const execMock = vi.fn().mockImplementation((cmd, opts, callback) => {
-      installCallback = callback;
+      callbacks.push(callback);
     });
     const { createAlphaclawVersionService } = loadVersionModule({ execMock });
     const service = createAlphaclawVersionService();
@@ -89,7 +94,11 @@ describe("server/alphaclaw-version", () => {
       error: "AlphaClaw update already in progress",
     });
 
-    installCallback(null, "installed", "");
+    callbacks[0](null, "installed", "");
+    await new Promise((resolve) => {
+      setImmediate(resolve);
+    });
+    callbacks[1](null, "", "");
     await firstPromise;
   });
 
@@ -106,11 +115,25 @@ describe("server/alphaclaw-version", () => {
     expect(result.body.ok).toBe(true);
     expect(result.body.restarting).toBe(true);
     expect(result.body.previousVersion).toBeTruthy();
-    expect(execMock).toHaveBeenCalledWith(
-      "npm install @chrysb/alphaclaw@latest --omit=dev --no-save --save=false --package-lock=false --prefer-online",
+    expect(execMock).toHaveBeenCalledTimes(2);
+    expect(execMock).toHaveBeenNthCalledWith(
+      1,
+      "npm install --omit=dev --prefer-online --package-lock=false",
       expect.objectContaining({
+        cwd: expect.stringContaining(path.join(os.tmpdir(), "alphaclaw-update-")),
+        env: expect.objectContaining({
+          npm_config_update_notifier: "false",
+          npm_config_fund: "false",
+          npm_config_audit: "false",
+        }),
         timeout: 180000,
       }),
+      expect.any(Function),
+    );
+    expect(execMock).toHaveBeenNthCalledWith(
+      2,
+      expect.stringMatching(/^cp -af /),
+      expect.objectContaining({ timeout: kOpenclawUpdateCopyTimeoutMs }),
       expect.any(Function),
     );
   });
