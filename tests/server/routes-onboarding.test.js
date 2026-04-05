@@ -643,8 +643,14 @@ describe("server/routes/onboarding", () => {
     expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
       '"bootstrap-extra-files"',
     );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"strictInlineEval": false',
+    );
     expect(files.get("/tmp/openclaw/openclaw.json")).not.toContain(
       '"transformsDir"',
+    );
+    expect(files.get("/tmp/openclaw/exec-approvals.json")).toContain(
+      '"askFallback": "full"',
     );
     expect(
       deps.shellCmd.mock.calls.some(([cmd]) =>

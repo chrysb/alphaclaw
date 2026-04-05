@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.8.3",
+  "version": "0.8.5",
   "publishConfig": {
     "access": "public"
   },
@@ -36,7 +36,7 @@
   "dependencies": {
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.28",
+    "openclaw": "2026.4.1",
     "patch-package": "^8.0.1",
     "ws": "^8.19.0"
   },
