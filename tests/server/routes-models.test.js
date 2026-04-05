@@ -1,6 +1,10 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const express = require("express");
 const request = require("supertest");
 
+const { createModelCatalogCache } = require("../../lib/server/model-catalog-cache");
 const { registerModelRoutes } = require("../../lib/server/routes/models");
 const { kFallbackOnboardingModels } = require("../../lib/server/constants");
 
@@ -39,9 +43,20 @@ const createModelDeps = () => {
 const createApp = (deps) => {
   const app = express();
   app.use(express.json());
+  const tempRoot = fs.mkdtempSync(
+    path.join(os.tmpdir(), "alphaclaw-routes-models-"),
+  );
+  const modelCatalogCache = createModelCatalogCache({
+    cachePath: path.join(tempRoot, "cache", "model-catalog.json"),
+    shellCmd: deps.shellCmd,
+    gatewayEnv: deps.gatewayEnv,
+    parseJsonFromNoisyOutput: deps.parseJsonFromNoisyOutput,
+    normalizeOnboardingModels: deps.normalizeOnboardingModels,
+  });
   registerModelRoutes({
     app,
     ...deps,
+    modelCatalogCache,
   });
   return app;
 };
@@ -61,11 +76,16 @@ describe("server/routes/models", () => {
     const res = await request(app).get("/api/models");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      ok: true,
-      source: "openclaw",
-      models: [{ key: "openai/gpt-5.1-codex", provider: "openai", label: "GPT" }],
-    });
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        source: "openclaw",
+        stale: false,
+        refreshing: false,
+        fetchedAt: expect.any(Number),
+        models: [{ key: "openai/gpt-5.1-codex", provider: "openai", label: "GPT" }],
+      }),
+    );
     expect(deps.shellCmd).toHaveBeenCalledWith("openclaw models list --all --json", {
       env: { OPENCLAW_GATEWAY_TOKEN: "token" },
       timeout: 20000,
@@ -82,9 +102,14 @@ describe("server/routes/models", () => {
     const res = await request(app).get("/api/models");
 
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.source).toBe("fallback");
-    expect(res.body.models).toEqual(kFallbackOnboardingModels);
+    expect(res.body).toEqual({
+      ok: true,
+      source: "fallback",
+      fetchedAt: null,
+      stale: false,
+      refreshing: false,
+      models: kFallbackOnboardingModels,
+    });
   });
 
   it("returns fallback models when command throws", async () => {
@@ -95,8 +120,14 @@ describe("server/routes/models", () => {
     const res = await request(app).get("/api/models");
 
     expect(res.status).toBe(200);
-    expect(res.body.ok).toBe(true);
-    expect(res.body.source).toBe("fallback");
+    expect(res.body).toEqual({
+      ok: true,
+      source: "fallback",
+      fetchedAt: null,
+      stale: false,
+      refreshing: false,
+      models: kFallbackOnboardingModels,
+    });
   });
 
   it("returns model status payload on GET /api/models/status", async () => {
