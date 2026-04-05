@@ -108,6 +108,20 @@ body {
   line-height: 1.6;
 }
 
+.ac-logo-mark {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: var(--ac-logo-width, 20px);
+  height: var(--ac-logo-height, 20px);
+  background: #00efff;
+  -webkit-mask: url("../img/logo.svg") center / contain no-repeat;
+  mask: url("../img/logo.svg") center / contain no-repeat;
+}
+
+[data-theme="light"] .ac-logo-mark {
+  background: var(--accent);
+}
+
 /* Subtle grid texture overlay */
 body::before {
   content: '';
@@ -989,4 +1003,3 @@ textarea:focus {
 [data-theme="light"] .text-purple-400 {
   color: #7e22ce !important;
 }
-
