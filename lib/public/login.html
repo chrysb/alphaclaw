@@ -11,6 +11,14 @@
     <link rel="icon" type="image/svg+xml" href="./img/logo.svg" />
     <link rel="stylesheet" href="./css/theme.css" />
     <link rel="stylesheet" href="./css/tailwind.generated.css" />
+    <script>
+      try {
+        var t = localStorage.getItem("alphaclaw.ui.theme");
+        if (t === "system") t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        else if (t !== "dark" && t !== "light") t = "dark";
+        document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
   </head>
   <body class="min-h-screen flex items-center justify-center p-4">
     <div class="max-w-sm w-full relative z-10">
@@ -53,10 +61,6 @@
       </form>
     </div>
     <script>
-      try {
-        window.localStorage?.clear?.();
-      } catch {}
-
       const formEl = document.getElementById("login-form");
       const passwordEl = document.getElementById("password");
       const submitButtonEl = document.getElementById("submit-btn");
