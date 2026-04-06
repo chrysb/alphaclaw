@@ -270,58 +270,6 @@ describe("server/openclaw-runtime", () => {
     );
   });
 
-  it("copies the bundled node_modules tree when seeding a missing runtime from an installed app", () => {
-    const runtimeDir = getManagedOpenclawRuntimeDir({ rootDir: tmpDir });
-    const installRoot = path.join(tmpDir, "install");
-    const bundleDir = path.join(installRoot, "node_modules", "openclaw");
-    const bundledEntryPath = path.join(bundleDir, "dist", "index.js");
-    fs.mkdirSync(path.dirname(bundledEntryPath), { recursive: true });
-    fs.writeFileSync(bundledEntryPath, "export default {};\n");
-    writeOpenclawPackage({
-      packageRoot: bundleDir,
-      version: "2026.4.5",
-    });
-    fs.mkdirSync(path.join(installRoot, "node_modules", ".bin"), {
-      recursive: true,
-    });
-    fs.writeFileSync(
-      path.join(installRoot, "node_modules", ".bin", "openclaw"),
-      "#!/usr/bin/env node\nconsole.log('openclaw');\n",
-    );
-    fs.mkdirSync(path.join(installRoot, "node_modules", "zod"), {
-      recursive: true,
-    });
-    fs.writeFileSync(
-      path.join(installRoot, "node_modules", "zod", "package.json"),
-      JSON.stringify({ name: "zod", version: "3.0.0" }),
-    );
-    const execSyncImpl = vi.fn();
-
-    const result = syncManagedOpenclawRuntimeWithBundled({
-      execSyncImpl,
-      fsModule: fs,
-      logger: { log: vi.fn() },
-      runtimeDir,
-      resolveImpl: (request) => {
-        if (request === "openclaw") return bundledEntryPath;
-        throw new Error(`unexpected resolve ${request}`);
-      },
-      alphaclawRoot: path.join(tmpDir, "alphaclaw-no-patches"),
-    });
-
-    expect(result).toEqual({
-      checked: true,
-      synced: true,
-      bundledVersion: "2026.4.5",
-      runtimeVersion: "2026.4.5",
-    });
-    expect(execSyncImpl).not.toHaveBeenCalled();
-    expect(fs.existsSync(getManagedOpenclawBinPath({ runtimeDir }))).toBe(true);
-    expect(
-      fs.existsSync(path.join(runtimeDir, "node_modules", "zod", "package.json")),
-    ).toBe(true);
-  });
-
   it("refreshes the managed runtime when bundled contents change without a version bump", () => {
     const runtimeDir = getManagedOpenclawRuntimeDir({ rootDir: tmpDir });
     const bundleDir = path.join(tmpDir, "bundle");

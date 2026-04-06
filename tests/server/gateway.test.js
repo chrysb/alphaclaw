@@ -2,6 +2,7 @@ const childProcess = require("child_process");
 const fs = require("fs");
 const net = require("net");
 const path = require("path");
+const { getManagedOpenclawBinPath } = require("../../lib/server/openclaw-runtime");
 const {
   ALPHACLAW_DIR,
   kOnboardingMarkerPath,
@@ -9,6 +10,7 @@ const {
 } = require("../../lib/server/constants");
 
 const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
+const kManagedOpenclawBinPath = getManagedOpenclawBinPath();
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
@@ -80,13 +82,23 @@ describe("server/gateway restart behavior", () => {
 
     await gateway.startGateway();
     expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock).toHaveBeenCalledWith(
+      kManagedOpenclawBinPath,
+      ["gateway", "run"],
+      expect.objectContaining({
+        env: expect.any(Object),
+        stdio: ["pipe", "pipe", "pipe"],
+      }),
+    );
 
     const reloadEnv = vi.fn();
     gateway.restartGateway(reloadEnv);
 
     expect(reloadEnv).toHaveBeenCalledTimes(1);
     expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith("openclaw gateway --force", {
+    expect(execSyncMock.mock.calls[0][0]).toContain(kManagedOpenclawBinPath);
+    expect(execSyncMock.mock.calls[0][0]).toContain(" gateway --force");
+    expect(execSyncMock.mock.calls[0][1]).toEqual({
       env: expect.any(Object),
       timeout: 15000,
       encoding: "utf8",
@@ -122,7 +134,9 @@ describe("server/gateway restart behavior", () => {
 
     expect(reloadEnv).toHaveBeenCalledTimes(1);
     expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith("openclaw gateway --force", {
+    expect(execSyncMock.mock.calls[0][0]).toContain(kManagedOpenclawBinPath);
+    expect(execSyncMock.mock.calls[0][0]).toContain(" gateway --force");
+    expect(execSyncMock.mock.calls[0][1]).toEqual({
       env: expect.any(Object),
       timeout: 15000,
       encoding: "utf8",
