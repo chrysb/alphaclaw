@@ -99,6 +99,10 @@ const createApp = (deps) => {
 };
 
 describe("server/routes/system", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("merges known vars and custom vars on GET /api/env", async () => {
     const deps = createSystemDeps();
     deps.readEnvFile.mockReturnValue([
@@ -395,6 +399,68 @@ describe("server/routes/system", () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it("returns openclaw version status on GET /api/openclaw/version", async () => {
+    const deps = createSystemDeps();
+    deps.openclawVersionService.getVersionStatus.mockResolvedValue({
+      ok: true,
+      currentVersion: "1.2.3",
+      latestVersion: "1.3.0",
+      hasUpdate: true,
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/openclaw/version");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      currentVersion: "1.2.3",
+      latestVersion: "1.3.0",
+      hasUpdate: true,
+    });
+    expect(deps.openclawVersionService.getVersionStatus).toHaveBeenCalledWith(false);
+  });
+
+  it("passes refresh flag to openclaw version service", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    await request(app).get("/api/openclaw/version?refresh=1");
+
+    expect(deps.openclawVersionService.getVersionStatus).toHaveBeenCalledWith(true);
+  });
+
+  it("returns update result and schedules restart on POST /api/openclaw/update", async () => {
+    vi.useFakeTimers();
+    const deps = createSystemDeps();
+    deps.openclawVersionService.updateOpenclaw.mockResolvedValue({
+      status: 200,
+      body: {
+        ok: true,
+        previousVersion: "1.2.3",
+        targetVersion: "1.3.0",
+        restarting: true,
+      },
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/openclaw/update");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      previousVersion: "1.2.3",
+      targetVersion: "1.3.0",
+      restarting: true,
+    });
+    expect(deps.openclawVersionService.updateOpenclaw).toHaveBeenCalledTimes(1);
+    expect(deps.alphaclawVersionService.restartProcess).not.toHaveBeenCalled();
+
+    await vi.runAllTimersAsync();
+
+    expect(deps.alphaclawVersionService.restartProcess).toHaveBeenCalledTimes(1);
+  });
+
   it("returns alphaclaw version status on GET /api/alphaclaw/version", async () => {
     const deps = createSystemDeps();
     const app = createApp(deps);
@@ -421,6 +487,7 @@ describe("server/routes/system", () => {
   });
 
   it("returns update result and schedules restart on POST /api/alphaclaw/update", async () => {
+    vi.useFakeTimers();
     const deps = createSystemDeps();
     const app = createApp(deps);
 
@@ -433,6 +500,10 @@ describe("server/routes/system", () => {
       restarting: true,
     });
     expect(deps.alphaclawVersionService.updateAlphaclaw).toHaveBeenCalledTimes(1);
+
+    await vi.runAllTimersAsync();
+
+    expect(deps.alphaclawVersionService.restartProcess).toHaveBeenCalledTimes(1);
   });
 
   it("returns error status when alphaclaw update fails", async () => {

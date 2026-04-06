@@ -24,6 +24,10 @@ describe("frontend/api", () => {
     global.window = { location: { href: "http://localhost/" } };
   });
 
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("fetchStatus returns parsed JSON on success", async () => {
     const payload = { gateway: "running" };
     global.fetch.mockResolvedValue(mockJsonResponse(200, payload));
@@ -45,6 +49,51 @@ describe("frontend/api", () => {
 
     await expect(api.fetchStatus()).rejects.toThrow("Unauthorized");
     expect(window.location.href).toBe("/setup");
+  });
+
+  it("waitForAlphaclawRestart resolves once AlphaClaw responds again", async () => {
+    vi.useFakeTimers();
+    global.fetch
+      .mockResolvedValueOnce({ status: 503 })
+      .mockResolvedValueOnce({ status: 200 });
+    const api = await loadApiModule();
+
+    const promise = api.waitForAlphaclawRestart({
+      initialDelayMs: 10,
+      intervalMs: 20,
+      timeoutMs: 100,
+    });
+
+    await vi.runAllTimersAsync();
+
+    await expect(promise).resolves.toEqual({ ok: true });
+    expect(global.fetch).toHaveBeenNthCalledWith(
+      1,
+      "/api/auth/status",
+      expect.objectContaining({
+        cache: "no-store",
+        credentials: "same-origin",
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
+  it("waitForAlphaclawRestart times out when AlphaClaw does not come back", async () => {
+    vi.useFakeTimers();
+    global.fetch.mockRejectedValue(new Error("offline"));
+    const api = await loadApiModule();
+
+    const promise = api.waitForAlphaclawRestart({
+      initialDelayMs: 0,
+      intervalMs: 5,
+      timeoutMs: 15,
+    });
+    const assertion = expect(promise).rejects.toThrow(
+      "AlphaClaw restart is taking longer than expected",
+    );
+
+    await vi.runAllTimersAsync();
+    await assertion;
   });
 
   it("runOnboard sends vars and modelKey payload", async () => {

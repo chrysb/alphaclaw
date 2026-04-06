@@ -1,25 +1,20 @@
+const fs = require("fs");
+const path = require("path");
 const childProcess = require("child_process");
 
-const {
-  kNpmPackageRoot,
-  kOpenclawUpdateCopyTimeoutMs,
-} = require("../../lib/server/constants");
+const { kRootDir } = require("../../lib/server/constants");
 const modulePath = require.resolve("../../lib/server/openclaw-version");
-const originalExec = childProcess.exec;
 const originalExecSync = childProcess.execSync;
 
-const loadVersionModule = ({ execMock, execSyncMock }) => {
-  childProcess.exec = execMock;
+const loadVersionModule = ({ execSyncMock }) => {
   childProcess.execSync = execSyncMock;
   delete require.cache[modulePath];
   return require(modulePath);
 };
 
 const createService = ({ isOnboarded = false } = {}) => {
-  const execMock = vi.fn();
   const execSyncMock = vi.fn();
   const { createOpenclawVersionService } = loadVersionModule({
-    execMock,
     execSyncMock,
   });
   const gatewayEnv = vi.fn(() => ({ OPENCLAW_GATEWAY_TOKEN: "token" }));
@@ -29,12 +24,11 @@ const createService = ({ isOnboarded = false } = {}) => {
     restartGateway,
     isOnboarded: () => isOnboarded,
   });
-  return { service, gatewayEnv, restartGateway, execMock, execSyncMock };
+  return { service, gatewayEnv, restartGateway, execSyncMock };
 };
 
 describe("server/openclaw-version", () => {
   afterEach(() => {
-    childProcess.exec = originalExec;
     childProcess.execSync = originalExecSync;
     delete require.cache[modulePath];
   });
@@ -111,21 +105,14 @@ describe("server/openclaw-version", () => {
     expect(status.error).toContain("status check failed");
   });
 
-  it("updates openclaw and restarts gateway when onboarded", async () => {
-    const { service, restartGateway, execMock, execSyncMock } = createService({
-      isOnboarded: true,
-    });
-    execSyncMock
-      .mockReturnValueOnce("openclaw 1.0.0")
-      .mockReturnValueOnce("openclaw 1.1.0")
-      .mockReturnValueOnce(
-        JSON.stringify({
-          availability: { available: false, latestVersion: "1.1.0" },
-        }),
-      );
-    execMock.mockImplementation((cmd, opts, callback) => {
-      callback(null, "installed", "");
-    });
+  it("queues an exact openclaw update and requests restart", async () => {
+    const { service, restartGateway, execSyncMock } = createService();
+    execSyncMock.mockReturnValueOnce("openclaw 1.0.0").mockReturnValueOnce(
+      JSON.stringify({
+        availability: { available: true, latestVersion: "1.1.0" },
+      }),
+    );
+    const writeSpy = vi.spyOn(fs, "writeFileSync");
 
     const result = await service.updateOpenclaw();
 
@@ -134,71 +121,112 @@ describe("server/openclaw-version", () => {
       expect.objectContaining({
         ok: true,
         previousVersion: "1.0.0",
-        currentVersion: "1.1.0",
+        currentVersion: "1.0.0",
+        targetVersion: "1.1.0",
         latestVersion: "1.1.0",
-        hasUpdate: false,
-        restarted: true,
+        hasUpdate: true,
+        restarted: false,
+        restarting: true,
         updated: true,
       }),
     );
-    expect(execMock).toHaveBeenCalledTimes(2);
-    expect(execMock).toHaveBeenNthCalledWith(
-      1,
-      "npm install --omit=dev --prefer-online --package-lock=false",
-      expect.objectContaining({
-        env: expect.objectContaining({
-          npm_config_update_notifier: "false",
-          npm_config_fund: "false",
-          npm_config_audit: "false",
-        }),
-        timeout: 180000,
+    const markerPath = path.join(kRootDir, ".openclaw-update-pending");
+    const markerCall = writeSpy.mock.calls.find((call) => call[0] === markerPath);
+    expect(markerCall).toBeTruthy();
+    expect(JSON.parse(markerCall[1])).toMatchObject({
+      from: "1.0.0",
+      to: "1.1.0",
+      spec: "openclaw@1.1.0",
+    });
+    expect(restartGateway).not.toHaveBeenCalled();
+
+    writeSpy.mockRestore();
+  });
+
+  it("returns without restart when openclaw is already current", async () => {
+    const { service, restartGateway, execSyncMock } = createService({
+      isOnboarded: true,
+    });
+    execSyncMock.mockReturnValueOnce("openclaw 1.1.0").mockReturnValueOnce(
+      JSON.stringify({
+        availability: { available: false, latestVersion: "1.1.0" },
       }),
-      expect.any(Function),
     );
-    expect(execMock).toHaveBeenNthCalledWith(
-      2,
-      expect.stringMatching(/^cp -af /),
-      expect.objectContaining({ timeout: kOpenclawUpdateCopyTimeoutMs }),
-      expect.any(Function),
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        previousVersion: "1.1.0",
+        currentVersion: "1.1.0",
+        latestVersion: "1.1.0",
+        hasUpdate: false,
+        restarted: false,
+        restarting: false,
+        updated: false,
+      }),
     );
-    expect(restartGateway).toHaveBeenCalledTimes(1);
+    expect(restartGateway).not.toHaveBeenCalled();
   });
 
-  it("returns 409 while another update is in progress", async () => {
-    const { service, execMock, execSyncMock } = createService();
-    execSyncMock.mockImplementation((command) => {
-      if (command === "openclaw --version") {
-        return "openclaw 1.0.0";
-      }
-      if (command === "openclaw update status --json") {
-        return JSON.stringify({
-          availability: { available: true, latestVersion: "1.1.0" },
-        });
-      }
-      throw new Error(`Unexpected command: ${command}`);
-    });
-    const callbacks = [];
-    execMock.mockImplementation((cmd, opts, callback) => {
-      callbacks.push(callback);
+  it("falls back to latest marker when version resolution fails", async () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock
+      .mockReturnValueOnce("openclaw 1.0.0")
+      .mockImplementationOnce(() => {
+        throw new Error("status check failed");
+      });
+    const writeSpy = vi.spyOn(fs, "writeFileSync");
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(200);
+    expect(result.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        previousVersion: "1.0.0",
+        currentVersion: "1.0.0",
+        targetVersion: null,
+        latestVersion: null,
+        hasUpdate: true,
+        restarting: true,
+      }),
+    );
+    const markerPath = path.join(kRootDir, ".openclaw-update-pending");
+    const markerCall = writeSpy.mock.calls.find((call) => call[0] === markerPath);
+    expect(markerCall).toBeTruthy();
+    expect(JSON.parse(markerCall[1])).toMatchObject({
+      from: "1.0.0",
+      to: "latest",
+      spec: "openclaw@latest",
     });
 
-    const firstUpdatePromise = service.updateOpenclaw();
-    await new Promise((resolve) => {
-      setImmediate(resolve);
-    });
-    const secondUpdate = await service.updateOpenclaw();
-
-    expect(secondUpdate.status).toBe(409);
-    expect(secondUpdate.body).toEqual({
-      ok: false,
-      error: "OpenClaw update already in progress",
-    });
-
-    callbacks[0](null, "installed", "");
-    await new Promise((resolve) => {
-      setImmediate(resolve);
-    });
-    callbacks[1](null, "", "");
-    await firstUpdatePromise;
+    writeSpy.mockRestore();
   });
+
+  it("returns 500 when it cannot write the pending update marker", async () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock.mockReturnValueOnce("openclaw 1.0.0").mockReturnValueOnce(
+      JSON.stringify({
+        availability: { available: true, latestVersion: "1.1.0" },
+      }),
+    );
+    const writeSpy = vi.spyOn(fs, "writeFileSync").mockImplementation((targetPath) => {
+      if (targetPath === path.join(kRootDir, ".openclaw-update-pending")) {
+        throw new Error("disk full");
+      }
+      return undefined;
+    });
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(500);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toContain("disk full");
+
+    writeSpy.mockRestore();
+  });
+
 });

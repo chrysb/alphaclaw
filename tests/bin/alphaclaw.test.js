@@ -27,7 +27,12 @@ describe("bin/alphaclaw port check", () => {
       execSync(`ALPHACLAW_ROOT_DIR="${tmpDir}" node "${binPath}" start`, {
         stdio: "pipe",
         encoding: "utf8",
-        env: { ...process.env, PORT: "18789", ALPHACLAW_ROOT_DIR: tmpDir }
+        env: {
+          ...process.env,
+          PORT: "18789",
+          ALPHACLAW_ROOT_DIR: tmpDir,
+          ALPHACLAW_MANAGED_RUNTIME_ACTIVE: "1",
+        }
       });
     } catch (e) {
       status = e.status;
@@ -46,7 +51,12 @@ describe("bin/alphaclaw port check", () => {
       execSync(`ALPHACLAW_ROOT_DIR="${tmpDir}" node "${binPath}" start --port 18789`, {
         stdio: "pipe",
         encoding: "utf8",
-        env: { ...process.env, PORT: "3000", ALPHACLAW_ROOT_DIR: tmpDir }
+        env: {
+          ...process.env,
+          PORT: "3000",
+          ALPHACLAW_ROOT_DIR: tmpDir,
+          ALPHACLAW_MANAGED_RUNTIME_ACTIVE: "1",
+        }
       });
     } catch (e) {
       status = e.status;
@@ -66,7 +76,13 @@ describe("bin/alphaclaw port check", () => {
       execSync(`ALPHACLAW_ROOT_DIR="${tmpDir}" node "${binPath}" start`, {
         stdio: "pipe",
         encoding: "utf8",
-        env: { ...process.env, PORT: "3001", ALPHACLAW_ROOT_DIR: tmpDir, SETUP_PASSWORD: "" }
+        env: {
+          ...process.env,
+          PORT: "3001",
+          ALPHACLAW_ROOT_DIR: tmpDir,
+          SETUP_PASSWORD: "",
+          ALPHACLAW_MANAGED_RUNTIME_ACTIVE: "1",
+        }
       });
     } catch (e) {
       status = e.status;
