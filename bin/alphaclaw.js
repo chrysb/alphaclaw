@@ -22,6 +22,7 @@ const {
 const {
   getManagedOpenclawRuntimeDir,
   prependManagedOpenclawBinToPath,
+  syncManagedOpenclawRuntimeWithBundled,
 } = require("../lib/server/openclaw-runtime");
 
 const kUsageTrackerPluginPath = path.resolve(
@@ -219,6 +220,18 @@ if (fs.existsSync(pendingOpenclawUpdateMarker)) {
     logger: console,
     markerPath: pendingOpenclawUpdateMarker,
   });
+}
+try {
+  syncManagedOpenclawRuntimeWithBundled({
+    execSyncImpl: execSync,
+    fsModule: fs,
+    logger: console,
+    runtimeDir: managedOpenclawRuntimeDir,
+  });
+} catch (error) {
+  console.log(
+    `[alphaclaw] Could not sync managed OpenClaw runtime from bundled install: ${error.message}`,
+  );
 }
 prependManagedOpenclawBinToPath({
   env: process.env,
