@@ -2,7 +2,7 @@
 # Git auth shim -- injects GITHUB_TOKEN credentials for network operations
 # inside the configured OpenClaw repo so the agent can use plain git commands.
 
-REAL_GIT="@@REAL_GIT@@"
+REAL_GIT_HINT="@@REAL_GIT@@"
 OPENCLAW_REPO_ROOT="@@OPENCLAW_REPO_ROOT@@"
 ASKPASS_PATH="/tmp/alphaclaw-git-askpass.sh"
 
@@ -21,6 +21,46 @@ needs_auth() {
   esac
 }
 
+same_path() {
+  local left_path right_path
+  left_path="$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")"
+  right_path="$(readlink -f "$2" 2>/dev/null || printf '%s' "$2")"
+  [ "$left_path" = "$right_path" ]
+}
+
+resolve_real_git() {
+  local self_path candidate
+  self_path="$(readlink -f "$0" 2>/dev/null || printf '%s' "$0")"
+  for candidate in \
+    "${ALPHACLAW_REAL_GIT:-}" \
+    "$REAL_GIT_HINT" \
+    "/usr/bin/git" \
+    "/bin/git" \
+    "/usr/libexec/git-core/git" \
+    "/usr/local/bin/git.real"
+  do
+    [ -n "$candidate" ] || continue
+    [ -x "$candidate" ] || continue
+    same_path "$candidate" "$self_path" && continue
+    printf '%s\n' "$candidate"
+    return 0
+  done
+
+  if command -v which >/dev/null 2>&1; then
+    while IFS= read -r candidate; do
+      [ -n "$candidate" ] || continue
+      [ -x "$candidate" ] || continue
+      same_path "$candidate" "$self_path" && continue
+      printf '%s\n' "$candidate"
+      return 0
+    done <<EOF
+$(which -a git 2>/dev/null || true)
+EOF
+  fi
+
+  return 1
+}
+
 in_openclaw_root() {
   if [ -z "$OPENCLAW_REPO_ROOT" ]; then
     return 1
@@ -30,6 +70,12 @@ in_openclaw_root() {
     *) return 1 ;;
   esac
 }
+
+REAL_GIT="$(resolve_real_git || true)"
+if [ -z "$REAL_GIT" ]; then
+  echo "alphaclaw git shim: real git binary not found" >&2
+  exit 127
+fi
 
 if [ "${ALPHACLAW_GIT_NO_AUTH:-}" = "1" ] || [ -z "${GITHUB_TOKEN:-}" ] || ! needs_auth || ! in_openclaw_root; then
   exec "$REAL_GIT" "$@"
