@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.8.8",
+  "version": "0.8.10",
   "publishConfig": {
     "access": "public"
   },
@@ -27,7 +27,6 @@
     "start": "node bin/alphaclaw.js start",
     "build:ui": "node scripts/build-ui.mjs",
     "postinstall": "node ./scripts/apply-openclaw-patches.js",
-    "release:managed": "node scripts/release-managed.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
