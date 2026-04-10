@@ -248,6 +248,55 @@ describe("server/alphaclaw-version", () => {
     );
   });
 
+  it("returns Apex migration instructions when the deployment provider is apex but the bridge is missing", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      if (String(url).includes("raw.githubusercontent.com")) {
+        return createFetchResponse({
+          body: {
+            dependencies: {
+              "@chrysb/alphaclaw": "0.8.7",
+              openclaw: "2026.4.9",
+            },
+          },
+        });
+      }
+      if (String(url).includes("/commits/main")) {
+        return createFetchResponse({
+          body: { sha: "aded043defd05bba6787bca75ac6ed8dffd43c6e" },
+        });
+      }
+      throw new Error(`Unexpected fetch call: ${String(url)}`);
+    });
+    const { service } = createService({
+      env: {
+        ALPHACLAW_DEPLOYMENT_PROVIDER: "apex",
+        ALPHACLAW_TEMPLATE_REPO_URL:
+          "https://github.com/chrysb/openclaw-apex-template.git",
+      },
+      fetchMock,
+    });
+
+    const status = await service.getVersionStatus(true);
+
+    expect(status.updateStrategy).toEqual(
+      expect.objectContaining({
+        provider: "apex",
+        action: "instructions",
+        primaryActionLabel: "Done",
+      }),
+    );
+
+    const result = await service.updateAlphaclaw();
+    expect(result.status).toBe(409);
+    expect(result.body.updateStrategy).toEqual(
+      expect.objectContaining({
+        provider: "apex",
+        action: "instructions",
+        primaryActionLabel: "Done",
+      }),
+    );
+  });
+
   it("returns instructions-only rejection for railway deployments", async () => {
     const fetchMock = vi.fn(async () =>
       createFetchResponse({
