@@ -82,11 +82,11 @@ resolve_effective_pwd() {
           *) effective_pwd="$effective_pwd/$1" ;;
         esac
         ;;
-      -c|--exec-path|--git-dir|--work-tree|--namespace|--config-env)
+      -c|--exec-path|--git-dir|--work-tree|--namespace|--config-env|--super-prefix|--list-cmds|--attr-source)
         shift
         [ "$#" -gt 0 ] || break
         ;;
-      --exec-path=*|--git-dir=*|--work-tree=*|--namespace=*|--config-env=*)
+      --exec-path=*|--git-dir=*|--work-tree=*|--namespace=*|--config-env=*|--super-prefix=*|--list-cmds=*|--attr-source=*)
         ;;
       --)
         break

@@ -84,6 +84,65 @@ describe("server git shim scripts", () => {
     expect(log).toContain("ASKPASS_PASS=ghp_test_token");
   });
 
+  it("passes auth through for git -c key=value -C repo push commands", () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-git-root-"));
+    const repoRoot = path.join(tempRoot, "repo");
+    const outsideDir = path.join(tempRoot, "outside");
+    fs.mkdirSync(repoRoot, { recursive: true });
+    fs.mkdirSync(outsideDir, { recursive: true });
+
+    const harness = createBehaviorHarness({ repoRoot });
+    execFileSync(harness.shimPath, ["-c", "http.extraHeader=test", "-C", repoRoot, "push", "origin", "main"], {
+      cwd: outsideDir,
+      env: {
+        ...process.env,
+        GITHUB_TOKEN: "ghp_test_token",
+      },
+      stdio: "pipe",
+    });
+
+    const log = fs.readFileSync(harness.logPath, "utf8");
+    expect(log).toContain("ARG_1=-c");
+    expect(log).toContain("ARG_2=http.extraHeader=test");
+    expect(log).toContain("ARG_3=-C");
+    expect(log).toContain(`ARG_4=${repoRoot}`);
+    expect(log).toContain("ARG_5=push");
+    expect(log).toContain("GIT_TERMINAL_PROMPT=0");
+    expect(log).toContain("ASKPASS_PASS=ghp_test_token");
+  });
+
+  it("passes auth through when valued global options precede -C repo push commands", () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-git-root-"));
+    const repoRoot = path.join(tempRoot, "repo");
+    const outsideDir = path.join(tempRoot, "outside");
+    fs.mkdirSync(repoRoot, { recursive: true });
+    fs.mkdirSync(outsideDir, { recursive: true });
+
+    const harness = createBehaviorHarness({ repoRoot });
+    execFileSync(
+      harness.shimPath,
+      ["--super-prefix=subdir/", "--attr-source", "HEAD", "-C", repoRoot, "push", "origin", "main"],
+      {
+        cwd: outsideDir,
+        env: {
+          ...process.env,
+          GITHUB_TOKEN: "ghp_test_token",
+        },
+        stdio: "pipe",
+      },
+    );
+
+    const log = fs.readFileSync(harness.logPath, "utf8");
+    expect(log).toContain("ARG_1=--super-prefix=subdir/");
+    expect(log).toContain("ARG_2=--attr-source");
+    expect(log).toContain("ARG_3=HEAD");
+    expect(log).toContain("ARG_4=-C");
+    expect(log).toContain(`ARG_5=${repoRoot}`);
+    expect(log).toContain("ARG_6=push");
+    expect(log).toContain("GIT_TERMINAL_PROMPT=0");
+    expect(log).toContain("ASKPASS_PASS=ghp_test_token");
+  });
+
   it("enables auth when the cwd is a symlinked workspace inside the repo root", () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-git-root-"));
     const repoRoot = path.join(tempRoot, "repo");
