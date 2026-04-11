@@ -89,24 +89,30 @@ const mockGithubVerifyAndCreate = ({
   scopes = "repo",
   login = "owner",
 } = {}) => {
-  global.fetch
-    .mockResolvedValueOnce({
+  global.fetch.mockResolvedValueOnce({
+    ok: true,
+    headers: { get: () => scopes },
+    json: async () => ({ login }),
+  });
+  global.fetch.mockResolvedValueOnce({
+    ok: repoOk,
+    status: repoStatus,
+    statusText: repoStatus === 404 ? "Not Found" : "OK",
+    json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
+  });
+  if (repoStatus === 404 && login === "owner") {
+    global.fetch.mockResolvedValueOnce({
       ok: true,
-      headers: { get: () => scopes },
-      json: async () => ({ login }),
-    })
-    .mockResolvedValueOnce({
-      ok: repoOk,
-      status: repoStatus,
-      statusText: repoStatus === 404 ? "Not Found" : "OK",
-      json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
-    })
-    .mockResolvedValueOnce({
-      ok: createOk,
-      status: createOk ? 201 : 400,
-      statusText: createOk ? "Created" : "Bad Request",
-      json: async () => (createOk ? {} : { message: "create failed" }),
+      headers: { get: () => "" },
+      json: async () => [],
     });
+  }
+  global.fetch.mockResolvedValueOnce({
+    ok: createOk,
+    status: createOk ? 201 : 400,
+    statusText: createOk ? "Created" : "Bad Request",
+    json: async () => (createOk ? {} : { message: "create failed" }),
+  });
 };
 
 describe("server/routes/onboarding", () => {
@@ -308,6 +314,39 @@ describe("server/routes/onboarding", () => {
       repoIsEmpty: false,
       tempDir: null,
     });
+  });
+
+  it("surfaces a hidden repo-name conflict during github verification", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "" },
+        json: async () => [{ name: "repo", full_name: "owner/repo" }],
+      });
+
+    const res = await request(app).post("/api/onboard/github/verify").send({
+      repo: "owner/repo",
+      token: "github_pat_hidden_repo_token",
+      mode: "new",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('Repository "owner/repo" already exists');
+    expect(res.body.error).toContain("cannot inspect");
   });
 
   it("installs deterministic hourly git sync cron during successful onboarding", async () => {
