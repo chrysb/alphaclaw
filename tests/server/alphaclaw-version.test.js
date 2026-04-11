@@ -69,7 +69,7 @@ describe("server/alphaclaw-version", () => {
     });
     const { service } = createService({
       env: {},
-      readOpenclawVersion: () => "2026.4.9",
+      readOpenclawVersion: () => "2026.4.10",
       fetchMock,
       fsImpl: { ...fs, existsSync: vi.fn(() => false) },
     });
@@ -80,7 +80,7 @@ describe("server/alphaclaw-version", () => {
       expect.objectContaining({
         ok: true,
         currentVersion: expect.any(String),
-        currentOpenclawVersion: "2026.4.9",
+        currentOpenclawVersion: "2026.4.10",
         latestVersion: "99.0.0",
         hasUpdate: true,
         updateStrategy: expect.objectContaining({
@@ -100,7 +100,7 @@ describe("server/alphaclaw-version", () => {
         body: {
           dependencies: {
             "@chrysb/alphaclaw": "0.8.10",
-            openclaw: "2026.4.9",
+            openclaw: "2026.4.10",
           },
         },
       });
@@ -117,7 +117,7 @@ describe("server/alphaclaw-version", () => {
       expect.objectContaining({
         ok: true,
         latestVersion: "0.8.10",
-        latestOpenclawVersion: "2026.4.9",
+        latestOpenclawVersion: "2026.4.10",
         hasUpdate: true,
         updateStrategy: expect.objectContaining({
           action: "instructions",
@@ -135,7 +135,7 @@ describe("server/alphaclaw-version", () => {
         body: {
           dependencies: {
             "@chrysb/alphaclaw": "0.8.10",
-            openclaw: "2026.4.9",
+            openclaw: "2026.4.10",
           },
         },
       }),
@@ -168,7 +168,7 @@ describe("server/alphaclaw-version", () => {
         body: {
           dependencies: {
             "@chrysb/alphaclaw": "0.8.10",
-            openclaw: "2026.4.9",
+            openclaw: "2026.4.10",
           },
         },
       }),
@@ -200,7 +200,7 @@ describe("server/alphaclaw-version", () => {
           body: {
             dependencies: {
               "@chrysb/alphaclaw": "0.8.7",
-              openclaw: "2026.4.9",
+              openclaw: "2026.4.10",
             },
           },
         });
@@ -217,7 +217,7 @@ describe("server/alphaclaw-version", () => {
         repo: "https://github.com/chrysb/openclaw-apex-template.git",
         ref: "aded043defd05bba6787bca75ac6ed8dffd43c6e",
         alphaclawVersion: "0.8.7",
-        openclawVersion: "2026.4.9",
+        openclawVersion: "2026.4.10",
       });
       return createFetchResponse({
         body: { ok: true, phase: "queued", noop: false },
@@ -243,7 +243,7 @@ describe("server/alphaclaw-version", () => {
         managedUpdate: true,
         restarting: true,
         latestVersion: "0.8.7",
-        latestOpenclawVersion: "2026.4.9",
+        latestOpenclawVersion: "2026.4.10",
       }),
     );
   });
@@ -255,7 +255,7 @@ describe("server/alphaclaw-version", () => {
           body: {
             dependencies: {
               "@chrysb/alphaclaw": "0.8.7",
-              openclaw: "2026.4.9",
+              openclaw: "2026.4.10",
             },
           },
         });
@@ -303,7 +303,7 @@ describe("server/alphaclaw-version", () => {
         body: {
           dependencies: {
             "@chrysb/alphaclaw": "0.8.10",
-            openclaw: "2026.4.9",
+            openclaw: "2026.4.10",
           },
         },
       }),
