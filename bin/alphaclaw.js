@@ -509,6 +509,7 @@ if (!kSetupPassword) {
 
 process.env.OPENCLAW_HOME = rootDir;
 process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
+process.env.OPENCLAW_STATE_DIR = openclawDir;
 process.env.GOG_KEYRING_PASSWORD =
   process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
 

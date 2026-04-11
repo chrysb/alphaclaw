@@ -505,6 +505,13 @@ describe("server/routes/onboarding", () => {
     expect(onboardCall[0]).toContain("--anthropic-api-key");
     expect(onboardCall[0]).not.toContain("--token-provider");
     expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
+    expect(onboardCall[1]).toMatchObject({
+      env: expect.objectContaining({
+        OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+        OPENCLAW_STATE_DIR: "/tmp/openclaw",
+        XDG_CONFIG_HOME: "/tmp/openclaw",
+      }),
+    });
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {

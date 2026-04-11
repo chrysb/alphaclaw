@@ -88,7 +88,7 @@ describe("server/routes/models", () => {
     );
     expect(deps.shellCmd).toHaveBeenCalledWith("openclaw models list --all --json", {
       env: { OPENCLAW_GATEWAY_TOKEN: "token" },
-      timeout: 20000,
+      timeout: 30000,
     });
   });
 
