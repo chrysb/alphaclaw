@@ -6,21 +6,6 @@ REAL_GIT_HINT="@@REAL_GIT@@"
 OPENCLAW_REPO_ROOT="@@OPENCLAW_REPO_ROOT@@"
 ASKPASS_PATH="/tmp/alphaclaw-git-askpass.sh"
 
-SUBCMD=""
-for arg in "$@"; do
-  case "$arg" in
-    -*) ;;
-    *) SUBCMD="$arg"; break ;;
-  esac
-done
-
-needs_auth() {
-  case "$SUBCMD" in
-    push|pull|fetch|clone|ls-remote) return 0 ;;
-    *) return 1 ;;
-  esac
-}
-
 same_path() {
   local left_path right_path
   left_path="$(readlink -f "$1" 2>/dev/null || printf '%s' "$1")"
@@ -61,12 +46,73 @@ EOF
   return 1
 }
 
+canonicalize_path() {
+  local target_path resolved_path
+  target_path="$1"
+  [ -n "$target_path" ] || return 1
+
+  if [ -d "$target_path" ]; then
+    resolved_path="$(cd "$target_path" 2>/dev/null && pwd -P)" || resolved_path=""
+    if [ -n "$resolved_path" ]; then
+      printf '%s\n' "$resolved_path"
+      return 0
+    fi
+  fi
+
+  resolved_path="$(readlink -f "$target_path" 2>/dev/null || true)"
+  if [ -n "$resolved_path" ]; then
+    printf '%s\n' "$resolved_path"
+    return 0
+  fi
+
+  printf '%s\n' "$target_path"
+}
+
+resolve_effective_pwd() {
+  local effective_pwd
+  effective_pwd="$(pwd)"
+
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      -C)
+        shift
+        [ "$#" -gt 0 ] || break
+        case "$1" in
+          /*) effective_pwd="$1" ;;
+          *) effective_pwd="$effective_pwd/$1" ;;
+        esac
+        ;;
+      -c|--exec-path|--git-dir|--work-tree|--namespace|--config-env)
+        shift
+        [ "$#" -gt 0 ] || break
+        ;;
+      --exec-path=*|--git-dir=*|--work-tree=*|--namespace=*|--config-env=*)
+        ;;
+      --)
+        break
+        ;;
+      -*)
+        ;;
+      *)
+        break
+        ;;
+    esac
+    shift
+  done
+
+  canonicalize_path "$effective_pwd"
+}
+
 in_openclaw_root() {
+  local candidate_path resolved_repo_root resolved_candidate_path
+  candidate_path="$1"
   if [ -z "$OPENCLAW_REPO_ROOT" ]; then
     return 1
   fi
-  case "$(pwd)" in
-    "$OPENCLAW_REPO_ROOT"|"${OPENCLAW_REPO_ROOT}"/*) return 0 ;;
+  resolved_repo_root="$(canonicalize_path "$OPENCLAW_REPO_ROOT")"
+  resolved_candidate_path="$(canonicalize_path "$candidate_path")"
+  case "$resolved_candidate_path" in
+    "$resolved_repo_root"|"${resolved_repo_root}"/*) return 0 ;;
     *) return 1 ;;
   esac
 }
@@ -77,7 +123,9 @@ if [ -z "$REAL_GIT" ]; then
   exit 127
 fi
 
-if [ "${ALPHACLAW_GIT_NO_AUTH:-}" = "1" ] || [ -z "${GITHUB_TOKEN:-}" ] || ! needs_auth || ! in_openclaw_root; then
+EFFECTIVE_PWD="$(resolve_effective_pwd "$@")"
+
+if [ "${ALPHACLAW_GIT_NO_AUTH:-}" = "1" ] || [ -z "${GITHUB_TOKEN:-}" ] || ! in_openclaw_root "$EFFECTIVE_PWD"; then
   exec "$REAL_GIT" "$@"
 fi
 
