@@ -23,6 +23,7 @@ const {
   startManagedScheduler,
 } = require("../lib/server/system-cron");
 const { getBinPath, kSystemBinDir } = require("../lib/platform");
+const { sanitizeOpenclawConfig } = require("../lib/server/openclaw-config");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -853,7 +854,9 @@ if (fs.existsSync(configPath)) {
   }
 
   try {
-    const cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    const cfg = sanitizeOpenclawConfig(
+      JSON.parse(fs.readFileSync(configPath, "utf8"))
+    );
     if (!cfg.channels) cfg.channels = {};
     if (!cfg.plugins) cfg.plugins = {};
     if (!cfg.plugins.load) cfg.plugins.load = {};
