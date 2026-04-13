@@ -102,12 +102,14 @@ describe("server/gateway restart behavior", () => {
 
     expect(gateway.gatewayEnv()).toEqual(
       expect.objectContaining({
+        HOME: expect.any(String),
         OPENCLAW_HOME: expect.any(String),
         OPENCLAW_CONFIG_PATH: `${OPENCLAW_DIR}/openclaw.json`,
         OPENCLAW_STATE_DIR: OPENCLAW_DIR,
         XDG_CONFIG_HOME: OPENCLAW_DIR,
       }),
     );
+    expect(gateway.gatewayEnv().HOME).toBe(gateway.gatewayEnv().OPENCLAW_HOME);
   });
 
   it("uses force restart when no managed child exists", () => {

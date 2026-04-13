@@ -507,6 +507,7 @@ describe("server/routes/onboarding", () => {
     expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
     expect(onboardCall[1]).toMatchObject({
       env: expect.objectContaining({
+        HOME: expect.any(String),
         OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
         OPENCLAW_STATE_DIR: "/tmp/openclaw",
         XDG_CONFIG_HOME: "/tmp/openclaw",
