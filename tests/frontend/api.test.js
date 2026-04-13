@@ -59,7 +59,7 @@ describe("frontend/api", () => {
       "/api/onboard",
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ vars, modelKey, importMode: false }),
+        body: JSON.stringify({ vars, modelKey, importMode: false, readOnlyMode: false }),
         headers: expect.any(Headers),
       }),
     );
