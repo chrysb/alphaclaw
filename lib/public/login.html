@@ -10,21 +10,14 @@
     />
     <link rel="icon" type="image/svg+xml" href="./img/logo.svg" />
     <link rel="stylesheet" href="./css/theme.css" />
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="./css/tailwind.generated.css" />
     <script>
-      tailwind.config = {
-        theme: {
-          extend: {
-            colors: {
-              surface: "var(--bg-sidebar)",
-              border: "var(--border)",
-            },
-            fontFamily: {
-              mono: ["'JetBrains Mono'", "monospace"],
-            },
-          },
-        },
-      };
+      try {
+        var t = localStorage.getItem("alphaclaw.ui.theme");
+        if (t === "system") t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        else if (t !== "dark" && t !== "light") t = "dark";
+        document.documentElement.dataset.theme = t;
+      } catch {}
     </script>
   </head>
   <body class="min-h-screen flex items-center justify-center p-4">
@@ -53,10 +46,10 @@
           type="password"
           placeholder="Password"
           autofocus
-          class="w-full bg-black/30 border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-gray-500"
+          class="w-full bg-field border border-border rounded-lg px-3 py-2 text-sm outline-none focus:border-fg-muted"
           style="color: var(--text)"
         />
-        <div id="error" class="text-red-400 text-xs hidden"></div>
+        <div id="error" class="text-status-error-muted text-xs hidden"></div>
         <button
           id="submit-btn"
           type="submit"
@@ -68,10 +61,6 @@
       </form>
     </div>
     <script>
-      try {
-        window.localStorage?.clear?.();
-      } catch {}
-
       const formEl = document.getElementById("login-form");
       const passwordEl = document.getElementById("password");
       const submitButtonEl = document.getElementById("submit-btn");

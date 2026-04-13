@@ -10,6 +10,10 @@ const {
   validateGitSyncFilePath,
 } = require("../lib/cli/git-sync");
 const {
+  resolveRealGitPath,
+  shouldRefreshHourlyGitSyncScript,
+} = require("../lib/cli/git-runtime");
+const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
 const {
@@ -206,13 +210,13 @@ const resolveGithubRepoPath = (value) =>
 // ---------------------------------------------------------------------------
 
 const rootDir =
-  flagValue(globalArgs, "--root-dir") ||
+  flagValue(args, "--root-dir") ||
   process.env.ALPHACLAW_ROOT_DIR ||
   path.join(os.homedir(), ".alphaclaw");
 
 process.env.ALPHACLAW_ROOT_DIR = rootDir;
 
-const portFlag = flagValue(globalArgs, "--port");
+const portFlag = flagValue(args, "--port");
 if (portFlag) {
   process.env.PORT = portFlag;
 }
@@ -354,6 +358,16 @@ const runGitSync = () => {
     return 1;
   }
 
+  const realGitPath = resolveRealGitPath({
+    shimPath: "/usr/local/bin/git",
+  });
+  if (!realGitPath) {
+    console.error(
+      "[alphaclaw] Missing git binary for git-sync; install git in the runtime image",
+    );
+    return 1;
+  }
+
   const originUrl = `https://github.com/${githubRepo}.git`;
   let branch = "main";
   try {
@@ -372,8 +386,8 @@ const runGitSync = () => {
   );
   const runGit = (gitCommand, { withAuth = false } = {}) => {
     const cmd = withAuth
-      ? `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=${quoteArg(askPassPath)} git ${gitCommand}`
-      : `git ${gitCommand}`;
+      ? `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=${quoteArg(askPassPath)} ${quoteArg(realGitPath)} ${gitCommand}`
+      : `${quoteArg(realGitPath)} ${gitCommand}`;
     return execSync(cmd, {
       cwd: openclawDir,
       stdio: "pipe",
@@ -549,6 +563,17 @@ if (
   process.exit(runTelegramTopicAdd());
 }
 
+const kPort = String(process.env.PORT || "3000").trim();
+if (kPort === "18789") {
+  console.error(
+    [
+      "[alphaclaw] Fatal config error: AlphaClaw cannot be started on port 18789.",
+      "[alphaclaw] Port 18789 is reserved for the OpenClaw gateway.",
+    ].join("\n"),
+  );
+  process.exit(1);
+}
+
 const kSetupPassword = String(process.env.SETUP_PASSWORD || "").trim();
 if (!kSetupPassword) {
   console.error(
@@ -569,6 +594,7 @@ if (!kSetupPassword) {
 
 process.env.OPENCLAW_HOME = rootDir;
 process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
+process.env.OPENCLAW_STATE_DIR = openclawDir;
 process.env.GOG_KEYRING_PASSWORD =
   process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
 
@@ -621,11 +647,12 @@ try {
     const installedSyncScript = fs.existsSync(hourlyGitSyncPath)
       ? fs.readFileSync(hourlyGitSyncPath, "utf8")
       : "";
-    const shouldInstallSyncScript =
-      !installedSyncScript ||
-      !installedSyncScript.includes("GIT_ASKPASS") ||
-      !installedSyncScript.includes("GITHUB_TOKEN");
-    if (shouldInstallSyncScript && packagedSyncScript.trim()) {
+    if (
+      shouldRefreshHourlyGitSyncScript({
+        packagedSyncScript,
+        installedSyncScript,
+      })
+    ) {
       fs.writeFileSync(hourlyGitSyncPath, packagedSyncScript, { mode: 0o755 });
       console.log("[alphaclaw] Refreshed hourly git sync script");
     }
@@ -928,23 +955,10 @@ try {
   }
 
   if (fs.existsSync(gitShimTemplatePath)) {
-    let realGitPath = "/usr/bin/git";
-    try {
-      const gitCandidates = String(
-        execSync("which -a git", {
-          stdio: ["ignore", "pipe", "ignore"],
-          encoding: "utf8",
-        }),
-      )
-        .split("\n")
-        .map((candidate) => candidate.trim())
-        .filter(Boolean);
-      const normalizedShimDest = path.resolve(gitShimDest);
-      const selectedCandidate = gitCandidates.find(
-        (candidatePath) => path.resolve(candidatePath) !== normalizedShimDest,
-      );
-      if (selectedCandidate) realGitPath = selectedCandidate;
-    } catch {}
+    const realGitPath =
+      resolveRealGitPath({
+        shimPath: gitShimDest,
+      }) || "/usr/bin/git";
 
     const gitShimTemplate = fs.readFileSync(gitShimTemplatePath, "utf8");
     const gitShimContent = gitShimTemplate

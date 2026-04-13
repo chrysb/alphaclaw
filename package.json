@@ -1,6 +1,6 @@
 {
   "name": "@chrysb/alphaclaw",
-  "version": "0.8.0",
+  "version": "0.9.3",
   "publishConfig": {
     "access": "public"
   },
@@ -19,28 +19,43 @@
   },
   "files": [
     "bin/",
-    "lib/"
+    "lib/",
+    "patches/",
+    "scripts/apply-openclaw-patches.js"
   ],
   "scripts": {
     "start": "node bin/alphaclaw.js start",
+    "build:ui": "node scripts/build-ui.mjs",
+    "postinstall": "node ./scripts/apply-openclaw-patches.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "prepack": "npm run build:ui"
   },
   "dependencies": {
     "@chrysb/alphaclaw": "^0.7.0",
     "express": "^4.21.0",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.3.13",
+    "openclaw": "2026.4.11",
+    "patch-package": "^8.0.1",
     "ws": "^8.19.0"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "^4.0.18",
+    "@xterm/addon-fit": "^0.10.0",
+    "@xterm/xterm": "^5.5.0",
+    "chart.js": "^4.5.1",
+    "esbuild": "^0.25.9",
+    "htm": "^3.1.1",
+    "marked": "^16.4.1",
+    "preact": "^10.27.2",
     "supertest": "^7.2.2",
-    "vitest": "^4.0.18"
+    "tailwindcss": "^3.4.17",
+    "vitest": "^4.0.18",
+    "wouter-preact": "^3.7.1"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=22.14.0"
   }
 }

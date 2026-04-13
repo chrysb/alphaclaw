@@ -91,24 +91,30 @@ const mockGithubVerifyAndCreate = ({
   scopes = "repo",
   login = "owner",
 } = {}) => {
-  global.fetch
-    .mockResolvedValueOnce({
+  global.fetch.mockResolvedValueOnce({
+    ok: true,
+    headers: { get: () => scopes },
+    json: async () => ({ login }),
+  });
+  global.fetch.mockResolvedValueOnce({
+    ok: repoOk,
+    status: repoStatus,
+    statusText: repoStatus === 404 ? "Not Found" : "OK",
+    json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
+  });
+  if (repoStatus === 404 && login === "owner") {
+    global.fetch.mockResolvedValueOnce({
       ok: true,
-      headers: { get: () => scopes },
-      json: async () => ({ login }),
-    })
-    .mockResolvedValueOnce({
-      ok: repoOk,
-      status: repoStatus,
-      statusText: repoStatus === 404 ? "Not Found" : "OK",
-      json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
-    })
-    .mockResolvedValueOnce({
-      ok: createOk,
-      status: createOk ? 201 : 400,
-      statusText: createOk ? "Created" : "Bad Request",
-      json: async () => (createOk ? {} : { message: "create failed" }),
+      headers: { get: () => "" },
+      json: async () => [],
     });
+  }
+  global.fetch.mockResolvedValueOnce({
+    ok: createOk,
+    status: createOk ? 201 : 400,
+    statusText: createOk ? "Created" : "Bad Request",
+    json: async () => (createOk ? {} : { message: "create failed" }),
+  });
 };
 
 describe("server/routes/onboarding", () => {
@@ -259,20 +265,11 @@ describe("server/routes/onboarding", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        headers: { get: () => "repo" },
-        json: async () => ({ login: "owner" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         status: 200,
-        statusText: "OK",
-        json: async () => ({ full_name: "my-org/source-repo" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: async () => [{ sha: "abc123" }],
+        json: async () => [
+          { name: "package.json", type: "file" },
+          { name: "src", type: "dir" },
+        ],
       });
     deps.shellCmd.mockResolvedValueOnce("");
 
@@ -319,6 +316,39 @@ describe("server/routes/onboarding", () => {
       repoIsEmpty: false,
       tempDir: null,
     });
+  });
+
+  it("surfaces a hidden repo-name conflict during github verification", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "" },
+        json: async () => [{ name: "repo", full_name: "owner/repo" }],
+      });
+
+    const res = await request(app).post("/api/onboard/github/verify").send({
+      repo: "owner/repo",
+      token: "github_pat_hidden_repo_token",
+      mode: "new",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('Repository "owner/repo" already exists');
+    expect(res.body.error).toContain("cannot inspect");
   });
 
   it("installs deterministic hourly git sync cron during successful onboarding", async () => {
@@ -569,6 +599,13 @@ describe("server/routes/onboarding", () => {
     expect(onboardCall[0]).toContain("--anthropic-api-key");
     expect(onboardCall[0]).not.toContain("--token-provider");
     expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
+    expect(onboardCall[1]).toMatchObject({
+      env: expect.objectContaining({
+        OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+        OPENCLAW_STATE_DIR: "/tmp/openclaw",
+        XDG_CONFIG_HOME: "/tmp/openclaw",
+      }),
+    });
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {
@@ -746,8 +783,14 @@ describe("server/routes/onboarding", () => {
     expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
       '"bootstrap-extra-files"',
     );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"strictInlineEval": false',
+    );
     expect(files.get("/tmp/openclaw/openclaw.json")).not.toContain(
       '"transformsDir"',
+    );
+    expect(files.get("/tmp/openclaw/exec-approvals.json")).toContain(
+      '"askFallback": "full"',
     );
     expect(
       deps.shellCmd.mock.calls.some(([cmd]) =>

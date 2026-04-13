@@ -1,0 +1,13 @@
+diff --git a/node_modules/openclaw/dist/server.impl-CsRRyd9F.js b/node_modules/openclaw/dist/server.impl-CsRRyd9F.js
+index f2524dda..10e094ae 100644
+--- a/node_modules/openclaw/dist/server.impl-CsRRyd9F.js
++++ b/node_modules/openclaw/dist/server.impl-CsRRyd9F.js
+@@ -23854,7 +23854,7 @@ function attachGatewayWsMessageHandler(params) {
+ 					close(1008, truncateCloseReason(authMessage));
+ 				};
+ 				const clearUnboundScopes = () => {
+-					if (scopes.length > 0) {
++					if (scopes.length > 0 && !sharedAuthOk) {
+ 						scopes = [];
+ 						connectParams.scopes = scopes;
+ 					}

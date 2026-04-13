@@ -23,7 +23,7 @@ Runtime model:
 
 ### Key Technologies
 
-- Node.js 22+ runtime.
+- Node.js 22.14+ runtime.
 - Express-based HTTP API server.
 - `http-proxy` for gateway proxy behavior.
 - OpenClaw CLI/gateway process orchestration.
@@ -46,6 +46,21 @@ Runtime model:
 - Avoid monolithic implementation files for new features. For new UI areas and new API areas, start with a decomposed structure (focused components/hooks/utilities for UI; focused route modules/services/helpers for server) rather than building one large file first and splitting later.
 - When adding a new feature area, follow the existing project patterns from day one (for example feature folders with `index.js` plus `use-*` hooks in UI, and route + service separation on server) so code stays maintainable as the feature grows.
 - When continuing to build on a file that is growing large or accumulating unrelated concerns, stop and decompose it before adding more code rather than letting it drift into a monolith.
+
+### Networking and Fetching
+
+- Prefer the shared cache primitives in `lib/public/js/lib/api-cache.js` for backend reads:
+  - `cachedFetch(...)` for imperative fetch paths.
+  - `getCached(...)` / `setCached(...)` / `invalidateCache(...)` for cache lifecycle.
+- For component-level read requests, prefer `useCachedFetch` from `lib/public/js/hooks/use-cached-fetch.js` over ad-hoc `useEffect(() => fetchX())` mount loads.
+- Treat the API URL (including query params) as the canonical cache key for GET-style payloads.
+- Keep cache in-memory for fast tab switches; do not add persistent storage caching unless explicitly required by product behavior.
+- Do not keep route panes mounted via `display:none` just to preserve data. Prefer conditional rendering + cache-backed remounts.
+- Use `usePolling` for recurring refreshes and always pass a stable `cacheKey` when poll results should hydrate remounts.
+- Keep `pauseWhenHidden` behavior enabled for polling unless a specific flow requires background polling while the browser tab is hidden.
+- Tune polling intervals conservatively; avoid 1-2s polling unless there is a clear real-time requirement.
+- For app-shell status streams, prefer SSE (`/api/events/status`) where available and keep polling as fallback behavior.
+- After write/mutation APIs (POST/PUT/DELETE), refresh or invalidate relevant cached keys so the UI does not show stale data.
 
 ### OpenClaw Config Access
 
@@ -72,6 +87,7 @@ Use this release flow when promoting tested beta builds to production:
    - `npm version 0.3.2`
    - `git push && git push --tags`
    - `npm publish` (publishes to `latest`)
+   - Pin both deployment templates on `main` to that release: update `~/Projects/openclaw-railway-template` and `~/Projects/openclaw-render-template` so `@chrysb/alphaclaw` and `openclaw` match AlphaClaw’s `package.json` for the release, run `npm install` in each repo, commit `package.json` and `package-lock.json`, and push. Skipping Render leaves that template on `latest` and causes drift from Railway.
 5. Return templates to production channel:
    - `@chrysb/alphaclaw: "latest"`
 6. Optionally keep beta branch/tag flows active for next release cycle.
@@ -119,6 +135,12 @@ Use this format for any Telegram notices sent from AlphaClaw services (watchdog,
 
 Use these conventions for all UI work under `lib/public/js` and `lib/public/css`.
 
+### Setup UI bundle (esbuild)
+
+- The browser loads the compiled bundle under `lib/public/dist/` (for example `app.bundle.js` and chunk files), produced by `scripts/build-ui.mjs` (esbuild).
+- **After any UI source change** that should ship in production (`lib/public/js`, `lib/public/css`, or other inputs to the build), run **`npm run build:ui`** so `lib/public/dist/` stays in sync. Verify the app in the browser against the rebuilt bundle when the change is non-trivial.
+- **`npm publish`** runs **`prepack`** → **`npm run build:ui`**, so published packages always include a fresh bundle. Local installs, Docker builds from a git checkout, or commits that include `dist/` still require **`npm run build:ui`** when you change UI sources and expect the built assets to match.
+
 ### Component structure
 
 - Use arrow-function components and helpers.
@@ -139,6 +161,12 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Use card shells consistently: `bg-surface border border-border rounded-xl`.
 - For nested "surface on surface" blocks (content inside a `bg-surface` card), use `ac-surface-inset` for the inner container treatment so inset sections match shared history/sessions styling.
 - For internal section dividers, use `border-t border-border` (avoid opacity variants) with comfortable vertical spacing around the divider.
+
+### Color and theme tokens
+
+- Prefer semantic Tailwind color utilities backed by theme tokens (`text-body`, `text-fg-muted`, `text-fg-dim`, `bg-field`, `bg-status-error-bg`, `border-status-warning-border`) instead of raw palette classes like `text-gray-300` or `bg-red-900/30`.
+- When a new reusable UI color role is needed, add the CSS variable in `lib/public/css/theme.css` and expose it through `tailwind.config.cjs` rather than introducing one-off hardcoded color classes in components.
+- Keep component refactors token-based so future theme changes stay centralized in the token layer instead of requiring per-component color rewrites.
 
 ### Buttons
 
@@ -170,9 +198,9 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Reuse `<SecretInput />` for sensitive values and token/key inputs.
 - Reuse `<ToggleSwitch />` for boolean on/off controls instead of ad-hoc checkbox/switch markup.
 - Base input look should remain consistent:
-  - `bg-black/30 border border-border rounded-lg ... focus:border-gray-500`
+  - `bg-field border border-border rounded-lg ... focus:border-fg-muted`
 - Preserve monospace for technical values (`font-mono`) and codes/paths.
-- Prefer inline helper text under fields (`text-xs text-gray-500/600`) for setup guidance.
+- Prefer inline helper text under fields (`text-xs text-fg-muted` / `text-fg-dim`) for setup guidance.
 - For tip/help links in helper text, use the shared `ac-tip-link` class (token-backed via `--accent-link`) instead of per-file ad-hoc cyan classes.
 
 ### Feedback and state
@@ -194,10 +222,14 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - Add new formatter helpers to `lib/public/js/lib/format.js` when the behavior is cross-feature and likely to be reused; keep feature-specific transforms local to the feature folder.
 - Avoid wrapper pass-through helpers that only rename a global formatter without adding feature-specific behavior.
 
+### Session key utilities
+
+- Keep shared session-key parsing/filtering helpers in `lib/public/js/lib/session-keys.js` (for example extracting `agentId`, destination-session matching checks, and destination payload derivation).
+- Before adding session-key logic in a hook/component, check `lib/public/js/lib/session-keys.js` first and reuse existing helpers.
+- When session-key behavior is reused across features, add/extend helpers in `lib/public/js/lib/session-keys.js` instead of duplicating regex/string parsing in feature files.
+
 ### localStorage keys
 
 - All standalone `localStorage` keys are defined in `lib/public/js/lib/storage-keys.js`. Import keys from this file — never define raw localStorage key strings inline in components.
 - Use the naming convention `alphaclaw.<area>.<purpose>` for new keys (e.g. `alphaclaw.doctor.lastSessionKey`).
 - Keys that live inside the `alphaclaw.ui.settings` JSON blob (e.g. `browseLastPath`, `doctorWarningDismissedUntilMs`) are sub-keys, not standalone localStorage entries — those stay in their consuming file.
-
-For inconsistencies tracking and DRY opportunities, see `lib/setup/core-prompts/UI-DRY-OPPORTUNITIES.md`.

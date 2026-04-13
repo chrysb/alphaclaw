@@ -96,6 +96,20 @@ describe("server/gateway restart behavior", () => {
     expect(firstChild.kill).not.toHaveBeenCalled();
   });
 
+  it("exports the durable OpenClaw state dir in gateway env", () => {
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.gatewayEnv()).toEqual(
+      expect.objectContaining({
+        OPENCLAW_HOME: expect.any(String),
+        OPENCLAW_CONFIG_PATH: `${OPENCLAW_DIR}/openclaw.json`,
+        OPENCLAW_STATE_DIR: OPENCLAW_DIR,
+        XDG_CONFIG_HOME: OPENCLAW_DIR,
+      }),
+    );
+  });
+
   it("uses force restart when no managed child exists", () => {
     const spawnMock = vi.fn(() => createChild());
     const execSyncMock = vi.fn(() => "");
