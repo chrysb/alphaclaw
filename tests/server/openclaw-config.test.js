@@ -62,4 +62,24 @@ describe("sanitizeOpenclawConfig", () => {
     sanitizeOpenclawConfig(cfg);
     expect(cfg.models.providers["ollama-mac"].models).toBeUndefined();
   });
+
+  it("tolerates a null provider value without throwing", () => {
+    const cfg = {
+      models: {
+        providers: {
+          "bad-entry": null,
+          "ollama-mac": { type: "ollama" },
+        },
+      },
+    };
+    const result = sanitizeOpenclawConfig(cfg);
+    expect(result.models.providers["bad-entry"]).toBeNull();
+    expect(result.models.providers["ollama-mac"].models).toEqual([]);
+  });
+
+  it("is a no-op when providers is an array instead of an object", () => {
+    const cfg = { models: { providers: [] } };
+    const result = sanitizeOpenclawConfig(cfg);
+    expect(result).toEqual({ models: { providers: [] } });
+  });
 });
