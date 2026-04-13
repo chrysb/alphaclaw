@@ -22,6 +22,7 @@ const {
   readSystemCronConfig,
   startManagedScheduler,
 } = require("../lib/server/system-cron");
+const { getBinPath } = require("../lib/platform");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -234,9 +235,11 @@ const { hourlyGitSyncPath, internalDir } = migrateManagedInternalFiles({
 const managedBinDir = path.join(internalDir, "bin");
 fs.mkdirSync(managedBinDir, { recursive: true });
 prependPathEntry(managedBinDir);
-const installBinDir = isWritableDirectory(kSystemBinDir)
-  ? kSystemBinDir
-  : managedBinDir;
+const installBinDir = getBinPath({ managedBinDir });
+if (process.platform === "darwin") {
+  require("fs").mkdirSync(installBinDir, { recursive: true });
+  prependPathEntry(installBinDir);
+}
 console.log(`[alphaclaw] Root directory: ${rootDir}`);
 
 // Check for pending update marker (written by the update endpoint before restart).
