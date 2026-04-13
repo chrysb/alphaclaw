@@ -22,7 +22,7 @@ const {
   readSystemCronConfig,
   startManagedScheduler,
 } = require("../lib/server/system-cron");
-const { getBinPath } = require("../lib/platform");
+const { getBinPath, kSystemBinDir } = require("../lib/platform");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -31,8 +31,6 @@ const kUsageTrackerPluginPath = path.resolve(
   "plugin",
   "usage-tracker",
 );
-const kSystemBinDir = "/usr/local/bin";
-
 const prependPathEntry = (entryPath) => {
   const currentPath = String(process.env.PATH || "");
   const entries = currentPath
@@ -237,9 +235,9 @@ fs.mkdirSync(managedBinDir, { recursive: true });
 prependPathEntry(managedBinDir);
 const installBinDir = getBinPath({ managedBinDir });
 if (process.platform === "darwin") {
-  require("fs").mkdirSync(installBinDir, { recursive: true });
-  prependPathEntry(installBinDir);
+  fs.mkdirSync(installBinDir, { recursive: true });
 }
+prependPathEntry(installBinDir);
 console.log(`[alphaclaw] Root directory: ${rootDir}`);
 
 // Check for pending update marker (written by the update endpoint before restart).
