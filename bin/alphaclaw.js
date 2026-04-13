@@ -854,7 +854,7 @@ if (fs.existsSync(configPath)) {
   }
 
   try {
-    const cfg = sanitizeOpenclawConfig(
+    let cfg = sanitizeOpenclawConfig(
       JSON.parse(fs.readFileSync(configPath, "utf8"))
     );
     if (!cfg.channels) cfg.channels = {};
