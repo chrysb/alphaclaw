@@ -111,6 +111,31 @@ describe("server git shim scripts", () => {
     expect(log).toContain("ASKPASS_PASS=ghp_test_token");
   });
 
+  it("loads GITHUB_TOKEN from repo .env when exec env is sanitized", () => {
+    const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-git-root-"));
+    const repoRoot = path.join(tempRoot, "repo");
+    const outsideDir = path.join(tempRoot, "outside");
+    fs.mkdirSync(repoRoot, { recursive: true });
+    fs.mkdirSync(outsideDir, { recursive: true });
+    fs.writeFileSync(path.join(repoRoot, ".env"), 'GITHUB_TOKEN="ghp_env_token"\n');
+
+    const harness = createBehaviorHarness({ repoRoot });
+    const env = { ...process.env };
+    delete env.GITHUB_TOKEN;
+    execFileSync(harness.shimPath, ["-C", repoRoot, "push", "origin", "main"], {
+      cwd: outsideDir,
+      env,
+      stdio: "pipe",
+    });
+
+    const log = fs.readFileSync(harness.logPath, "utf8");
+    expect(log).toContain("ARG_1=-C");
+    expect(log).toContain(`ARG_2=${repoRoot}`);
+    expect(log).toContain("ARG_3=push");
+    expect(log).toContain("GIT_TERMINAL_PROMPT=0");
+    expect(log).toContain("ASKPASS_PASS=ghp_env_token");
+  });
+
   it("passes auth through when valued global options precede -C repo push commands", () => {
     const tempRoot = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-git-root-"));
     const repoRoot = path.join(tempRoot, "repo");
