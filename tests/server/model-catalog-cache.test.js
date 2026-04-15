@@ -4,7 +4,11 @@ const path = require("path");
 
 const {
   createModelCatalogCache,
+  kDefaultCachePath,
+  kDefaultCacheReadPaths,
+  kLegacyCachePath,
   kModelCatalogRefreshBackoffMs,
+  normalizeCacheEntry,
 } = require("../../lib/server/model-catalog-cache");
 const { kFallbackOnboardingModels } = require("../../lib/server/constants");
 
@@ -96,6 +100,92 @@ describe("server/model-catalog-cache", () => {
     expect(written.models).toEqual(
       normalizeModels([{ key: "openai/gpt-fresh", name: "Fresh" }]),
     );
+  });
+
+  it("normalizes OpenClaw-shaped cache entries using provider/id keys", () => {
+    const entry = normalizeCacheEntry({
+      raw: {
+        models: [{ provider: "openai", id: "gpt-cached", name: "Cached" }],
+      },
+      fallbackFetchedAt: 333,
+      normalizeOnboardingModels: normalizeModels,
+    });
+
+    expect(entry).toEqual({
+      version: 1,
+      fetchedAt: 333,
+      models: normalizeModels([{ key: "openai/gpt-cached", name: "Cached" }]),
+    });
+  });
+
+  it("accepts raw array cache files using the file timestamp as fetchedAt", () => {
+    const entry = normalizeCacheEntry({
+      raw: [{ provider: "openai", id: "gpt-array", name: "Array" }],
+      fallbackFetchedAt: 444,
+      normalizeOnboardingModels: normalizeModels,
+    });
+
+    expect(entry).toEqual({
+      version: 1,
+      fetchedAt: 444,
+      models: normalizeModels([{ key: "openai/gpt-array", name: "Array" }]),
+    });
+  });
+
+  it("reads legacy cache files and writes refreshed data to the primary cache path", async () => {
+    const tempRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-model-catalog-legacy-"),
+    );
+    const primaryCachePath = path.join(
+      tempRoot,
+      ".openclaw",
+      "cache",
+      "model-catalog.json",
+    );
+    const legacyCachePath = path.join(tempRoot, "cache", "model-catalog.json");
+    writeCacheFile({
+      cachePath: legacyCachePath,
+      fetchedAt: 555,
+      models: [{ provider: "openai", id: "gpt-legacy", name: "Legacy" }],
+    });
+
+    const shellCmd = vi.fn().mockResolvedValue("{}");
+    const parseJsonFromNoisyOutput = vi.fn(() => ({
+      models: [{ key: "openai/gpt-primary", name: "Primary" }],
+    }));
+    const cache = createModelCatalogCache({
+      cachePath: primaryCachePath,
+      cacheReadPaths: [primaryCachePath, legacyCachePath],
+      shellCmd,
+      parseJsonFromNoisyOutput,
+      normalizeOnboardingModels: normalizeModels,
+    });
+
+    const cached = await cache.getCatalogResponse();
+
+    expect(cached).toEqual({
+      ok: true,
+      source: "cache",
+      fetchedAt: 555,
+      stale: true,
+      refreshing: true,
+      models: normalizeModels([{ key: "openai/gpt-legacy", name: "Legacy" }]),
+    });
+
+    await flushPromises();
+    expect(fs.existsSync(primaryCachePath)).toBe(true);
+    const written = JSON.parse(fs.readFileSync(primaryCachePath, "utf8"));
+    expect(written.models).toEqual(
+      normalizeModels([{ key: "openai/gpt-primary", name: "Primary" }]),
+    );
+  });
+
+  it("keeps the default cache under .openclaw and reads the previous root cache path", () => {
+    expect(kDefaultCachePath).toContain(
+      `${path.sep}.openclaw${path.sep}cache${path.sep}model-catalog.json`,
+    );
+    expect(kDefaultCacheReadPaths).toContain(kDefaultCachePath);
+    expect(kDefaultCacheReadPaths).toContain(kLegacyCachePath);
   });
 
   it("keeps serving cache after refresh failures and retries after backoff", async () => {
