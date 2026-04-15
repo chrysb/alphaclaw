@@ -62,7 +62,7 @@ const createApp = (deps) => {
 };
 
 describe("server/routes/models", () => {
-  it("returns normalized models from openclaw output", async () => {
+  it("returns fallback immediately while refreshing a cold model catalog", async () => {
     const deps = createModelDeps();
     deps.shellCmd.mockResolvedValue("noise");
     deps.parseJsonFromNoisyOutput.mockReturnValue({
@@ -72,6 +72,38 @@ describe("server/routes/models", () => {
       { key: "openai/gpt-5.1-codex", provider: "openai", label: "GPT" },
     ]);
     const app = createApp(deps);
+
+    const res = await request(app).get("/api/models");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      source: "fallback",
+      fetchedAt: null,
+      stale: false,
+      refreshing: true,
+      models: kFallbackOnboardingModels,
+    });
+    expect(deps.shellCmd).toHaveBeenCalledWith("openclaw models list --all --json", {
+      env: { OPENCLAW_GATEWAY_TOKEN: "token" },
+      timeout: 30000,
+    });
+  });
+
+  it("returns normalized models from the background-refreshed catalog", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("noise");
+    deps.parseJsonFromNoisyOutput.mockReturnValue({
+      models: [{ key: "openai/gpt-5.1-codex", name: "GPT" }],
+    });
+    deps.normalizeOnboardingModels.mockReturnValue([
+      { key: "openai/gpt-5.1-codex", provider: "openai", label: "GPT" },
+    ]);
+    const app = createApp(deps);
+
+    await request(app).get("/api/models");
+    await Promise.resolve();
+    await Promise.resolve();
 
     const res = await request(app).get("/api/models");
 
@@ -86,10 +118,7 @@ describe("server/routes/models", () => {
         models: [{ key: "openai/gpt-5.1-codex", provider: "openai", label: "GPT" }],
       }),
     );
-    expect(deps.shellCmd).toHaveBeenCalledWith("openclaw models list --all --json", {
-      env: { OPENCLAW_GATEWAY_TOKEN: "token" },
-      timeout: 30000,
-    });
+    expect(deps.shellCmd).toHaveBeenCalledTimes(1);
   });
 
   it("falls back to static models when normalized list is empty", async () => {
@@ -107,7 +136,7 @@ describe("server/routes/models", () => {
       source: "fallback",
       fetchedAt: null,
       stale: false,
-      refreshing: false,
+      refreshing: true,
       models: kFallbackOnboardingModels,
     });
   });
@@ -125,7 +154,7 @@ describe("server/routes/models", () => {
       source: "fallback",
       fetchedAt: null,
       stale: false,
-      refreshing: false,
+      refreshing: true,
       models: kFallbackOnboardingModels,
     });
   });

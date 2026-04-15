@@ -161,6 +161,59 @@ describe("server/model-catalog-cache", () => {
     });
   });
 
+  it("returns fallback immediately on cold cache and refreshes in the background", async () => {
+    const tempRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-model-catalog-cold-"),
+    );
+    const cachePath = path.join(tempRoot, "cache", "model-catalog.json");
+    let resolveShell;
+    const shellCmd = vi.fn(
+      () =>
+        new Promise((resolve) => {
+          resolveShell = resolve;
+        }),
+    );
+    const parseJsonFromNoisyOutput = vi.fn(() => ({
+      models: [{ key: "openai/gpt-fresh", name: "Fresh" }],
+    }));
+    const cache = createModelCatalogCache({
+      cachePath,
+      shellCmd,
+      parseJsonFromNoisyOutput,
+      normalizeOnboardingModels: normalizeModels,
+    });
+
+    const response = await cache.getCatalogResponse();
+
+    expect(response).toEqual({
+      ok: true,
+      source: "fallback",
+      fetchedAt: null,
+      stale: false,
+      refreshing: true,
+      models: kFallbackOnboardingModels,
+    });
+    expect(shellCmd).toHaveBeenCalledTimes(1);
+
+    const secondResponse = await cache.getCatalogResponse();
+    expect(secondResponse.source).toBe("fallback");
+    expect(secondResponse.refreshing).toBe(true);
+    expect(shellCmd).toHaveBeenCalledTimes(1);
+
+    resolveShell("{}");
+    await flushPromises();
+
+    const fresh = await cache.getCatalogResponse();
+    expect(fresh).toEqual({
+      ok: true,
+      source: "openclaw",
+      fetchedAt: expect.any(Number),
+      stale: false,
+      refreshing: false,
+      models: normalizeModels([{ key: "openai/gpt-fresh", name: "Fresh" }]),
+    });
+  });
+
   it("falls back when no cache exists and the CLI load fails", async () => {
     const tempRoot = fs.mkdtempSync(
       path.join(os.tmpdir(), "alphaclaw-model-catalog-fallback-"),
@@ -181,8 +234,11 @@ describe("server/model-catalog-cache", () => {
       source: "fallback",
       fetchedAt: null,
       stale: false,
-      refreshing: false,
+      refreshing: true,
       models: kFallbackOnboardingModels,
     });
+    expect(shellCmd).toHaveBeenCalledTimes(1);
+
+    await flushPromises();
   });
 });
