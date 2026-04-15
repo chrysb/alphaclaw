@@ -449,6 +449,29 @@ describe("server/routes/system", () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it("rejects named cron tokens on PUT /api/sync-cron", async () => {
+    const deps = createSystemDeps();
+    deps.fs.readFileSync.mockReturnValueOnce(
+      JSON.stringify({ enabled: true, schedule: "0 * * * *" }),
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/sync-cron").send({
+      enabled: true,
+      schedule: "0 * * * MON",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "schedule must be a 5-field cron string",
+    });
+    expect(deps.fs.writeFileSync).not.toHaveBeenCalledWith(
+      "/etc/cron.d/openclaw-hourly-sync",
+      expect.anything(),
+    );
+  });
+
   it("updates sync cron config for the managed scheduler on macOS", async () => {
     const deps = createSystemDeps();
     deps.platform = "darwin";
