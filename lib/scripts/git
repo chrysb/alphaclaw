@@ -125,6 +125,12 @@ fi
 
 EFFECTIVE_PWD="$(resolve_effective_pwd "$@")"
 
+if [ -z "${GITHUB_TOKEN:-}" ] && in_openclaw_root "$EFFECTIVE_PWD" && [ -f "$OPENCLAW_REPO_ROOT/.env" ]; then
+  set -a
+  . "$OPENCLAW_REPO_ROOT/.env" >/dev/null 2>&1 || true
+  set +a
+fi
+
 if [ "${ALPHACLAW_GIT_NO_AUTH:-}" = "1" ] || [ -z "${GITHUB_TOKEN:-}" ] || ! in_openclaw_root "$EFFECTIVE_PWD"; then
   exec "$REAL_GIT" "$@"
 fi
