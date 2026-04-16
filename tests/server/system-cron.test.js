@@ -109,6 +109,40 @@ describe("server/system-cron", () => {
     );
   });
 
+  it("darwin: disable stops scheduler; re-enable restarts it", async () => {
+    const fs = createMemoryFs();
+    const openclawDir = "/tmp/openclaw-roundtrip";
+    fs.dirs.add(path.join(openclawDir, "cron"));
+    fs.dirs.add(path.join(openclawDir, ".alphaclaw"));
+    fs.files.set(path.join(openclawDir, "openclaw.json"), "{}");
+    const cronStatus = (installed) =>
+      getSystemCronStatus({ fs, openclawDir, platform: "darwin" }).installed === installed;
+
+    // Initial install — scheduler must be active.
+    await installHourlyGitSyncCron({
+      fs,
+      openclawDir,
+      platform: "darwin",
+      execFileSyncImpl: vi.fn(() => ""),
+    });
+    expect(cronStatus(true)).toBe(true);
+
+    // Simulate a disable (e.g. user toggles sync off).
+    stopManagedScheduler();
+    expect(cronStatus(false)).toBe(true);
+
+    // Re-enable — installHourlyGitSyncCron called again (same code path as
+    // onboarding, which is the only writer of this state today).
+    const reEnableResult = await installHourlyGitSyncCron({
+      fs,
+      openclawDir,
+      platform: "darwin",
+      execFileSyncImpl: vi.fn(() => ""),
+    });
+    expect(reEnableResult).toBe(true);
+    expect(cronStatus(true)).toBe(true);
+  });
+
   it("activates the managed scheduler after macOS install", async () => {
     const fs = createMemoryFs();
     const openclawDir = "/tmp/openclaw";
