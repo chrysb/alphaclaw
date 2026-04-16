@@ -10,7 +10,6 @@
 <p align="center">
   <a href="https://github.com/chrysb/alphaclaw/actions/workflows/ci.yml"><img src="https://github.com/chrysb/alphaclaw/actions/workflows/ci.yml/badge.svg" alt="CI" /></a>
   <a href="https://www.npmjs.com/package/@chrysb/alphaclaw"><img src="https://img.shields.io/npm/v/@chrysb/alphaclaw" alt="npm version" /></a>
-  <a href="https://updates.alphaclaw.md/desktop/prod/alphaclaw-mac-latest.dmg"><img height="28" src="https://img.shields.io/static/v1?label=&message=Download%20for%20macOS&color=000000&logo=apple&logoColor=white" alt="Download for macOS" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue.svg" alt="License: MIT" /></a>
 </p>
 
@@ -21,6 +20,7 @@
 <p align="center">
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
   <a href="https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template"><img src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
+  <a href="https://updates.alphaclaw.md/desktop/prod/alphaclaw-mac-latest.dmg"><img height="40" src="https://img.shields.io/badge/Download%20for%20macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
 </p>
 
 > **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
