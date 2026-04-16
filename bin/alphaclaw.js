@@ -8,7 +8,9 @@ const { execSync } = require("child_process");
 const {
   normalizeGitSyncFilePath,
   validateGitSyncFilePath,
-} = require("../lib/cli/git-sync");
+  resolveRealGitPath,
+  shouldRefreshHourlyGitSyncScript,
+} = require("../lib/cli/git-runtime");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
   migrateManagedInternalFiles,
@@ -271,6 +273,16 @@ const runGitSync = () => {
     return 1;
   }
 
+  const realGitPath = resolveRealGitPath({
+    shimPath: "/usr/local/bin/git",
+  });
+  if (!realGitPath) {
+    console.error(
+      "[alphaclaw] Missing git binary for git-sync; install git in the runtime image",
+    );
+    return 1;
+  }
+
   const originUrl = `https://github.com/${githubRepo}.git`;
   let branch = "main";
   try {
@@ -289,8 +301,8 @@ const runGitSync = () => {
   );
   const runGit = (gitCommand, { withAuth = false } = {}) => {
     const cmd = withAuth
-      ? `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=${quoteArg(askPassPath)} git ${gitCommand}`
-      : `git ${gitCommand}`;
+      ? `GIT_TERMINAL_PROMPT=0 GIT_ASKPASS=${quoteArg(askPassPath)} ${quoteArg(realGitPath)} ${gitCommand}`
+      : `${quoteArg(realGitPath)} ${gitCommand}`;
     return execSync(cmd, {
       cwd: openclawDir,
       stdio: "pipe",
@@ -496,7 +508,9 @@ if (!kSetupPassword) {
 // ---------------------------------------------------------------------------
 
 process.env.OPENCLAW_HOME = rootDir;
+process.env.HOME = rootDir;
 process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
+process.env.OPENCLAW_STATE_DIR = openclawDir;
 process.env.GOG_KEYRING_PASSWORD =
   process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
 
@@ -505,6 +519,39 @@ process.env.GOG_KEYRING_PASSWORD =
 // ---------------------------------------------------------------------------
 
 process.env.XDG_CONFIG_HOME = openclawDir;
+
+const ensureGogCliCompatConfigPath = () => {
+  const configDir = path.join(rootDir, ".config");
+  const compatPath = path.join(configDir, "gogcli");
+  const managedPath = path.join(openclawDir, "gogcli");
+
+  try {
+    fs.mkdirSync(configDir, { recursive: true });
+    if (!fs.existsSync(compatPath)) {
+      fs.symlinkSync(managedPath, compatPath, "dir");
+      console.log(
+        `[alphaclaw] Linked gogcli config path ${compatPath} -> ${managedPath}`,
+      );
+      return;
+    }
+
+    const stat = fs.lstatSync(compatPath);
+    if (!stat.isSymbolicLink()) return;
+    const linkTarget = fs.readlinkSync(compatPath);
+    const resolvedTarget = path.resolve(configDir, linkTarget);
+    if (resolvedTarget !== managedPath) {
+      console.log(
+        `[alphaclaw] gogcli config path already exists at ${compatPath}; leaving existing symlink in place`,
+      );
+    }
+  } catch (error) {
+    console.log(
+      `[alphaclaw] gogcli config path compatibility setup skipped: ${error.message}`,
+    );
+  }
+};
+
+ensureGogCliCompatConfigPath();
 
 const gogInstalled = (() => {
   try {
@@ -548,11 +595,12 @@ try {
     const installedSyncScript = fs.existsSync(hourlyGitSyncPath)
       ? fs.readFileSync(hourlyGitSyncPath, "utf8")
       : "";
-    const shouldInstallSyncScript =
-      !installedSyncScript ||
-      !installedSyncScript.includes("GIT_ASKPASS") ||
-      !installedSyncScript.includes("GITHUB_TOKEN");
-    if (shouldInstallSyncScript && packagedSyncScript.trim()) {
+    if (
+      shouldRefreshHourlyGitSyncScript({
+        packagedSyncScript,
+        installedSyncScript,
+      })
+    ) {
       fs.writeFileSync(hourlyGitSyncPath, packagedSyncScript, { mode: 0o755 });
       console.log("[alphaclaw] Refreshed hourly git sync script");
     }
@@ -863,23 +911,10 @@ try {
   }
 
   if (fs.existsSync(gitShimTemplatePath)) {
-    let realGitPath = "/usr/bin/git";
-    try {
-      const gitCandidates = String(
-        execSync("which -a git", {
-          stdio: ["ignore", "pipe", "ignore"],
-          encoding: "utf8",
-        }),
-      )
-        .split("\n")
-        .map((candidate) => candidate.trim())
-        .filter(Boolean);
-      const normalizedShimDest = path.resolve(gitShimDest);
-      const selectedCandidate = gitCandidates.find(
-        (candidatePath) => path.resolve(candidatePath) !== normalizedShimDest,
-      );
-      if (selectedCandidate) realGitPath = selectedCandidate;
-    } catch {}
+    const realGitPath =
+      resolveRealGitPath({
+        shimPath: gitShimDest,
+      }) || "/usr/bin/git";
 
     const gitShimTemplate = fs.readFileSync(gitShimTemplatePath, "utf8");
     const gitShimContent = gitShimTemplate

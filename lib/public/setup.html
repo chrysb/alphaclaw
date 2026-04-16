@@ -14,7 +14,17 @@
     <link rel="stylesheet" href="./css/shell.css" />
     <link rel="stylesheet" href="./css/explorer.css" />
     <link rel="stylesheet" href="./css/agents.css" />
+    <link rel="stylesheet" href="./css/chat.css" />
     <link rel="stylesheet" href="./css/cron.css" />
+    <script>
+      // Apply saved theme before render to prevent flash.
+      try {
+        var t = localStorage.getItem("alphaclaw.ui.theme");
+        if (t === "system") t = window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+        else if (t !== "dark" && t !== "light") t = "dark";
+        document.documentElement.dataset.theme = t;
+      } catch {}
+    </script>
   </head>
   <body>
     <div id="app"></div>

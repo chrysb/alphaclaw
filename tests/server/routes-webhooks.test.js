@@ -212,4 +212,56 @@ describe("server/routes/webhooks", () => {
     expect(response.body?.webhook?.to).toBe("new-session");
     expect(response.body?.webhook?.agentId).toBe("alpha");
   });
+
+  it("uses the recent request window for webhook health", async () => {
+    const openclawDir = "/tmp/openclaw";
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      }),
+    });
+    createWebhook({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "recent-health",
+    });
+    const app = createApp({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      webhooksDb: {
+        getHookSummaries: () => [
+          {
+            hookName: "recent-health",
+            lastReceived: "2026-04-02T12:00:00.000Z",
+            totalCount: 30,
+            successCount: 25,
+            errorCount: 5,
+            recentTotalCount: 25,
+            recentSuccessCount: 25,
+            recentErrorCount: 0,
+            healthWindowSize: 25,
+          },
+        ],
+        getRequests: () => [],
+        getRequestById: () => null,
+        deleteRequestsByHook: () => 0,
+        createOauthCallback: () => null,
+        getOauthCallbackByHook: () => null,
+        rotateOauthCallback: () => null,
+        deleteOauthCallback: () => 0,
+      },
+    });
+
+    const response = await request(app).get("/api/webhooks");
+
+    expect(response.status).toBe(200);
+    expect(response.body?.webhooks).toHaveLength(1);
+    expect(response.body?.webhooks?.[0]?.errorCount).toBe(5);
+    expect(response.body?.webhooks?.[0]?.recentErrorCount).toBe(0);
+    expect(response.body?.webhooks?.[0]?.healthWindowSize).toBe(25);
+    expect(response.body?.webhooks?.[0]?.health).toBe("green");
+  });
 });

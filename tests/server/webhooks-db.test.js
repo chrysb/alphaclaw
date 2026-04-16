@@ -51,4 +51,43 @@ describe("server/webhooks-db", () => {
 
     fs.rmSync(rootDir, { recursive: true, force: true });
   });
+
+  it("tracks recent health counts separately from all-time totals", () => {
+    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "webhooks-db-health-"));
+    const {
+      initWebhooksDb,
+      insertRequest,
+      getHookSummaries,
+    } = loadWebhooksDb();
+
+    initWebhooksDb({ rootDir });
+
+    for (let index = 0; index < 30; index += 1) {
+      insertRequest({
+        hookName: "recent-health",
+        method: "POST",
+        headers: {},
+        payload: `{"index":${index}}`,
+        payloadTruncated: false,
+        payloadSize: 12,
+        sourceIp: "127.0.0.1",
+        gatewayStatus: index < 5 ? 500 : 200,
+        gatewayBody: "",
+      });
+    }
+
+    const summary = getHookSummaries().find(
+      (item) => item.hookName === "recent-health",
+    );
+
+    expect(summary).toBeTruthy();
+    expect(summary.totalCount).toBe(30);
+    expect(summary.errorCount).toBe(5);
+    expect(summary.recentTotalCount).toBe(25);
+    expect(summary.recentSuccessCount).toBe(25);
+    expect(summary.recentErrorCount).toBe(0);
+    expect(summary.healthWindowSize).toBe(25);
+
+    fs.rmSync(rootDir, { recursive: true, force: true });
+  });
 });

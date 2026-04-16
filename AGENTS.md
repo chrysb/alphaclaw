@@ -23,7 +23,7 @@ Runtime model:
 
 ### Key Technologies
 
-- Node.js 22+ runtime.
+- Node.js 22.14+ runtime.
 - Express-based HTTP API server.
 - `http-proxy` for gateway proxy behavior.
 - OpenClaw CLI/gateway process orchestration.
@@ -87,6 +87,7 @@ Use this release flow when promoting tested beta builds to production:
    - `npm version 0.3.2`
    - `git push && git push --tags`
    - `npm publish` (publishes to `latest`)
+   - Pin both deployment templates on `main` to that release: update `~/Projects/openclaw-railway-template` and `~/Projects/openclaw-render-template` so `@chrysb/alphaclaw` and `openclaw` match AlphaClaw’s `package.json` for the release, run `npm install` in each repo, commit `package.json` and `package-lock.json`, and push. Skipping Render leaves that template on `latest` and causes drift from Railway.
 5. Return templates to production channel:
    - `@chrysb/alphaclaw: "latest"`
 6. Optionally keep beta branch/tag flows active for next release cycle.
@@ -133,6 +134,12 @@ Use this format for any Telegram notices sent from AlphaClaw services (watchdog,
 ## UI Conventions
 
 Use these conventions for all UI work under `lib/public/js` and `lib/public/css`.
+
+### Setup UI bundle (esbuild)
+
+- The browser loads the compiled bundle under `lib/public/dist/` (for example `app.bundle.js` and chunk files), produced by `scripts/build-ui.mjs` (esbuild).
+- **After any UI source change** that should ship in production (`lib/public/js`, `lib/public/css`, or other inputs to the build), run **`npm run build:ui`** so `lib/public/dist/` stays in sync. Verify the app in the browser against the rebuilt bundle when the change is non-trivial.
+- **`npm publish`** runs **`prepack`** → **`npm run build:ui`**, so published packages always include a fresh bundle. Local installs, Docker builds from a git checkout, or commits that include `dist/` still require **`npm run build:ui`** when you change UI sources and expect the built assets to match.
 
 ### Component structure
 
@@ -226,5 +233,3 @@ Use these conventions for all UI work under `lib/public/js` and `lib/public/css`
 - All standalone `localStorage` keys are defined in `lib/public/js/lib/storage-keys.js`. Import keys from this file — never define raw localStorage key strings inline in components.
 - Use the naming convention `alphaclaw.<area>.<purpose>` for new keys (e.g. `alphaclaw.doctor.lastSessionKey`).
 - Keys that live inside the `alphaclaw.ui.settings` JSON blob (e.g. `browseLastPath`, `doctorWarningDismissedUntilMs`) are sub-keys, not standalone localStorage entries — those stay in their consuming file.
-
-For inconsistencies tracking and DRY opportunities, see `lib/setup/core-prompts/UI-DRY-OPPORTUNITIES.md`.

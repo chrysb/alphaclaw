@@ -51,8 +51,18 @@ const createSystemDeps = () => {
       getVersionStatus: vi.fn(async () => ({
         ok: true,
         currentVersion: "0.1.5",
+        currentOpenclawVersion: "1.2.3",
         latestVersion: "0.2.0",
+        latestOpenclawVersion: "1.3.0",
         hasUpdate: true,
+        updateStrategy: {
+          action: "self-update",
+          provider: "self-hosted",
+          label: "This install",
+          description: "Update in place",
+          steps: [],
+          primaryActionLabel: "Update now",
+        },
       })),
       updateAlphaclaw: vi.fn(async () => ({
         status: 200,
@@ -402,12 +412,20 @@ describe("server/routes/system", () => {
     const res = await request(app).get("/api/alphaclaw/version");
 
     expect(res.status).toBe(200);
-    expect(res.body).toEqual({
-      ok: true,
-      currentVersion: "0.1.5",
-      latestVersion: "0.2.0",
-      hasUpdate: true,
-    });
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        currentVersion: "0.1.5",
+        currentOpenclawVersion: "1.2.3",
+        latestVersion: "0.2.0",
+        latestOpenclawVersion: "1.3.0",
+        hasUpdate: true,
+        updateStrategy: expect.objectContaining({
+          action: "self-update",
+          provider: "self-hosted",
+        }),
+      }),
+    );
     expect(deps.alphaclawVersionService.getVersionStatus).toHaveBeenCalledWith(false);
   });
 
@@ -421,6 +439,7 @@ describe("server/routes/system", () => {
   });
 
   it("returns update result and schedules restart on POST /api/alphaclaw/update", async () => {
+    vi.useFakeTimers();
     const deps = createSystemDeps();
     const app = createApp(deps);
 
@@ -433,6 +452,33 @@ describe("server/routes/system", () => {
       restarting: true,
     });
     expect(deps.alphaclawVersionService.updateAlphaclaw).toHaveBeenCalledTimes(1);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(deps.alphaclawVersionService.restartProcess).toHaveBeenCalledTimes(1);
+    vi.useRealTimers();
+  });
+
+  it("does not schedule a local restart for managed updates", async () => {
+    vi.useFakeTimers();
+    const deps = createSystemDeps();
+    deps.alphaclawVersionService.updateAlphaclaw.mockResolvedValue({
+      status: 200,
+      body: {
+        ok: true,
+        previousVersion: "0.1.5",
+        latestVersion: "0.2.0",
+        latestOpenclawVersion: "1.3.0",
+        restarting: true,
+        managedUpdate: true,
+      },
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/alphaclaw/update");
+
+    expect(res.status).toBe(200);
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(deps.alphaclawVersionService.restartProcess).not.toHaveBeenCalled();
+    vi.useRealTimers();
   });
 
   it("returns error status when alphaclaw update fails", async () => {
@@ -466,7 +512,7 @@ describe("server/routes/system", () => {
     });
   });
 
-  it("hides internal hook, cron, and doctor sessions from GET /api/agent/sessions", async () => {
+  it("returns raw session metadata on GET /api/agent/sessions", async () => {
     const deps = createSystemDeps();
     deps.fs.readFileSync.mockImplementation((targetPath) => {
       if (targetPath === "/tmp/openclaw/openclaw.json") {
@@ -506,7 +552,6 @@ describe("server/routes/system", () => {
             key: "agent:morpheus:telegram:direct:1050",
             sessionId: "morpheus-direct-session",
             updatedAt: 11,
-            label: "Morpheus Person id: 1050",
           },
           { key: "agent:main:hook:abc", sessionId: "hook-session", updatedAt: 9 },
           { key: "agent:main:cron:abc", sessionId: "cron-session", updatedAt: 8 },
@@ -515,7 +560,6 @@ describe("server/routes/system", () => {
             key: "agent:main:telegram:direct:1050",
             sessionId: "",
             updatedAt: 6,
-            label: "Chrys (@chrysb) id: 1050",
           },
           {
             key: "agent:main:telegram:group:-1003709908795:topic:4011",
@@ -540,7 +584,11 @@ describe("server/routes/system", () => {
         key: "agent:morpheus:telegram:direct:1050",
         sessionId: "morpheus-direct-session",
         updatedAt: 11,
-        label: "Morpheus Agent - Telegram DM (Mac)",
+        agentId: "morpheus",
+        agentLabel: "Morpheus Agent",
+        channel: "telegram",
+        groupName: "",
+        topicName: "",
         replyChannel: "telegram",
         replyTo: "1050",
       },
@@ -548,7 +596,47 @@ describe("server/routes/system", () => {
         key: "agent:main:main",
         sessionId: "main-session",
         updatedAt: 10,
-        label: "Main Agent - Main Thread",
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "",
+        groupName: "",
+        topicName: "",
+        replyChannel: "",
+        replyTo: "",
+      },
+      {
+        key: "agent:main:hook:abc",
+        sessionId: "hook-session",
+        updatedAt: 9,
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "",
+        groupName: "",
+        topicName: "",
+        replyChannel: "",
+        replyTo: "",
+      },
+      {
+        key: "agent:main:cron:abc",
+        sessionId: "cron-session",
+        updatedAt: 8,
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "",
+        groupName: "",
+        topicName: "",
+        replyChannel: "",
+        replyTo: "",
+      },
+      {
+        key: "agent:main:doctor:42",
+        sessionId: "doctor-session",
+        updatedAt: 7,
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "",
+        groupName: "",
+        topicName: "",
         replyChannel: "",
         replyTo: "",
       },
@@ -556,7 +644,11 @@ describe("server/routes/system", () => {
         key: "agent:main:telegram:direct:1050",
         sessionId: "",
         updatedAt: 6,
-        label: "Main Agent - Telegram DM (Tester)",
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "telegram",
+        groupName: "",
+        topicName: "",
         replyChannel: "telegram",
         replyTo: "1050",
       },
@@ -564,7 +656,11 @@ describe("server/routes/system", () => {
         key: "agent:main:telegram:group:-1003709908795:topic:4011",
         sessionId: "topic-session",
         updatedAt: 5,
-        label: "Main Agent - Tester AlphaClaw · Rosebud",
+        agentId: "main",
+        agentLabel: "Main Agent",
+        channel: "telegram",
+        groupName: "AlphaClaw",
+        topicName: "Rosebud",
         replyChannel: "telegram",
         replyTo: "-1003709908795:4011",
       },
