@@ -156,4 +156,62 @@ describe("server/watchdog-notify", () => {
       "[watchdog] slack notification failed for alerts/U_ALERTS_MISSING: missing SLACK_BOT_TOKEN_ALERTS",
     );
   });
+
+  it("delivers whatsapp watchdog notices via clawCmd message send for owner self chat", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "sent", stderr: "" }));
+    const notifier = createWatchdogNotifier({
+      clawCmd,
+      readEnvFile: () => [
+        { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+      ],
+    });
+
+    const result = await notifier.notify("Gateway healthy again");
+
+    expect(result.ok).toBe(true);
+    expect(result.sent).toBe(1);
+    expect(result.channels.whatsapp).toEqual({
+      sent: 1,
+      failed: 0,
+      skipped: false,
+      targets: 1,
+    });
+    expect(clawCmd).toHaveBeenCalledWith(
+      expect.stringContaining("message send --channel whatsapp"),
+      expect.objectContaining({ quiet: true, timeoutMs: 30000 }),
+    );
+    expect(clawCmd).toHaveBeenCalledWith(
+      expect.stringContaining(
+        '--target "+15551234567" --message "Gateway healthy again"',
+      ),
+      expect.any(Object),
+    );
+  });
+
+  it("counts whatsapp watchdog notices as failed when clawCmd returns ok false", async () => {
+    const clawCmd = vi.fn(async () => ({
+      ok: false,
+      stdout: "",
+      stderr: "No active WhatsApp Web listener",
+      code: 1,
+    }));
+    const notifier = createWatchdogNotifier({
+      clawCmd,
+      readEnvFile: () => [
+        { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+      ],
+    });
+
+    const result = await notifier.notify("Gateway healthy again");
+
+    expect(result.ok).toBe(false);
+    expect(result.sent).toBe(0);
+    expect(result.failed).toBe(1);
+    expect(result.channels.whatsapp).toEqual({
+      sent: 0,
+      failed: 1,
+      skipped: false,
+      targets: 1,
+    });
+  });
 });

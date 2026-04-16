@@ -418,4 +418,198 @@ describe("server/gateway restart behavior", () => {
       },
     });
   });
+
+  it("treats whatsapp owner-number self chat as paired when saved creds exist", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+    fs.existsSync = vi.fn(() => true);
+    fs.readdirSync = vi.fn(() => []);
+    fs.readFileSync = vi.fn((targetPath, ...args) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({
+          channels: {
+            whatsapp: {
+              enabled: true,
+              accounts: {
+                default: {
+                  name: "WhatsApp",
+                  dmPolicy: "pairing",
+                },
+              },
+            },
+          },
+        });
+      }
+      if (targetPath === `${OPENCLAW_DIR}/credentials/whatsapp/default/creds.json`) {
+        return "{}";
+      }
+      return originalReadFileSync(targetPath, ...args);
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    expect(gateway.getChannelStatus()).toEqual({
+      whatsapp: {
+        status: "paired",
+        paired: 1,
+        accounts: {
+          default: { status: "paired", paired: 1 },
+        },
+      },
+    });
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
+
+  it("keeps whatsapp configured when owner number exists but saved creds do not", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+      fs.existsSync = vi.fn(() => true);
+      fs.readdirSync = vi.fn(() => []);
+      fs.readFileSync = vi.fn((targetPath, ...args) => {
+        if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+          return JSON.stringify({
+            channels: {
+              whatsapp: {
+                enabled: true,
+                accounts: {
+                  default: {
+                    name: "WhatsApp",
+                    dmPolicy: "pairing",
+                  },
+                },
+              },
+            },
+          });
+        }
+        return originalReadFileSync(targetPath, ...args);
+      });
+      delete require.cache[modulePath];
+      const gateway = require(modulePath);
+
+      expect(gateway.getChannelStatus()).toEqual({
+        whatsapp: {
+          status: "configured",
+          paired: 0,
+          accounts: {
+            default: { status: "configured", paired: 0 },
+          },
+        },
+      });
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
+
+  it("does not treat whatsapp allowFrom owner placeholder as paired without saved creds", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+      fs.existsSync = vi.fn(() => true);
+      fs.readdirSync = vi.fn(() => []);
+      fs.readFileSync = vi.fn((targetPath, ...args) => {
+        if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+          return JSON.stringify({
+            channels: {
+              whatsapp: {
+                enabled: true,
+                accounts: {
+                  default: {
+                    name: "WhatsApp",
+                    allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                    groupAllowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                    dmPolicy: "allowlist",
+                    groupPolicy: "allowlist",
+                    selfChatMode: true,
+                  },
+                },
+              },
+            },
+          });
+        }
+        return originalReadFileSync(targetPath, ...args);
+      });
+      delete require.cache[modulePath];
+      const gateway = require(modulePath);
+
+      expect(gateway.getChannelStatus()).toEqual({
+        whatsapp: {
+          status: "configured",
+          paired: 0,
+          accounts: {
+            default: { status: "configured", paired: 0 },
+          },
+        },
+      });
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
+
+  it("treats whatsapp allowFrom owner placeholder as paired when saved creds exist", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+      fs.existsSync = vi.fn(() => true);
+      fs.readdirSync = vi.fn(() => []);
+      fs.readFileSync = vi.fn((targetPath, ...args) => {
+        if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+          return JSON.stringify({
+            channels: {
+              whatsapp: {
+                enabled: true,
+                accounts: {
+                  default: {
+                    name: "WhatsApp",
+                    allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                    groupAllowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                    dmPolicy: "allowlist",
+                    groupPolicy: "allowlist",
+                    selfChatMode: true,
+                  },
+                },
+              },
+            },
+          });
+        }
+        if (targetPath === `${OPENCLAW_DIR}/credentials/whatsapp/default/creds.json`) {
+          return "{}";
+        }
+        return originalReadFileSync(targetPath, ...args);
+      });
+      delete require.cache[modulePath];
+      const gateway = require(modulePath);
+
+      expect(gateway.getChannelStatus()).toEqual({
+        whatsapp: {
+          status: "paired",
+          paired: 1,
+          accounts: {
+            default: { status: "paired", paired: 1 },
+          },
+        },
+      });
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
 });

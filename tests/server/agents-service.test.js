@@ -7,7 +7,21 @@ const buildFsMock = ({ initialConfig = {}, fileContents = {} } = {}) => {
   const extraFiles = new Map(Object.entries(fileContents));
   return {
     existsSync: vi.fn(
-      (targetPath) => files.has(targetPath) || directories.has(targetPath),
+      (targetPath) => {
+        const normalizedTargetPath = String(targetPath || "");
+        if (files.has(normalizedTargetPath) || directories.has(normalizedTargetPath)) {
+          return true;
+        }
+        if (extraFiles.has(normalizedTargetPath)) {
+          return true;
+        }
+        const prefix = normalizedTargetPath.endsWith("/")
+          ? normalizedTargetPath
+          : `${normalizedTargetPath}/`;
+        return Array.from(extraFiles.keys()).some((filePath) =>
+          String(filePath || "").startsWith(prefix),
+        );
+      },
     ),
     mkdirSync: vi.fn((targetPath) => {
       directories.add(targetPath);
@@ -31,7 +45,7 @@ const buildFsMock = ({ initialConfig = {}, fileContents = {} } = {}) => {
       if (extraFiles.has(normalizedTargetPath)) {
         return String(extraFiles.get(normalizedTargetPath));
       }
-      return JSON.stringify(currentConfig);
+      throw new Error(`ENOENT: ${normalizedTargetPath}`);
     }),
     writeFileSync: vi.fn((targetPath, content) => {
       if (String(targetPath || "").endsWith("openclaw.json")) {
@@ -548,6 +562,200 @@ describe("server/agents/service", () => {
             envKey: "TELEGRAM_BOT_TOKEN_TESTER",
             token: "",
             boundAgentId: "main",
+            paired: 1,
+            status: "paired",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("treats whatsapp owner-number self chat as paired when saved creds exist", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        channels: {
+          whatsapp: {
+            enabled: true,
+            accounts: {
+              default: {
+                name: "WhatsApp",
+                dmPolicy: "pairing",
+              },
+            },
+          },
+        },
+      },
+      fileContents: {
+        "/tmp/openclaw/credentials/whatsapp/default/creds.json": "{}",
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: () => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }],
+    });
+
+    expect(service.listConfiguredChannelAccounts()).toEqual([
+      {
+        channel: "whatsapp",
+        accounts: [
+          {
+            id: "default",
+            name: "WhatsApp",
+            envKey: "WHATSAPP_OWNER_NUMBER",
+            token: "********",
+            boundAgentId: "",
+            paired: 1,
+            status: "paired",
+          },
+        ],
+      },
+    ]);
+  });
+
+  it("keeps whatsapp configured when owner number exists but saved creds do not", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+      const fsMock = buildFsMock({
+        initialConfig: {
+          channels: {
+            whatsapp: {
+              enabled: true,
+              accounts: {
+                default: {
+                  name: "WhatsApp",
+                  dmPolicy: "pairing",
+                },
+              },
+            },
+          },
+        },
+      });
+      const service = createAgentsService({
+        fs: fsMock,
+        OPENCLAW_DIR: "/tmp/openclaw",
+        readEnvFile: () => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }],
+      });
+
+      expect(service.listConfiguredChannelAccounts()).toEqual([
+        {
+          channel: "whatsapp",
+          accounts: [
+            {
+              id: "default",
+              name: "WhatsApp",
+              envKey: "WHATSAPP_OWNER_NUMBER",
+              token: "********",
+              boundAgentId: "",
+              paired: 0,
+              status: "configured",
+            },
+          ],
+        },
+      ]);
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
+
+  it("does not treat whatsapp allowFrom owner placeholder as paired without saved creds", () => {
+    const previousOwnerNumber = process.env.WHATSAPP_OWNER_NUMBER;
+    process.env.WHATSAPP_OWNER_NUMBER = "+15551234567";
+    try {
+      const fsMock = buildFsMock({
+        initialConfig: {
+          channels: {
+            whatsapp: {
+              enabled: true,
+              accounts: {
+                default: {
+                  name: "WhatsApp",
+                  allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                  groupAllowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                  dmPolicy: "allowlist",
+                  groupPolicy: "allowlist",
+                  selfChatMode: true,
+                },
+              },
+            },
+          },
+        },
+      });
+      const service = createAgentsService({
+        fs: fsMock,
+        OPENCLAW_DIR: "/tmp/openclaw",
+        readEnvFile: () => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }],
+      });
+
+      expect(service.listConfiguredChannelAccounts()).toEqual([
+        {
+          channel: "whatsapp",
+          accounts: [
+            {
+              id: "default",
+              name: "WhatsApp",
+              envKey: "WHATSAPP_OWNER_NUMBER",
+              token: "********",
+              boundAgentId: "",
+              paired: 0,
+              status: "configured",
+            },
+          ],
+        },
+      ]);
+    } finally {
+      if (previousOwnerNumber === undefined) {
+        delete process.env.WHATSAPP_OWNER_NUMBER;
+      } else {
+        process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
+      }
+    }
+  });
+
+  it("treats whatsapp allowFrom owner placeholder as paired when saved creds exist", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        channels: {
+          whatsapp: {
+            enabled: true,
+            accounts: {
+              default: {
+                name: "WhatsApp",
+                allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                groupAllowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+                dmPolicy: "allowlist",
+                groupPolicy: "allowlist",
+                selfChatMode: true,
+              },
+            },
+          },
+        },
+      },
+      fileContents: {
+        "/tmp/openclaw/credentials/whatsapp/default/creds.json": "{}",
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: () => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }],
+    });
+
+    expect(service.listConfiguredChannelAccounts()).toEqual([
+      {
+        channel: "whatsapp",
+        accounts: [
+          {
+            id: "default",
+            name: "WhatsApp",
+            envKey: "WHATSAPP_OWNER_NUMBER",
+            token: "********",
+            boundAgentId: "",
             paired: 1,
             status: "paired",
           },
@@ -1408,6 +1616,232 @@ describe("server/agents/service", () => {
     );
   });
 
+  it("creates a whatsapp channel account with allowlist defaults", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const restartGateway = vi.fn(async () => {});
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile,
+      reloadEnv,
+      restartGateway,
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    const result = await service.createChannelAccount({
+      provider: "whatsapp",
+      name: "WhatsApp",
+      accountId: "default",
+      token: "+15551234567",
+      agentId: "main",
+    });
+
+    expect(result).toMatchObject({
+      channel: "whatsapp",
+      account: {
+        id: "default",
+        name: "WhatsApp",
+        envKey: "WHATSAPP_OWNER_NUMBER",
+      },
+      binding: {
+        agentId: "main",
+        match: { channel: "whatsapp", accountId: "default" },
+      },
+    });
+    expect(writeEnvFile).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+      ]),
+    );
+    expect(reloadEnv).toHaveBeenCalled();
+    expect(restartGateway).toHaveBeenCalled();
+    const savedConfig = fsMock.readConfig();
+    expect(savedConfig.channels?.whatsapp?.accounts?.default).toMatchObject({
+      name: "WhatsApp",
+      dmPolicy: "allowlist",
+      groupPolicy: "allowlist",
+      selfChatMode: true,
+    });
+  });
+
+  it("prevents creating multiple whatsapp channel accounts", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          whatsapp: {
+            enabled: true,
+            defaultAccount: "default",
+            accounts: {
+              default: {
+                allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+              },
+            },
+          },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => [{ key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" }]),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.createChannelAccount({
+        provider: "whatsapp",
+        name: "WhatsApp 2",
+        accountId: "alerts",
+        token: "+15557654321",
+        agentId: "main",
+      }),
+    ).rejects.toThrow("WhatsApp supports a single channel account");
+  });
+
+  it("runs channel account login for whatsapp", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {},
+    });
+    const clawCmd = vi.fn(async () => ({
+      ok: true,
+      stdout: "QR code displayed",
+      stderr: "",
+    }));
+    const restartGateway = vi.fn(async () => {});
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway,
+      clawCmd,
+    });
+
+    const result = await service.runChannelAccountLogin({
+      provider: "whatsapp",
+      accountId: "default",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.completed).toBe(true);
+    expect(clawCmd).toHaveBeenCalledWith(
+      expect.stringContaining("channels login"),
+      expect.objectContaining({ quiet: true }),
+    );
+    expect(restartGateway).not.toHaveBeenCalled();
+  });
+
+  it("does not restart gateway when whatsapp login is not complete", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {},
+    });
+    const clawCmd = vi.fn(async () => ({
+      ok: false,
+      stdout: "Waiting for WhatsApp connection...",
+      stderr: "",
+    }));
+    const restartGateway = vi.fn(async () => {});
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway,
+      clawCmd,
+    });
+
+    const result = await service.runChannelAccountLogin({
+      provider: "whatsapp",
+      accountId: "default",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.completed).toBe(false);
+    expect(restartGateway).not.toHaveBeenCalled();
+  });
+
+  it("reports whatsapp login linked status when saved creds exist", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {},
+      fileContents: {
+        "/test/.openclaw/credentials/whatsapp/default/creds.json": "{}",
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+    });
+
+    expect(
+      service.getChannelAccountLoginStatus({
+        provider: "whatsapp",
+        accountId: "default",
+      }),
+    ).toEqual({
+      provider: "whatsapp",
+      accountId: "default",
+      linked: true,
+    });
+  });
+
+  it("reports whatsapp login unlinked status when saved creds do not exist", () => {
+    const fsMock = buildFsMock({
+      initialConfig: {},
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+    });
+
+    expect(
+      service.getChannelAccountLoginStatus({
+        provider: "whatsapp",
+        accountId: "default",
+      }),
+    ).toEqual({
+      provider: "whatsapp",
+      accountId: "default",
+      linked: false,
+    });
+  });
+
+  it("rejects channel login for non-whatsapp providers", async () => {
+    const fsMock = buildFsMock({ initialConfig: {} });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.runChannelAccountLogin({
+        provider: "telegram",
+        accountId: "default",
+      }),
+    ).rejects.toThrow("Channel login is currently only supported for WhatsApp");
+  });
+
   it("updates channel account name and bound agent", () => {
     const fsMock = buildFsMock({
       initialConfig: {
@@ -2046,6 +2480,112 @@ describe("server/agents/service", () => {
           allow: ["discord"],
           entries: {
             discord: { enabled: false },
+          },
+        },
+        bindings: [],
+      }),
+    );
+  });
+
+  it("deletes whatsapp channels via channel cli and disables the plugin entry", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+        channels: {
+          whatsapp: {
+            enabled: true,
+            dmPolicy: "pairing",
+            groupPolicy: "allowlist",
+            debounceMs: 0,
+            mediaMaxMb: 50,
+          },
+        },
+        plugins: {
+          allow: ["whatsapp"],
+          entries: {
+            whatsapp: { enabled: true },
+          },
+        },
+        bindings: [
+          {
+            agentId: "main",
+            match: { channel: "whatsapp", accountId: "default" },
+          },
+        ],
+      },
+      fileContents: {
+        "/tmp/openclaw/credentials/creds.json": "{}",
+        "/tmp/openclaw/credentials/creds.json.bak": "{}",
+        "/tmp/openclaw/credentials/session-foo.json": "{}",
+      },
+    });
+    const readEnvFile = vi.fn(() => [
+      { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+    ]);
+    const writeEnvFile = vi.fn();
+    const reloadEnv = vi.fn();
+    const clawCmd = vi.fn(async () => {
+      const config = fsMock.readConfig();
+      delete config.channels.whatsapp;
+      fsMock.writeFileSync(
+        "/tmp/openclaw/openclaw.json",
+        JSON.stringify(config),
+      );
+      return { ok: true, stdout: "", stderr: "" };
+    });
+    const restartGateway = vi.fn(async () => {});
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile,
+      writeEnvFile,
+      reloadEnv,
+      clawCmd,
+      restartGateway,
+    });
+
+    const result = await service.deleteChannelAccount({
+      provider: "whatsapp",
+      accountId: "default",
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(clawCmd).toHaveBeenCalledWith(
+      "channels remove --channel 'whatsapp' --account 'default' --delete",
+      { quiet: true, timeoutMs: 30000 },
+    );
+    expect(writeEnvFile).toHaveBeenCalledWith([]);
+    expect(reloadEnv).toHaveBeenCalled();
+    expect(restartGateway).toHaveBeenCalledTimes(1);
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/whatsapp/default",
+      { recursive: true, force: true },
+    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/whatsapp",
+      { recursive: true, force: true },
+    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/creds.json",
+      { force: true },
+    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/creds.json.bak",
+      { force: true },
+    );
+    expect(fsMock.rmSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/credentials/session-foo.json",
+      { force: true },
+    );
+    expect(fsMock.readConfig()).toEqual(
+      expect.objectContaining({
+        channels: {},
+        plugins: {
+          allow: ["whatsapp"],
+          entries: {
+            whatsapp: { enabled: false },
           },
         },
         bindings: [],
