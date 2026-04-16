@@ -6,6 +6,7 @@ const {
 const {
   getSystemCronStatus,
   isValidCronSchedule,
+  kSystemCronPath,
   stopManagedScheduler,
 } = require("../../lib/server/system-cron");
 
@@ -76,6 +77,36 @@ describe("server/system-cron", () => {
   it("rejects named cron tokens", () => {
     expect(isValidCronSchedule("0 * * * MON")).toBe(false);
     expect(isValidCronSchedule("0 * * * *")).toBe(true);
+  });
+
+  it("writes /etc/cron.d/openclaw-hourly-sync on linux install", async () => {
+    const fs = createMemoryFs();
+    const openclawDir = "/tmp/openclaw-linux";
+    fs.dirs.add(path.join(openclawDir, "cron"));
+    fs.dirs.add(path.join(openclawDir, ".alphaclaw"));
+    fs.files.set(path.join(openclawDir, "openclaw.json"), "{}");
+
+    const result = await installHourlyGitSyncCron({
+      fs,
+      openclawDir,
+      platform: "linux",
+      execFileSyncImpl: vi.fn(() => ""),
+    });
+
+    expect(result).toBe(true);
+    expect(fs.files.has(kSystemCronPath)).toBe(true);
+    const cronContent = fs.files.get(kSystemCronPath);
+    expect(cronContent).toContain("0 * * * *");
+    expect(
+      getSystemCronStatus({ fs, openclawDir, platform: "linux" }),
+    ).toEqual(
+      expect.objectContaining({
+        enabled: true,
+        installed: true,
+        platform: "linux",
+        installMethod: "system_cron",
+      }),
+    );
   });
 
   it("activates the managed scheduler after macOS install", async () => {
