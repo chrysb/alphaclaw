@@ -129,6 +129,58 @@ describe("server/alphaclaw-version", () => {
     );
   });
 
+  it("derives the OpenClaw version from the template-pinned AlphaClaw package when the template omits a direct openclaw pin", async () => {
+    const fetchMock = vi.fn(async (url) => {
+      if (
+        String(url).includes(
+          "https://raw.githubusercontent.com/chrysb/openclaw-railway-template/main/package.json",
+        )
+      ) {
+        return createFetchResponse({
+          body: {
+            dependencies: {
+              "@chrysb/alphaclaw": "0.9.2",
+            },
+          },
+        });
+      }
+
+      expect(url).toBe("https://registry.npmjs.org/@chrysb%2falphaclaw");
+      return createFetchResponse({
+        body: {
+          "dist-tags": { latest: "0.9.6" },
+          versions: {
+            "0.9.2": {
+              dependencies: {
+                openclaw: "2026.4.11",
+              },
+            },
+            "0.9.6": {
+              dependencies: {
+                openclaw: "2026.4.14",
+              },
+            },
+          },
+        },
+      });
+    });
+    const { service } = createService({
+      env: { RAILWAY_ENVIRONMENT: "production" },
+      readOpenclawVersion: () => "2026.4.5",
+      fetchMock,
+    });
+
+    const status = await service.getVersionStatus(true);
+
+    expect(status).toEqual(
+      expect.objectContaining({
+        ok: true,
+        latestVersion: "0.9.2",
+        latestOpenclawVersion: "2026.4.11",
+      }),
+    );
+  });
+
   it("includes a direct Railway dashboard link when project metadata is available", async () => {
     const fetchMock = vi.fn(async () =>
       createFetchResponse({
