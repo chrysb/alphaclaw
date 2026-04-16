@@ -143,6 +143,46 @@ describe("server/system-cron", () => {
     expect(cronStatus(true)).toBe(true);
   });
 
+  it("return value equals getSystemCronStatus().installed on darwin", async () => {
+    const fs = createMemoryFs();
+    const openclawDir = "/tmp/openclaw-retval-darwin";
+    fs.dirs.add(path.join(openclawDir, "cron"));
+    fs.dirs.add(path.join(openclawDir, ".alphaclaw"));
+    fs.files.set(path.join(openclawDir, "openclaw.json"), "{}");
+
+    const result = await installHourlyGitSyncCron({
+      fs,
+      openclawDir,
+      platform: "darwin",
+      execFileSyncImpl: vi.fn(() => ""),
+    });
+
+    const liveStatus = getSystemCronStatus({ fs, openclawDir, platform: "darwin" });
+    // Return value must be the precise runtime postcondition, not a
+    // broadened expression like (installed || (darwin && enabled)).
+    expect(result).toBe(liveStatus.installed);
+    expect(result).toBe(true);
+  });
+
+  it("return value equals getSystemCronStatus().installed on linux", async () => {
+    const fs = createMemoryFs();
+    const openclawDir = "/tmp/openclaw-retval-linux";
+    fs.dirs.add(path.join(openclawDir, "cron"));
+    fs.dirs.add(path.join(openclawDir, ".alphaclaw"));
+    fs.files.set(path.join(openclawDir, "openclaw.json"), "{}");
+
+    const result = await installHourlyGitSyncCron({
+      fs,
+      openclawDir,
+      platform: "linux",
+      execFileSyncImpl: vi.fn(() => ""),
+    });
+
+    const liveStatus = getSystemCronStatus({ fs, openclawDir, platform: "linux" });
+    expect(result).toBe(liveStatus.installed);
+    expect(result).toBe(true);
+  });
+
   it("activates the managed scheduler after macOS install", async () => {
     const fs = createMemoryFs();
     const openclawDir = "/tmp/openclaw";
