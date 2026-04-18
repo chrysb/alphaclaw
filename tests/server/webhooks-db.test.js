@@ -8,20 +8,37 @@ const loadWebhooksDb = () => {
   return require(modulePath);
 };
 
+let currentWebhooksDb = null;
+let currentRootDir = "";
+
+const createWebhooksDbContext = (prefix) => {
+  currentRootDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  currentWebhooksDb = loadWebhooksDb();
+  currentWebhooksDb.initWebhooksDb({ rootDir: currentRootDir });
+  return currentWebhooksDb;
+};
+
 describe("server/webhooks-db", () => {
+  afterEach(() => {
+    if (currentWebhooksDb?.closeWebhooksDb) {
+      currentWebhooksDb.closeWebhooksDb();
+      currentWebhooksDb = null;
+    }
+    if (currentRootDir) {
+      fs.rmSync(currentRootDir, { recursive: true, force: true });
+      currentRootDir = "";
+    }
+  });
+
   it("creates, rotates, marks usage, and deletes oauth callbacks", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "webhooks-db-oauth-"));
     const {
-      initWebhooksDb,
       createOauthCallback,
       getOauthCallbackByHook,
       getOauthCallbackById,
       rotateOauthCallback,
       markOauthCallbackUsed,
       deleteOauthCallback,
-    } = loadWebhooksDb();
-
-    initWebhooksDb({ rootDir });
+    } = createWebhooksDbContext("webhooks-db-oauth-");
 
     const created = createOauthCallback({ hookName: "schwab-oauth" });
     expect(created).toBeTruthy();
@@ -48,19 +65,13 @@ describe("server/webhooks-db", () => {
     const deletedRows = deleteOauthCallback("schwab-oauth");
     expect(deletedRows).toBe(1);
     expect(getOauthCallbackByHook("schwab-oauth")).toBeNull();
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("tracks recent health counts separately from all-time totals", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "webhooks-db-health-"));
     const {
-      initWebhooksDb,
       insertRequest,
       getHookSummaries,
-    } = loadWebhooksDb();
-
-    initWebhooksDb({ rootDir });
+    } = createWebhooksDbContext("webhooks-db-health-");
 
     for (let index = 0; index < 30; index += 1) {
       insertRequest({
@@ -87,7 +98,5 @@ describe("server/webhooks-db", () => {
     expect(summary.recentSuccessCount).toBe(25);
     expect(summary.recentErrorCount).toBe(0);
     expect(summary.healthWindowSize).toBe(25);
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 });
