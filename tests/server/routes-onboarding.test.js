@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const express = require("express");
@@ -601,6 +602,7 @@ describe("server/routes/onboarding", () => {
     expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
     expect(onboardCall[1]).toMatchObject({
       env: expect.objectContaining({
+        HOME: expect.any(String),
         OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
         OPENCLAW_STATE_DIR: "/tmp/openclaw",
         XDG_CONFIG_HOME: "/tmp/openclaw",
@@ -1013,6 +1015,103 @@ describe("server/routes/onboarding", () => {
       `${tempDir}/workspace`,
       deps.constants.WORKSPACE_DIR,
     );
+  });
+
+  it("allows import apply when OPENCLAW_DIR already has partial runtime state", async () => {
+    const deps = createBaseDeps();
+    const rootDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-routes-import-"),
+    );
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-import-route-"),
+    );
+    const openclawDir = path.join(rootDir, ".openclaw");
+    const workspaceDir = path.join(openclawDir, "workspace");
+
+    deps.fs = fs;
+    deps.constants = {
+      ...deps.constants,
+      OPENCLAW_DIR: openclawDir,
+      WORKSPACE_DIR: workspaceDir,
+      kOnboardingMarkerPath: path.join(rootDir, "onboarded.json"),
+    };
+
+    try {
+      fs.mkdirSync(path.join(openclawDir, "agents", "main", "agent"), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(openclawDir, "exec-approvals.json"),
+        JSON.stringify({ version: 1 }, null, 2),
+      );
+      fs.writeFileSync(
+        path.join(openclawDir, "agents", "main", "agent", "auth-profiles.json"),
+        JSON.stringify({ version: 1, profiles: {} }, null, 2),
+      );
+
+      fs.writeFileSync(
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify(
+          {
+            channels: {
+              $include: "channels.json",
+            },
+            hooks: {
+              token: "repo-hook-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      fs.writeFileSync(
+        path.join(tempDir, "channels.json"),
+        JSON.stringify(
+          {
+            telegram: {
+              botToken: "${TELEGRAM_BOT_TOKEN}",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const app = createApp(deps);
+      const res = await request(app).post("/api/onboard/import/apply").send({
+        tempDir,
+        approvedSecrets: [],
+        skipSecretExtraction: true,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        ok: true,
+        sourceLayout: {
+          kind: "full-openclaw-root",
+          supported: true,
+          promoteSourceSubdir: "",
+        },
+      });
+      expect(
+        JSON.parse(fs.readFileSync(path.join(openclawDir, "channels.json"), "utf8")),
+      ).toEqual({
+        telegram: {
+          botToken: "${TELEGRAM_BOT_TOKEN}",
+        },
+      });
+      expect(fs.existsSync(path.join(openclawDir, "exec-approvals.json"))).toBe(
+        true,
+      );
+      expect(
+        fs.existsSync(
+          path.join(openclawDir, "agents", "main", "agent", "auth-profiles.json"),
+        ),
+      ).toBe(true);
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("returns unresolved placeholder review data after import apply", async () => {

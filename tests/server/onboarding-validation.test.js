@@ -39,4 +39,19 @@ describe("onboarding/validation", () => {
     expect(res.ok).toBe(false);
     expect(res.error).toBe('Missing credentials for selected provider "openrouter"');
   });
+
+  it("accepts whatsapp owner number as the required channel credential", () => {
+    const res = validateOnboardingInput({
+      vars: [
+        { key: "GITHUB_TOKEN", value: "ghp_test" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+        { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+        { key: "OPENAI_API_KEY", value: "sk-test-123" },
+      ],
+      modelKey: "openai/gpt-5.1-codex",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => false,
+    });
+    expect(res.ok).toBe(true);
+  });
 });
