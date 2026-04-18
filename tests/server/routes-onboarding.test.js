@@ -417,16 +417,15 @@ describe("server/routes/onboarding", () => {
       cmd.startsWith("openclaw onboard "),
     );
     expect(onboardCall).toBeTruthy();
-    expect(onboardCall[1]).toEqual(
-      expect.objectContaining({
-        env: expect.objectContaining({
-          OPENCLAW_HOME: "/tmp/openclaw",
-          OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
-          XDG_CONFIG_HOME: "/tmp/openclaw",
-        }),
-        timeout: 120000,
+    expect(onboardCall[1]).toMatchObject({
+      env: expect.objectContaining({
+        HOME: expect.any(String),
+        OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+        OPENCLAW_STATE_DIR: "/tmp/openclaw",
+        XDG_CONFIG_HOME: "/tmp/openclaw",
       }),
-    );
+      timeout: 120000,
+    });
 
     const openclawWriteCall = deps.fs.writeFileSync.mock.calls.find(
       ([path]) => path === "/tmp/openclaw/openclaw.json",

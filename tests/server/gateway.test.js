@@ -211,7 +211,9 @@ describe("server/gateway restart behavior", () => {
 
     expect(spawnMock).toHaveBeenCalledWith("openclaw", ["gateway", "run"], {
       env: expect.objectContaining({
-        OPENCLAW_HOME: OPENCLAW_DIR,
+        HOME: expect.any(String),
+        OPENCLAW_HOME: expect.any(String),
+        OPENCLAW_STATE_DIR: OPENCLAW_DIR,
         OPENCLAW_CONFIG_PATH: `${OPENCLAW_DIR}/openclaw.json`,
         XDG_CONFIG_HOME: OPENCLAW_DIR,
       }),
