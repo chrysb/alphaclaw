@@ -86,6 +86,12 @@ EXPOSE 3000
 CMD ["alphaclaw", "start"]
 ```
 
+### UTM (macOS virtual machine)
+
+To run AlphaClaw inside a full virtual machine on a Mac (for maximum isolation from the host filesystem), use [UTM](https://mac.getutm.app) with Ubuntu Server. A community walkthrough covers the full flow, from UTM install to Apple Silicon vs Intel ISO selection to recommended VM resources (8 GB RAM, 4 CPU, 30 GB disk): [AlphaClaw in UTM on Mac](https://github.com/mayurjobanputra/AlphaClaw-in-UTM-on-Mac).
+
+Once the Ubuntu VM is up, the Local / Docker steps above apply unchanged inside the guest.
+
 ## Setup UI
 
 | Tab           | What it manages                                                                                                          |
