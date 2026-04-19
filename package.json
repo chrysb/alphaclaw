@@ -57,5 +57,9 @@
   },
   "engines": {
     "node": ">=22.14.0"
+  },
+  "optionalDependencies": {
+    "@esbuild/darwin-arm64": "0.25.x",
+    "@esbuild/darwin-x64": "0.25.x"
   }
 }
