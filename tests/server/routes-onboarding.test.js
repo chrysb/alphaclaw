@@ -1,3 +1,4 @@
+const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const express = require("express");
@@ -91,24 +92,30 @@ const mockGithubVerifyAndCreate = ({
   scopes = "repo",
   login = "owner",
 } = {}) => {
-  global.fetch
-    .mockResolvedValueOnce({
+  global.fetch.mockResolvedValueOnce({
+    ok: true,
+    headers: { get: () => scopes },
+    json: async () => ({ login }),
+  });
+  global.fetch.mockResolvedValueOnce({
+    ok: repoOk,
+    status: repoStatus,
+    statusText: repoStatus === 404 ? "Not Found" : "OK",
+    json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
+  });
+  if (repoStatus === 404 && login === "owner") {
+    global.fetch.mockResolvedValueOnce({
       ok: true,
-      headers: { get: () => scopes },
-      json: async () => ({ login }),
-    })
-    .mockResolvedValueOnce({
-      ok: repoOk,
-      status: repoStatus,
-      statusText: repoStatus === 404 ? "Not Found" : "OK",
-      json: async () => ({ message: repoStatus === 404 ? "Not Found" : "exists" }),
-    })
-    .mockResolvedValueOnce({
-      ok: createOk,
-      status: createOk ? 201 : 400,
-      statusText: createOk ? "Created" : "Bad Request",
-      json: async () => (createOk ? {} : { message: "create failed" }),
+      headers: { get: () => "" },
+      json: async () => [],
     });
+  }
+  global.fetch.mockResolvedValueOnce({
+    ok: createOk,
+    status: createOk ? 201 : 400,
+    statusText: createOk ? "Created" : "Bad Request",
+    json: async () => (createOk ? {} : { message: "create failed" }),
+  });
 };
 
 describe("server/routes/onboarding", () => {
@@ -259,20 +266,11 @@ describe("server/routes/onboarding", () => {
       })
       .mockResolvedValueOnce({
         ok: true,
-        headers: { get: () => "repo" },
-        json: async () => ({ login: "owner" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
         status: 200,
-        statusText: "OK",
-        json: async () => ({ full_name: "my-org/source-repo" }),
-      })
-      .mockResolvedValueOnce({
-        ok: true,
-        status: 200,
-        statusText: "OK",
-        json: async () => [{ sha: "abc123" }],
+        json: async () => [
+          { name: "package.json", type: "file" },
+          { name: "src", type: "dir" },
+        ],
       });
     deps.shellCmd.mockResolvedValueOnce("");
 
@@ -319,6 +317,39 @@ describe("server/routes/onboarding", () => {
       repoIsEmpty: false,
       tempDir: null,
     });
+  });
+
+  it("surfaces a hidden repo-name conflict during github verification", async () => {
+    const deps = createBaseDeps();
+    const app = createApp(deps);
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "" },
+        json: async () => [{ name: "repo", full_name: "owner/repo" }],
+      });
+
+    const res = await request(app).post("/api/onboard/github/verify").send({
+      repo: "owner/repo",
+      token: "github_pat_hidden_repo_token",
+      mode: "new",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toContain('Repository "owner/repo" already exists');
+    expect(res.body.error).toContain("cannot inspect");
   });
 
   it("installs deterministic hourly git sync cron during successful onboarding", async () => {
@@ -386,16 +417,15 @@ describe("server/routes/onboarding", () => {
       cmd.startsWith("openclaw onboard "),
     );
     expect(onboardCall).toBeTruthy();
-    expect(onboardCall[1]).toEqual(
-      expect.objectContaining({
-        env: expect.objectContaining({
-          OPENCLAW_HOME: "/tmp/openclaw",
-          OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
-          XDG_CONFIG_HOME: "/tmp/openclaw",
-        }),
-        timeout: 120000,
+    expect(onboardCall[1]).toMatchObject({
+      env: expect.objectContaining({
+        HOME: expect.any(String),
+        OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+        OPENCLAW_STATE_DIR: "/tmp/openclaw",
+        XDG_CONFIG_HOME: "/tmp/openclaw",
       }),
-    );
+      timeout: 120000,
+    });
 
     const openclawWriteCall = deps.fs.writeFileSync.mock.calls.find(
       ([path]) => path === "/tmp/openclaw/openclaw.json",
@@ -569,6 +599,14 @@ describe("server/routes/onboarding", () => {
     expect(onboardCall[0]).toContain("--anthropic-api-key");
     expect(onboardCall[0]).not.toContain("--token-provider");
     expect(onboardCall[0]).not.toContain("sk-ant-oat01-stale-token");
+    expect(onboardCall[1]).toMatchObject({
+      env: expect.objectContaining({
+        HOME: expect.any(String),
+        OPENCLAW_CONFIG_PATH: "/tmp/openclaw/openclaw.json",
+        OPENCLAW_STATE_DIR: "/tmp/openclaw",
+        XDG_CONFIG_HOME: "/tmp/openclaw",
+      }),
+    });
   });
 
   it("sanitizes onboarding command failures to avoid leaking secrets", async () => {
@@ -746,8 +784,14 @@ describe("server/routes/onboarding", () => {
     expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
       '"bootstrap-extra-files"',
     );
+    expect(files.get("/tmp/openclaw/openclaw.json")).toContain(
+      '"strictInlineEval": false',
+    );
     expect(files.get("/tmp/openclaw/openclaw.json")).not.toContain(
       '"transformsDir"',
+    );
+    expect(files.get("/tmp/openclaw/exec-approvals.json")).toContain(
+      '"askFallback": "full"',
     );
     expect(
       deps.shellCmd.mock.calls.some(([cmd]) =>
@@ -970,6 +1014,103 @@ describe("server/routes/onboarding", () => {
       `${tempDir}/workspace`,
       deps.constants.WORKSPACE_DIR,
     );
+  });
+
+  it("allows import apply when OPENCLAW_DIR already has partial runtime state", async () => {
+    const deps = createBaseDeps();
+    const rootDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-routes-import-"),
+    );
+    const tempDir = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-import-route-"),
+    );
+    const openclawDir = path.join(rootDir, ".openclaw");
+    const workspaceDir = path.join(openclawDir, "workspace");
+
+    deps.fs = fs;
+    deps.constants = {
+      ...deps.constants,
+      OPENCLAW_DIR: openclawDir,
+      WORKSPACE_DIR: workspaceDir,
+      kOnboardingMarkerPath: path.join(rootDir, "onboarded.json"),
+    };
+
+    try {
+      fs.mkdirSync(path.join(openclawDir, "agents", "main", "agent"), {
+        recursive: true,
+      });
+      fs.writeFileSync(
+        path.join(openclawDir, "exec-approvals.json"),
+        JSON.stringify({ version: 1 }, null, 2),
+      );
+      fs.writeFileSync(
+        path.join(openclawDir, "agents", "main", "agent", "auth-profiles.json"),
+        JSON.stringify({ version: 1, profiles: {} }, null, 2),
+      );
+
+      fs.writeFileSync(
+        path.join(tempDir, "openclaw.json"),
+        JSON.stringify(
+          {
+            channels: {
+              $include: "channels.json",
+            },
+            hooks: {
+              token: "repo-hook-token",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+      fs.writeFileSync(
+        path.join(tempDir, "channels.json"),
+        JSON.stringify(
+          {
+            telegram: {
+              botToken: "${TELEGRAM_BOT_TOKEN}",
+            },
+          },
+          null,
+          2,
+        ),
+      );
+
+      const app = createApp(deps);
+      const res = await request(app).post("/api/onboard/import/apply").send({
+        tempDir,
+        approvedSecrets: [],
+        skipSecretExtraction: true,
+      });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toMatchObject({
+        ok: true,
+        sourceLayout: {
+          kind: "full-openclaw-root",
+          supported: true,
+          promoteSourceSubdir: "",
+        },
+      });
+      expect(
+        JSON.parse(fs.readFileSync(path.join(openclawDir, "channels.json"), "utf8")),
+      ).toEqual({
+        telegram: {
+          botToken: "${TELEGRAM_BOT_TOKEN}",
+        },
+      });
+      expect(fs.existsSync(path.join(openclawDir, "exec-approvals.json"))).toBe(
+        true,
+      );
+      expect(
+        fs.existsSync(
+          path.join(openclawDir, "agents", "main", "agent", "auth-profiles.json"),
+        ),
+      ).toBe(true);
+    } finally {
+      fs.rmSync(rootDir, { recursive: true, force: true });
+      fs.rmSync(tempDir, { recursive: true, force: true });
+    }
   });
 
   it("returns unresolved placeholder review data after import apply", async () => {

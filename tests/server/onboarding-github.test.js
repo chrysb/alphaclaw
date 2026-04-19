@@ -58,4 +58,35 @@ describe("server/onboarding/github", () => {
       repoIsEmpty: false,
     });
   });
+
+  it("flags a user-owned repo as already taken when listing shows a hidden match", async () => {
+    global.fetch
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "repo" },
+        json: async () => ({ login: "owner" }),
+      })
+      .mockResolvedValueOnce({
+        status: 404,
+        ok: false,
+        statusText: "Not Found",
+        json: async () => ({ message: "Not Found" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        headers: { get: () => "" },
+        json: async () => [{ name: "repo", full_name: "owner/repo" }],
+      });
+
+    const result = await verifyGithubRepoForOnboarding({
+      repoUrl: "owner/repo",
+      githubToken: "github_pat_hidden_repo_token",
+      mode: "new",
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe(400);
+    expect(result.error).toContain('Repository "owner/repo" already exists');
+    expect(result.error).toContain("cannot inspect");
+  });
 });

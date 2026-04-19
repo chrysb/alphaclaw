@@ -14,21 +14,48 @@ const sleep = async (ms) =>
     setTimeout(resolve, ms);
   });
 
+let currentWatchdogDb = null;
+let currentDatabase = null;
+let currentRootDir = "";
+
+const createWatchdogDbContext = (prefix, pruneDays = 30) => {
+  currentRootDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  currentWatchdogDb = loadWatchdogDb();
+  const dbResult = currentWatchdogDb.initWatchdogDb({ rootDir: currentRootDir, pruneDays });
+  return {
+    ...currentWatchdogDb,
+    ...dbResult,
+    rootDir: currentRootDir,
+  };
+};
+
 describe("server/watchdog-db", () => {
+  afterEach(() => {
+    if (currentDatabase) {
+      currentDatabase.close();
+      currentDatabase = null;
+    }
+    if (currentWatchdogDb?.closeWatchdogDb) {
+      currentWatchdogDb.closeWatchdogDb();
+      currentWatchdogDb = null;
+    }
+    if (currentRootDir) {
+      fs.rmSync(currentRootDir, { recursive: true, force: true });
+      currentRootDir = "";
+    }
+  });
+
   it("initializes watchdog.db under root db directory", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "watchdog-db-init-"));
-    const { initWatchdogDb } = loadWatchdogDb();
+    const result = createWatchdogDbContext("watchdog-db-init-");
 
-    const result = initWatchdogDb({ rootDir, pruneDays: 30 });
-
-    expect(result.path).toBe(path.join(rootDir, "db", "watchdog.db"));
+    expect(result.path).toBe(path.join(result.rootDir, "db", "watchdog.db"));
     expect(fs.existsSync(result.path)).toBe(true);
   });
 
   it("returns filtered events up to limit when routine checks are excluded", async () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "watchdog-db-filter-"));
-    const { initWatchdogDb, insertWatchdogEvent, getRecentEvents } = loadWatchdogDb();
-    initWatchdogDb({ rootDir, pruneDays: 30 });
+    const { insertWatchdogEvent, getRecentEvents } = createWatchdogDbContext(
+      "watchdog-db-filter-",
+    );
 
     insertWatchdogEvent({
       eventType: "crash",
@@ -71,11 +98,12 @@ describe("server/watchdog-db", () => {
   });
 
   it("prunes old events based on retention days", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "watchdog-db-prune-"));
-    const { initWatchdogDb, pruneWatchdogEvents } = loadWatchdogDb();
-    const { path: dbPath } = initWatchdogDb({ rootDir, pruneDays: 365 });
-
-    const database = new DatabaseSync(dbPath);
+    const { path: dbPath, pruneWatchdogEvents } = createWatchdogDbContext(
+      "watchdog-db-prune-",
+      365,
+    );
+    currentDatabase = new DatabaseSync(dbPath);
+    const database = currentDatabase;
     database
       .prepare(`
         INSERT INTO watchdog_events (
