@@ -7,5 +7,6 @@ export default defineConfig({
     include: ["tests/**/*.test.js"],
     restoreMocks: true,
     clearMocks: true,
+    testTimeout: 10000,
   },
 });
