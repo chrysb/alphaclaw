@@ -591,6 +591,31 @@ if (!kSetupPassword) {
 }
 
 // ---------------------------------------------------------------------------
+// E.2 — darwin: npm prefix advisory (sudo-free install guidance)
+// ---------------------------------------------------------------------------
+if (os.platform() === "darwin") {
+  try {
+    const npmPrefix = execSync("npm config get prefix", {
+      encoding: "utf8",
+    }).trim();
+    if (
+      npmPrefix === "/usr/local" ||
+      npmPrefix === "/usr" ||
+      npmPrefix.startsWith("/usr/")
+    ) {
+      console.log(
+        "[alphaclaw] Tip: run `npm config set prefix ~/.local` for sudo-free installs",
+      );
+      console.log(
+        "[alphaclaw] Then add: export PATH=\"$HOME/.local/bin:$PATH\" to ~/.zshrc",
+      );
+    }
+  } catch {
+    // npm not available or prefix check failed — non-fatal
+  }
+}
+
+// ---------------------------------------------------------------------------
 // 7. Set OPENCLAW_HOME globally so all child processes inherit it
 // ---------------------------------------------------------------------------
 
@@ -706,20 +731,59 @@ if (fs.existsSync(hourlyGitSyncPath)) {
       openclawDir,
       platform: process.platform,
     });
-    const cronConfig = readSystemCronConfig({
-      fs,
-      openclawDir,
-      platform: process.platform,
-    });
-    const cronStatus = applySystemCronConfig({
-      fs,
-      openclawDir,
-      nextConfig: cronConfig,
-      platform: process.platform,
-    });
-    console.log(
-      `[alphaclaw] System cron ${cronStatus.enabled ? "configured" : "disabled"} (${cronStatus.installMethod})`,
-    );
+
+    if (os.platform() === "darwin") {
+      // E.3 — macOS: write ~/Library/LaunchAgents plist instead of /etc/cron.d
+      const plistDir = path.join(os.homedir(), "Library", "LaunchAgents");
+      const plistPath = path.join(
+        plistDir,
+        "com.alphaclaw.hourly-sync.plist",
+      );
+      const logPath = path.join(openclawDir, "hourly-sync.log");
+      const plistContent = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"',
+        '  "http://www.apple.com/DTDs/PropertyList-1.0.dtd">',
+        '<plist version="1.0"><dict>',
+        "  <key>Label</key><string>com.alphaclaw.hourly-sync</string>",
+        "  <key>ProgramArguments</key>",
+        `  <array><string>${hourlyGitSyncPath}</string></array>`,
+        "  <key>StartInterval</key><integer>3600</integer>",
+        "  <key>RunAtLoad</key><false/>",
+        "  <key>StandardOutPath</key>",
+        `  <string>${logPath}</string>`,
+        "  <key>StandardErrorPath</key>",
+        `  <string>${logPath}</string>`,
+        "</dict></plist>",
+      ].join("\n");
+      try {
+        fs.mkdirSync(plistDir, { recursive: true });
+        fs.writeFileSync(plistPath, plistContent);
+        execSync(`launchctl load -w "${plistPath}"`, { stdio: "ignore" });
+        console.log(
+          `[alphaclaw] LaunchAgent installed for hourly sync: ${plistPath}`,
+        );
+      } catch (plistErr) {
+        console.log(
+          `[alphaclaw] LaunchAgent install skipped: ${plistErr.message}`,
+        );
+      }
+    } else {
+      const cronConfig = readSystemCronConfig({
+        fs,
+        openclawDir,
+        platform: process.platform,
+      });
+      const cronStatus = applySystemCronConfig({
+        fs,
+        openclawDir,
+        nextConfig: cronConfig,
+        platform: process.platform,
+      });
+      console.log(
+        `[alphaclaw] System cron ${cronStatus.enabled ? "configured" : "disabled"} (${cronStatus.installMethod})`,
+      );
+    }
   } catch (e) {
     console.log(`[alphaclaw] Cron setup skipped: ${e.message}`);
   }

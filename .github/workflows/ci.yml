@@ -2,28 +2,63 @@ name: CI
 
 on:
   push:
-    branches: [main]
+    branches: [main, pr-4-macos, feature/MacOS-post-install]
   pull_request:
     branches: [main]
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: Test (Node ${{ matrix.node-version }} / ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
 
     strategy:
+      fail-fast: false
       matrix:
+        os: [ubuntu-latest, macos-latest]
         node-version: [22]
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v4
+      - name: Setup Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: npm
+          cache: "npm"
 
-      - run: npm ci
+      - name: Verify arch (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          echo "arch: $(uname -m) | node: $(node --version)"
+          [ "$(uname -m)" = "x86_64" ] && echo "::warning::Rosetta x64 shell — esbuild arch mismatch risk" || true
 
-      - run: npm run build:ui
+      - name: Set sudo-free npm prefix (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          npm config set prefix ~/.local
+          mkdir -p ~/.local/bin
+          echo "$HOME/.local/bin" >> $GITHUB_PATH
 
-      - run: npm test
+      - name: Install dependencies
+        run: npm install
+
+      - name: Build UI
+        run: npm run build:ui
+
+      - name: Full test suite
+        run: npm test
+
+      - name: Watchdog tests
+        run: npm run test:watchdog
+
+      - name: Coverage
+        run: npm run test:coverage
+
+      - name: Upload coverage
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage/
+          retention-days: 7
