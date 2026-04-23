@@ -946,6 +946,80 @@ describe("server/agents/service", () => {
     );
   });
 
+  it("retries channel add when OpenClaw reports a config mutation conflict", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    let addAttempts = 0;
+    const clawCmd = vi.fn(async (command) => {
+      if (String(command).startsWith("channels add")) {
+        addAttempts += 1;
+        if (addAttempts === 1) {
+          return {
+            ok: false,
+            stdout: "",
+            stderr:
+              "ConfigMutationConflictError: config changed since last load",
+          };
+        }
+      }
+      return { ok: true, stdout: "", stderr: "" };
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      clawCmd,
+    });
+
+    try {
+      const result = await service.createChannelAccount({
+        provider: "telegram",
+        name: "Telegram",
+        accountId: "default",
+        token: "123:abc",
+        agentId: "main",
+      });
+
+      expect(result.channel).toBe("telegram");
+      expect(addAttempts).toBe(2);
+      expect(warnSpy).toHaveBeenCalledWith(
+        "[alphaclaw] Retrying openclaw channels add after config mutation conflict",
+      );
+      expect(clawCmd).toHaveBeenNthCalledWith(
+        1,
+        "channels add --channel 'telegram' --name 'Telegram' --token '123:abc'",
+        { quiet: true, timeoutMs: 30000 },
+      );
+      expect(clawCmd).toHaveBeenNthCalledWith(
+        2,
+        "channels add --channel 'telegram' --name 'Telegram' --token '123:abc'",
+        { quiet: true, timeoutMs: 30000 },
+      );
+      expect(clawCmd).toHaveBeenNthCalledWith(
+        3,
+        "agents bind --agent 'main' --bind 'telegram:default'",
+        { quiet: true, timeoutMs: 30000 },
+      );
+      expect(fsMock.readConfig().channels.telegram.accounts.default).toEqual(
+        expect.objectContaining({
+          botToken: "${TELEGRAM_BOT_TOKEN}",
+          dmPolicy: "pairing",
+          name: "Telegram",
+        }),
+      );
+    } finally {
+      warnSpy.mockRestore();
+    }
+  });
+
   it("migrates single-account channel config before adding another account", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
