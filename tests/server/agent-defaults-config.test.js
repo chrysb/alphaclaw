@@ -3,6 +3,7 @@ const os = require("os");
 const path = require("path");
 
 const {
+  MalformedOpenclawConfigError,
   kThinkingLevels,
   kDefaultThinkingLevel,
   kDefaultDreamingEnabled,
@@ -104,5 +105,34 @@ describe("server/agent-defaults-config", () => {
 
   it("exposes the canonical thinking level list", () => {
     expect(kThinkingLevels).toEqual(["off", "low", "medium", "high"]);
+  });
+
+  it("refuses to overwrite when openclaw.json exists but is malformed", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(configPath, "{ malformed:");
+
+    expect(() =>
+      writeAgentDefaults({ fsModule: fs, openclawDir, thinking: "high" }),
+    ).toThrow(MalformedOpenclawConfigError);
+
+    expect(fs.readFileSync(configPath, "utf8")).toBe("{ malformed:");
+  });
+
+  it("creates openclaw.json from scratch when absent", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+
+    const result = writeAgentDefaults({
+      fsModule: fs,
+      openclawDir,
+      thinking: "high",
+      dreaming: true,
+    });
+
+    expect(result.changed).toBe(true);
+    expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual({
+      agentDefaults: { thinking: "high", dreaming: true },
+    });
   });
 });

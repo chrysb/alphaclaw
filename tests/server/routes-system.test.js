@@ -728,7 +728,6 @@ describe("server/routes/system", () => {
       expect(res.status).toBe(400);
       expect(res.body.ok).toBe(false);
       expect(res.body.error).toContain("thinking must be one of");
-      expect(deps.restartRequiredState.markRequired).not.toHaveBeenCalled();
     });
 
     it("rejects non-boolean dreaming values on PUT", async () => {
@@ -753,11 +752,10 @@ describe("server/routes/system", () => {
       expect(res.body.error).toContain("At least one of thinking or dreaming");
     });
 
-    it("persists changes and signals restart-required when onboarded", async () => {
+    it("persists changes and preserves unrelated config keys", async () => {
       const { deps, stored } = buildAgentDefaultsDeps({
         tools: { profile: "full" },
       });
-      deps.isOnboarded.mockReturnValue(true);
       const app = createApp(deps);
 
       const res = await request(app)
@@ -769,21 +767,18 @@ describe("server/routes/system", () => {
         ok: true,
         changed: true,
         agentDefaults: { thinking: "high", dreaming: true },
-        restartRequired: true,
       });
       expect(stored.value.agentDefaults).toEqual({
         thinking: "high",
         dreaming: true,
       });
       expect(stored.value.tools).toEqual({ profile: "full" });
-      expect(deps.restartRequiredState.markRequired).toHaveBeenCalledTimes(1);
     });
 
-    it("does not signal restart-required for no-op writes", async () => {
+    it("reports no change for no-op writes", async () => {
       const { deps } = buildAgentDefaultsDeps({
         agentDefaults: { thinking: "medium", dreaming: false },
       });
-      deps.isOnboarded.mockReturnValue(true);
       const app = createApp(deps);
 
       const res = await request(app)
@@ -792,8 +787,23 @@ describe("server/routes/system", () => {
 
       expect(res.status).toBe(200);
       expect(res.body.changed).toBe(false);
-      expect(res.body.restartRequired).toBe(false);
-      expect(deps.restartRequiredState.markRequired).not.toHaveBeenCalled();
+    });
+
+    it("refuses to overwrite when openclaw.json exists but cannot be parsed", async () => {
+      const { deps } = buildAgentDefaultsDeps(null);
+      deps.fs.existsSync = vi.fn(() => true);
+      deps.fs.readFileSync = vi.fn(() => "{ this is not json");
+      const writeSpy = vi.spyOn(deps.fs, "writeFileSync");
+      const app = createApp(deps);
+
+      const res = await request(app)
+        .put("/api/agent-defaults")
+        .send({ thinking: "high" });
+
+      expect(res.status).toBe(409);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.error).toMatch(/could not be parsed/i);
+      expect(writeSpy).not.toHaveBeenCalled();
     });
   });
 });
