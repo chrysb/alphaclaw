@@ -78,6 +78,7 @@ const createSystemDeps = () => {
         restartInProgress: false,
         gatewayRunning: true,
       })),
+      markRequired: vi.fn(),
       markRestartInProgress: vi.fn(),
       clearRequired: vi.fn(),
       markRestartComplete: vi.fn(),
@@ -665,5 +666,134 @@ describe("server/routes/system", () => {
         replyTo: "-1003709908795:4011",
       },
     ]);
+  });
+
+  describe("/api/agent-defaults", () => {
+    const buildAgentDefaultsDeps = (storedConfig) => {
+      const deps = createSystemDeps();
+      const stored = { value: storedConfig ? { ...storedConfig } : null };
+      deps.fs.readFileSync = vi.fn((filePath) => {
+        if (
+          typeof filePath === "string" &&
+          filePath.endsWith("openclaw.json") &&
+          stored.value
+        ) {
+          return JSON.stringify(stored.value);
+        }
+        throw new Error("ENOENT");
+      });
+      deps.fs.writeFileSync = vi.fn((filePath, content) => {
+        if (typeof filePath === "string" && filePath.endsWith("openclaw.json")) {
+          stored.value = JSON.parse(content);
+        }
+      });
+      deps.fs.mkdirSync = vi.fn();
+      return { deps, stored };
+    };
+
+    it("returns defaults when openclaw.json is missing", async () => {
+      const { deps } = buildAgentDefaultsDeps(null);
+      const app = createApp(deps);
+
+      const res = await request(app).get("/api/agent-defaults");
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ok: true,
+        agentDefaults: { thinking: "medium", dreaming: false },
+        thinkingLevels: ["off", "low", "medium", "high"],
+      });
+    });
+
+    it("returns stored agent defaults", async () => {
+      const { deps } = buildAgentDefaultsDeps({
+        agentDefaults: { thinking: "high", dreaming: true },
+      });
+      const app = createApp(deps);
+
+      const res = await request(app).get("/api/agent-defaults");
+
+      expect(res.status).toBe(200);
+      expect(res.body.agentDefaults).toEqual({ thinking: "high", dreaming: true });
+    });
+
+    it("rejects invalid thinking values on PUT", async () => {
+      const { deps } = buildAgentDefaultsDeps(null);
+      const app = createApp(deps);
+
+      const res = await request(app)
+        .put("/api/agent-defaults")
+        .send({ thinking: "max" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.ok).toBe(false);
+      expect(res.body.error).toContain("thinking must be one of");
+      expect(deps.restartRequiredState.markRequired).not.toHaveBeenCalled();
+    });
+
+    it("rejects non-boolean dreaming values on PUT", async () => {
+      const { deps } = buildAgentDefaultsDeps(null);
+      const app = createApp(deps);
+
+      const res = await request(app)
+        .put("/api/agent-defaults")
+        .send({ dreaming: "yes" });
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("dreaming must be a boolean");
+    });
+
+    it("rejects empty payloads on PUT", async () => {
+      const { deps } = buildAgentDefaultsDeps(null);
+      const app = createApp(deps);
+
+      const res = await request(app).put("/api/agent-defaults").send({});
+
+      expect(res.status).toBe(400);
+      expect(res.body.error).toContain("At least one of thinking or dreaming");
+    });
+
+    it("persists changes and signals restart-required when onboarded", async () => {
+      const { deps, stored } = buildAgentDefaultsDeps({
+        tools: { profile: "full" },
+      });
+      deps.isOnboarded.mockReturnValue(true);
+      const app = createApp(deps);
+
+      const res = await request(app)
+        .put("/api/agent-defaults")
+        .send({ thinking: "high", dreaming: true });
+
+      expect(res.status).toBe(200);
+      expect(res.body).toEqual({
+        ok: true,
+        changed: true,
+        agentDefaults: { thinking: "high", dreaming: true },
+        restartRequired: true,
+      });
+      expect(stored.value.agentDefaults).toEqual({
+        thinking: "high",
+        dreaming: true,
+      });
+      expect(stored.value.tools).toEqual({ profile: "full" });
+      expect(deps.restartRequiredState.markRequired).toHaveBeenCalledTimes(1);
+    });
+
+    it("does not signal restart-required for no-op writes", async () => {
+      const { deps } = buildAgentDefaultsDeps({
+        agentDefaults: { thinking: "medium", dreaming: false },
+      });
+      deps.isOnboarded.mockReturnValue(true);
+      const app = createApp(deps);
+
+      const res = await request(app)
+        .put("/api/agent-defaults")
+        .send({ thinking: "medium", dreaming: false });
+
+      expect(res.status).toBe(200);
+      expect(res.body.changed).toBe(false);
+      expect(res.body.restartRequired).toBe(false);
+      expect(deps.restartRequiredState.markRequired).not.toHaveBeenCalled();
+    });
   });
 });
