@@ -142,9 +142,10 @@ Repos:
 For **each** repo:
 
 1. Switch to the intended branch (confirm with the user if unclear).
-2. Set `package.json` pins to match the released AlphaClaw version and the
-   `openclaw` version in AlphaClaw’s `package.json` for that release (same pins
-   across templates unless you intentionally diverge).
+2. Set `@chrysb/alphaclaw` in `package.json` to the released version. Do not add
+   `overrides` for `openclaw` in templates unless you are doing one-off debugging —
+   OpenClaw should resolve transitively from AlphaClaw’s declared dependency (same
+   resulting version across templates unless you intentionally diverge).
 3. Run `npm install` to refresh or create `package-lock.json`.
 4. Verify the template install resolved the expected OpenClaw version and includes
    any upstream OpenClaw fixes AlphaClaw depends on:

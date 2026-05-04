@@ -87,7 +87,7 @@ Use this release flow when promoting tested beta builds to production:
    - `npm version 0.3.2`
    - `git push && git push --tags`
    - `npm publish` (publishes to `latest`)
-   - Pin both deployment templates on `main` to that release: update `~/Projects/openclaw-railway-template` and `~/Projects/openclaw-render-template` so `@chrysb/alphaclaw` and `openclaw` match AlphaClaw’s `package.json` for the release, run `npm install` in each repo, commit `package.json` and `package-lock.json`, and push. Skipping Render leaves that template on `latest` and causes drift from Railway.
+   - Pin all deployment templates on `main` to that release: set `@chrysb/alphaclaw` in `~/Projects/openclaw-railway-template`, `~/Projects/openclaw-render-template`, and `~/Projects/openclaw-apex-template` to the released version (templates rely on AlphaClaw’s declared `openclaw` dependency — do not add `package.json` `overrides` for `openclaw` unless you have a one-off debug reason). Run `npm install` in each repo, confirm `npm ls openclaw` matches AlphaClaw’s `package.json` pin, commit `package.json` and `package-lock.json`, and push. Skipping a template leaves it stale relative to the others.
 5. Return templates to production channel:
    - `@chrysb/alphaclaw: "latest"`
 6. Optionally keep beta branch/tag flows active for next release cycle.
