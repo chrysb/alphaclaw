@@ -189,10 +189,12 @@
 
 .sidebar-agent-emoji {
   flex: 0 0 auto;
-  width: 14px;
+  min-width: 14px;
+  max-width: 1.5em;
   line-height: 1;
   font-size: 14px;
   text-align: center;
+  overflow: hidden;
 }
 
 .sidebar-agent-name {
