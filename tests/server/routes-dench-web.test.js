@@ -1,6 +1,9 @@
+const http = require("http");
+const httpProxy = require("http-proxy");
 const express = require("express");
 const request = require("supertest");
 
+const { attachProxyBodyReplay } = require("../../lib/server/proxy-body-replay");
 const {
   registerDenchWebFallbackProxyRoutes,
   registerDenchWebPriorityProxyRoutes,
@@ -16,9 +19,12 @@ const rewriteSetupApiAlias = (req, _res, next) => {
   next();
 };
 
-const createRuntime = ({ enabled = true } = {}) => ({
+const createRuntime = ({
+  enabled = true,
+  webUrl = "http://127.0.0.1:3100",
+} = {}) => ({
   isEnabled: vi.fn(() => enabled),
-  getWebUrl: vi.fn(() => "http://127.0.0.1:3100"),
+  getWebUrl: vi.fn(() => webUrl),
 });
 
 const createProxy = () => ({
@@ -34,6 +40,33 @@ const createProxy = () => ({
 });
 
 const requireAuth = (_req, _res, next) => next();
+
+const createTargetServer = async () => {
+  const calls = [];
+  const server = http.createServer((req, res) => {
+    const chunks = [];
+    req.on("data", (chunk) => chunks.push(chunk));
+    req.on("end", () => {
+      calls.push({
+        method: req.method,
+        url: req.url,
+        headers: req.headers,
+        bodyText: Buffer.concat(chunks).toString("utf8"),
+      });
+      res.statusCode = 200;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ ok: true }));
+    });
+  });
+
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const { port } = server.address();
+  return {
+    calls,
+    server,
+    webUrl: `http://127.0.0.1:${port}`,
+  };
+};
 
 describe("server/routes/dench-web", () => {
   it("proxies DenchClaw web API requests before AlphaClaw setup API routes", async () => {
@@ -75,6 +108,44 @@ describe("server/routes/dench-web", () => {
       originalUrl: "/setup-api/status",
     });
     expect(proxy.web).toHaveBeenCalledTimes(1);
+  });
+
+  it("replays parsed JSON bodies when proxying DenchClaw API mutations", async () => {
+    const target = await createTargetServer();
+    const app = express();
+    app.use(express.json());
+    const proxy = attachProxyBodyReplay(httpProxy.createProxyServer({ changeOrigin: true }));
+    proxy.on("error", (_error, _req, res) => {
+      res.writeHead(502, { "content-type": "application/json" });
+      res.end(JSON.stringify({ ok: false }));
+    });
+    registerDenchWebPriorityProxyRoutes({
+      app,
+      proxy,
+      requireAuth,
+      denchWebRuntime: createRuntime({ webUrl: target.webUrl }),
+    });
+
+    try {
+      const res = await request(app)
+        .put("/api/onboarding/state")
+        .set("content-type", "application/json")
+        .send({ from: "welcome", to: "identity" });
+
+      expect(res.status).toBe(200);
+      expect(target.calls).toHaveLength(1);
+      expect(target.calls[0]).toEqual(
+        expect.objectContaining({
+          method: "PUT",
+          url: "/api/onboarding/state",
+          bodyText: '{"from":"welcome","to":"identity"}',
+        }),
+      );
+      expect(target.calls[0].headers["content-length"]).toBe("34");
+    } finally {
+      proxy.close();
+      await new Promise((resolve) => target.server.close(resolve));
+    }
   });
 
   it("proxies DenchClaw static assets through the authenticated priority route", async () => {
