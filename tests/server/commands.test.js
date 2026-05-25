@@ -1,11 +1,13 @@
 const childProcess = require("child_process");
 
 const modulePath = require.resolve("../../lib/server/commands");
+const constantsPath = require.resolve("../../lib/server/constants");
 const originalExec = childProcess.exec;
 
 const loadCommandsModule = ({ execMock }) => {
   childProcess.exec = execMock;
   delete require.cache[modulePath];
+  delete require.cache[constantsPath];
   return require(modulePath);
 };
 
@@ -13,6 +15,7 @@ describe("server/commands", () => {
   afterEach(() => {
     childProcess.exec = originalExec;
     delete require.cache[modulePath];
+    delete require.cache[constantsPath];
   });
 
   it("attaches trimmed stdout and stderr to shellCmd errors", async () => {
@@ -68,5 +71,33 @@ describe("server/commands", () => {
       signal: "SIGTERM",
       timedOut: true,
     });
+  });
+
+  it("prefixes clawCmd with the Dench profile in DenchClaw runtime", async () => {
+    const previousRuntime = process.env.ALPHACLAW_CLAW_RUNTIME;
+    process.env.ALPHACLAW_CLAW_RUNTIME = "denchclaw";
+    const execMock = vi.fn((cmd, opts, callback) => {
+      callback(null, "{}", "");
+    });
+    try {
+      const { createCommands } = loadCommandsModule({ execMock });
+      const { clawCmd } = createCommands({
+        gatewayEnv: () => ({ OPENCLAW_GATEWAY_TOKEN: "token" }),
+      });
+
+      await clawCmd("nodes status --json", { quiet: true });
+
+      expect(execMock).toHaveBeenCalledWith(
+        "openclaw --profile dench nodes status --json",
+        expect.any(Object),
+        expect.any(Function),
+      );
+    } finally {
+      if (previousRuntime === undefined) {
+        delete process.env.ALPHACLAW_CLAW_RUNTIME;
+      } else {
+        process.env.ALPHACLAW_CLAW_RUNTIME = previousRuntime;
+      }
+    }
   });
 });

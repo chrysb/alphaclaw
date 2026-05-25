@@ -4,6 +4,8 @@
 
 ACTION=""
 UNIT=""
+OPENCLAW_STATE_DIR="${OPENCLAW_STATE_DIR:-/data/.openclaw}"
+OPENCLAW_GATEWAY_PATTERN="openclaw .*gateway"
 for arg in "$@"; do
   case "$arg" in
     --user|--system|--no-pager|--quiet) ;;
@@ -21,7 +23,7 @@ case "$ACTION" in
       exit 0
     fi
     # Status check for a specific unit
-    if pgrep -f "openclaw gateway" >/dev/null 2>&1; then
+    if pgrep -f "$OPENCLAW_GATEWAY_PATTERN" >/dev/null 2>&1; then
       echo "● ${UNIT}"
       echo "   Active: active (running)"
       exit 0
@@ -32,7 +34,7 @@ case "$ACTION" in
     fi
     ;;
   is-active)
-    if pgrep -f "openclaw gateway" >/dev/null 2>&1; then
+    if pgrep -f "$OPENCLAW_GATEWAY_PATTERN" >/dev/null 2>&1; then
       echo "active"
       exit 0
     else
@@ -41,10 +43,10 @@ case "$ACTION" in
     fi
     ;;
   restart|stop)
-    pkill -TERM -f "openclaw gateway" 2>/dev/null || true
+    pkill -TERM -f "$OPENCLAW_GATEWAY_PATTERN" 2>/dev/null || true
     sleep 1
-    pkill -9 -f "openclaw gateway" 2>/dev/null || true
-    rm -f /data/.openclaw/gateway.lock /data/.openclaw/gateway.pid 2>/dev/null
+    pkill -9 -f "$OPENCLAW_GATEWAY_PATTERN" 2>/dev/null || true
+    rm -f "$OPENCLAW_STATE_DIR/gateway.lock" "$OPENCLAW_STATE_DIR/gateway.pid" 2>/dev/null
     exit 0
     ;;
   start|enable|is-enabled|disable|daemon-reload|show)

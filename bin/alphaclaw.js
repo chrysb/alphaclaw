@@ -19,6 +19,7 @@ const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
+const { createClawRuntime } = require("../lib/server/claw-runtime");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -142,6 +143,7 @@ const rootDir =
   path.join(os.homedir(), ".alphaclaw");
 
 process.env.ALPHACLAW_ROOT_DIR = rootDir;
+const clawRuntime = createClawRuntime({ rootDir });
 
 const portFlag = flagValue(args, "--port");
 if (portFlag) {
@@ -152,7 +154,7 @@ if (portFlag) {
 // 2. Create directory structure
 // ---------------------------------------------------------------------------
 
-const openclawDir = path.join(rootDir, ".openclaw");
+const openclawDir = clawRuntime.stateDir;
 fs.mkdirSync(openclawDir, { recursive: true });
 const { hourlyGitSyncPath } = migrateManagedInternalFiles({
   fs,
@@ -193,10 +195,10 @@ if (fs.existsSync(pendingUpdateMarker)) {
 }
 
 // ---------------------------------------------------------------------------
-// 3. Symlink ~/.openclaw -> <root>/.openclaw
+// 3. Symlink the runtime state dir into the host home for compatibility
 // ---------------------------------------------------------------------------
 
-const homeOpenclawLink = path.join(os.homedir(), ".openclaw");
+const homeOpenclawLink = path.join(os.homedir(), clawRuntime.stateDirName);
 try {
   if (!fs.existsSync(homeOpenclawLink)) {
     fs.symlinkSync(openclawDir, homeOpenclawLink);
@@ -483,11 +485,12 @@ if (
 }
 
 const kPort = String(process.env.PORT || "3000").trim();
-if (kPort === "18789") {
+const kReservedGatewayPort = String(clawRuntime.defaultGatewayPort);
+if (kPort === kReservedGatewayPort) {
   console.error(
     [
-      "[alphaclaw] Fatal config error: AlphaClaw cannot be started on port 18789.",
-      "[alphaclaw] Port 18789 is reserved for the OpenClaw gateway.",
+      `[alphaclaw] Fatal config error: AlphaClaw cannot be started on port ${kReservedGatewayPort}.`,
+      `[alphaclaw] Port ${kReservedGatewayPort} is reserved for the ${clawRuntime.label} gateway.`,
     ].join("\n"),
   );
   process.exit(1);
@@ -513,8 +516,14 @@ if (!kSetupPassword) {
 
 process.env.OPENCLAW_HOME = rootDir;
 process.env.HOME = rootDir;
-process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
+process.env.OPENCLAW_CONFIG_PATH = clawRuntime.configPath;
 process.env.OPENCLAW_STATE_DIR = openclawDir;
+if (clawRuntime.profile) {
+  process.env.OPENCLAW_PROFILE = clawRuntime.profile;
+}
+if (clawRuntime.isDenchclaw) {
+  process.env.DENCHCLAW_DAEMONLESS = "1";
+}
 process.env.GOG_KEYRING_PASSWORD =
   process.env.GOG_KEYRING_PASSWORD || "alphaclaw";
 

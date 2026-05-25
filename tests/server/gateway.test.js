@@ -14,6 +14,7 @@ const {
 const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
 
 const modulePath = require.resolve("../../lib/server/gateway");
+const constantsPath = require.resolve("../../lib/server/constants");
 const originalSpawn = childProcess.spawn;
 const originalExecSync = childProcess.execSync;
 const originalExistsSync = fs.existsSync;
@@ -60,6 +61,7 @@ describe("server/gateway restart behavior", () => {
     fs.writeFileSync = originalWriteFileSync;
     net.createConnection = originalCreateConnection;
     delete require.cache[modulePath];
+    delete require.cache[constantsPath];
   });
 
   it("uses force restart when a managed child exists", async () => {
@@ -132,6 +134,63 @@ describe("server/gateway restart behavior", () => {
         delete process.env.OPENCLAW_NO_RESPAWN;
       } else {
         process.env.OPENCLAW_NO_RESPAWN = previousNoRespawn;
+      }
+    }
+  });
+
+  it("uses DenchClaw profile args and state dir when runtime is enabled", () => {
+    const previousRuntime = process.env.ALPHACLAW_CLAW_RUNTIME;
+    const previousRootDir = process.env.ALPHACLAW_ROOT_DIR;
+    const previousCompileCache = process.env.NODE_COMPILE_CACHE;
+    const spawnMock = vi.fn(() => createChild());
+    childProcess.spawn = spawnMock;
+    fs.existsSync = vi.fn(() => false);
+    process.env.ALPHACLAW_CLAW_RUNTIME = "denchclaw";
+    process.env.ALPHACLAW_ROOT_DIR = "/tmp/alphaclaw-dench";
+    delete process.env.NODE_COMPILE_CACHE;
+    delete require.cache[modulePath];
+    delete require.cache[constantsPath];
+    try {
+      const gateway = require(modulePath);
+      const denchDir = "/tmp/alphaclaw-dench/.openclaw-dench";
+
+      expect(gateway.gatewayEnv()).toEqual(
+        expect.objectContaining({
+          OPENCLAW_PROFILE: "dench",
+          OPENCLAW_CONFIG_PATH: `${denchDir}/openclaw.json`,
+          OPENCLAW_STATE_DIR: denchDir,
+          XDG_CONFIG_HOME: denchDir,
+          DENCHCLAW_DAEMONLESS: "1",
+        }),
+      );
+
+      gateway.launchGatewayProcess();
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        "openclaw",
+        ["--profile", "dench", "gateway", "run"],
+        expect.objectContaining({
+          env: expect.objectContaining({
+            OPENCLAW_PROFILE: "dench",
+            OPENCLAW_STATE_DIR: denchDir,
+          }),
+        }),
+      );
+    } finally {
+      if (previousRuntime === undefined) {
+        delete process.env.ALPHACLAW_CLAW_RUNTIME;
+      } else {
+        process.env.ALPHACLAW_CLAW_RUNTIME = previousRuntime;
+      }
+      if (previousRootDir === undefined) {
+        delete process.env.ALPHACLAW_ROOT_DIR;
+      } else {
+        process.env.ALPHACLAW_ROOT_DIR = previousRootDir;
+      }
+      if (previousCompileCache === undefined) {
+        delete process.env.NODE_COMPILE_CACHE;
+      } else {
+        process.env.NODE_COMPILE_CACHE = previousCompileCache;
       }
     }
   });

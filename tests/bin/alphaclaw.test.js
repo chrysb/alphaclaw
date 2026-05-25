@@ -65,6 +65,30 @@ describe("bin/alphaclaw port check", () => {
     expect(output).toContain("reserved for the OpenClaw gateway");
   });
 
+  it("reserves the DenchClaw gateway port in Dench runtime mode", () => {
+    let output = "";
+    let status = 0;
+    try {
+      execSync(`ALPHACLAW_ROOT_DIR="${tmpDir}" node "${binPath}" start`, {
+        stdio: "pipe",
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          ALPHACLAW_CLAW_RUNTIME: "denchclaw",
+          ALPHACLAW_ROOT_DIR: tmpDir,
+          PORT: "19001",
+        },
+      });
+    } catch (e) {
+      status = e.status;
+      output = e.stdout + e.stderr;
+    }
+
+    expect(status).toBe(1);
+    expect(output).toContain("AlphaClaw cannot be started on port 19001");
+    expect(output).toContain("reserved for the DenchClaw gateway");
+  });
+
   it("does not exit if PORT is not 18789 (fails on SETUP_PASSWORD)", () => {
     let output = "";
     let status = 0;

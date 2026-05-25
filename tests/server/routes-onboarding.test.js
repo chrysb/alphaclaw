@@ -580,6 +580,51 @@ describe("server/routes/onboarding", () => {
     });
   });
 
+  it("uses Dench profile commands and gateway port when Dench runtime is provided", async () => {
+    const deps = createBaseDeps();
+    deps.constants = {
+      ...deps.constants,
+      OPENCLAW_DIR: "/tmp/openclaw-dench",
+      WORKSPACE_DIR: "/tmp/openclaw-dench/workspace",
+      kClawRuntime: {
+        defaultGatewayPort: 19001,
+        buildCommand: (cmd) => `openclaw --profile dench ${String(cmd || "").trim()}`,
+      },
+    };
+    deps.gatewayEnv = vi.fn(() => ({
+      HOME: "/tmp/alphaclaw",
+      OPENCLAW_HOME: "/tmp/alphaclaw",
+      OPENCLAW_PROFILE: "dench",
+      OPENCLAW_CONFIG_PATH: "/tmp/openclaw-dench/openclaw.json",
+      OPENCLAW_GATEWAY_TOKEN: "tok",
+      OPENCLAW_NO_RESPAWN: "1",
+      OPENCLAW_STATE_DIR: "/tmp/openclaw-dench",
+      XDG_CONFIG_HOME: "/tmp/openclaw-dench",
+    }));
+    const app = createApp(deps);
+    mockGithubVerifyAndCreate();
+
+    const res = await request(app).post("/api/onboard").send(makeValidBody());
+
+    expect(res.status).toBe(200);
+    expect(
+      deps.shellCmd.mock.calls.some(
+        ([cmd]) =>
+          cmd.startsWith("openclaw --profile dench onboard ") &&
+          cmd.includes('"--gateway-port" "19001"'),
+      ),
+    ).toBe(true);
+    expect(deps.shellCmd).toHaveBeenCalledWith(
+      'openclaw --profile dench models set "openai/gpt-5.1-codex"',
+      expect.objectContaining({
+        env: expect.objectContaining({
+          OPENCLAW_PROFILE: "dench",
+          OPENCLAW_STATE_DIR: "/tmp/openclaw-dench",
+        }),
+      }),
+    );
+  });
+
   it("redacts fine-grained GitHub tokens from onboarding errors", async () => {
     const deps = createBaseDeps();
     const app = createApp(deps);
