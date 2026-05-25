@@ -25,6 +25,72 @@
         document.documentElement.dataset.theme = t;
       } catch {}
     </script>
+    <script>
+      // Keep AlphaClaw setup APIs separate from DenchClaw's root /api namespace.
+      (() => {
+        const apiBase = "/setup-api";
+        const isApiPath = (path) => /^\/api(?:\/|\?|$)/.test(path);
+        const rewritePath = (path) => path.replace(/^\/api(?=\/|\?|$)/, apiBase);
+        const rewriteUrl = (input) => {
+          if (typeof input === "string") {
+            if (isApiPath(input) || input.startsWith("api/")) {
+              return rewritePath(input.startsWith("/") ? input : `/${input}`);
+            }
+            try {
+              const url = new URL(input, window.location.href);
+              if (url.origin === window.location.origin && isApiPath(url.pathname)) {
+                url.pathname = rewritePath(url.pathname);
+                return url.toString();
+              }
+            } catch {}
+            return input;
+          }
+          return input;
+        };
+        const nativeFetch = window.fetch?.bind(window);
+        if (nativeFetch) {
+          window.fetch = (input, init) => {
+            if (input instanceof Request) {
+              const rewritten = rewriteUrl(input.url);
+              if (rewritten !== input.url) input = new Request(rewritten, input);
+            } else {
+              input = rewriteUrl(input);
+            }
+            return nativeFetch(input, init);
+          };
+        }
+        const NativeEventSource = window.EventSource;
+        if (NativeEventSource) {
+          window.EventSource = function EventSource(url, config) {
+            return new NativeEventSource(rewriteUrl(url), config);
+          };
+          window.EventSource.prototype = NativeEventSource.prototype;
+        }
+        const NativeWebSocket = window.WebSocket;
+        if (NativeWebSocket) {
+          window.WebSocket = function WebSocket(url, protocols) {
+            let nextUrl = url;
+            try {
+              const parsed = new URL(url, window.location.href);
+              if (
+                parsed.host === window.location.host &&
+                isApiPath(parsed.pathname)
+              ) {
+                parsed.pathname = rewritePath(parsed.pathname);
+                nextUrl = parsed.toString();
+              }
+            } catch {}
+            return protocols === undefined
+              ? new NativeWebSocket(nextUrl)
+              : new NativeWebSocket(nextUrl, protocols);
+          };
+          window.WebSocket.prototype = NativeWebSocket.prototype;
+          ["CONNECTING", "OPEN", "CLOSING", "CLOSED"].forEach((key) => {
+            window.WebSocket[key] = NativeWebSocket[key];
+          });
+        }
+      })();
+    </script>
   </head>
   <body>
     <div id="app"></div>

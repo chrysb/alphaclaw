@@ -27,6 +27,14 @@ const createTestApp = ({ setupPassword, loginThrottle } = {}) => {
   const { registerAuthRoutes } = loadAuthRoutes();
   const app = express();
   app.use(express.json());
+  app.use((req, _res, next) => {
+    if (req.url === "/setup-api" || req.url.startsWith("/setup-api/")) {
+      req.url = req.url.replace(/^\/setup-api(?=\/|$)/, "/api");
+    } else if (req.url.startsWith("/setup-api?")) {
+      req.url = req.url.replace(/^\/setup-api(?=\?)/, "/api");
+    }
+    next();
+  });
   const throttle = loginThrottle || createLoginThrottleMock();
   registerAuthRoutes({ app, loginThrottle: throttle });
 
@@ -104,6 +112,15 @@ describe("server/routes/auth", () => {
     expect(tokenMatch).toBeTruthy();
 
     const protectedRes = await request(app).get(`/api/protected?token=${tokenMatch[1]}`);
+    expect(protectedRes.status).toBe(401);
+    expect(protectedRes.body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("treats setup-api aliases as API requests for auth errors", async () => {
+    const { app } = createTestApp({ setupPassword: "secret" });
+
+    const protectedRes = await request(app).get("/setup-api/protected");
+
     expect(protectedRes.status).toBe(401);
     expect(protectedRes.body).toEqual({ error: "Unauthorized" });
   });

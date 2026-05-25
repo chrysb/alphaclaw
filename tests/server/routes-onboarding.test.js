@@ -72,6 +72,7 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
     ensureGatewayProxyConfig: vi.fn(),
     getBaseUrl: vi.fn(() => "https://example.com"),
     startGateway: vi.fn(),
+    startDenchWebRuntime: vi.fn(() => Promise.resolve()),
   };
 };
 
@@ -413,6 +414,9 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
     expect(deps.startGateway).toHaveBeenCalledTimes(1);
+    expect(deps.startDenchWebRuntime).toHaveBeenCalledWith({
+      reason: "onboarding",
+    });
     expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
       "openai",
       "sk-test-123456789",

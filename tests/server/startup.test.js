@@ -22,6 +22,10 @@ describe("server/startup", () => {
     });
     const ensureGatewayProxyConfig = vi.fn(() => callOrder.push("ensureGatewayProxyConfig"));
     const startGateway = vi.fn(() => callOrder.push("startGateway"));
+    const startDenchWebRuntime = vi.fn(() => {
+      callOrder.push("startDenchWebRuntime");
+      return Promise.resolve();
+    });
     const watchdog = {
       start: vi.fn(() => callOrder.push("watchdog.start")),
     };
@@ -39,6 +43,7 @@ describe("server/startup", () => {
       ensureGatewayProxyConfig,
       resolveSetupUrl,
       startGateway,
+      startDenchWebRuntime,
       watchdog,
       gmailWatchService,
     });
@@ -54,8 +59,10 @@ describe("server/startup", () => {
       "resolveSetupUrl",
       "ensureGatewayProxyConfig",
       "startGateway",
+      "startDenchWebRuntime",
       "watchdog.start",
       "gmailWatchService.start",
     ]);
+    expect(startDenchWebRuntime).toHaveBeenCalledWith({ reason: "boot" });
   });
 });
