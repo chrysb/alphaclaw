@@ -17,15 +17,22 @@ const close = (server) =>
     server.close((err) => (err ? reject(err) : resolve()));
   });
 
-const createApp = ({ gatewayUrl }) => {
+const createApp = ({
+  gatewayUrl,
+  gatewayToken = "gateway-token",
+  openAiJsonLimit = "50mb",
+  globalJsonLimit = "5mb",
+}) => {
   const app = express();
-  app.use(express.json());
+  app.use("/v1", express.json({ limit: openAiJsonLimit }));
+  app.use(express.json({ limit: globalJsonLimit }));
   registerProxyRoutes({
     app,
     proxy: {
       web: vi.fn((_req, res) => res.status(502).json({ error: "Unexpected proxy" })),
     },
     getGatewayUrl: () => gatewayUrl,
+    getGatewayToken: () => gatewayToken,
     SETUP_API_PREFIXES: [],
     requireAuth: (_req, _res, next) => next(),
     oauthCallbackMiddleware: (_req, res) => res.status(204).end(),
@@ -58,6 +65,55 @@ describe("server/routes/proxy OpenAI compatibility", () => {
       model: "openclaw/default",
       stream: true,
     });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(upstreamCalls).toBe(0);
+  });
+
+  it("rejects bearer tokens that do not match the configured gateway token", async () => {
+    let upstreamCalls = 0;
+    upstream = http.createServer((_req, res) => {
+      upstreamCalls += 1;
+      res.statusCode = 200;
+      res.end("{}");
+    });
+    const port = await listen(upstream);
+    const app = createApp({ gatewayUrl: `http://127.0.0.1:${port}` });
+
+    const res = await request(app)
+      .post("/v1/chat/completions")
+      .set("Authorization", "Bearer wrong-token")
+      .send({
+        model: "openclaw/default",
+        stream: true,
+      });
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(upstreamCalls).toBe(0);
+  });
+
+  it("rejects /v1 requests when no gateway token is configured", async () => {
+    let upstreamCalls = 0;
+    upstream = http.createServer((_req, res) => {
+      upstreamCalls += 1;
+      res.statusCode = 200;
+      res.end("{}");
+    });
+    const port = await listen(upstream);
+    const app = createApp({
+      gatewayUrl: `http://127.0.0.1:${port}`,
+      gatewayToken: "",
+    });
+
+    const res = await request(app)
+      .post("/v1/chat/completions")
+      .set("Authorization", "Bearer gateway-token")
+      .send({
+        model: "openclaw/default",
+        stream: true,
+      });
 
     expect(res.status).toBe(401);
     expect(res.body).toEqual({ error: "Unauthorized" });
@@ -114,6 +170,37 @@ describe("server/routes/proxy OpenAI compatibility", () => {
         stream: true,
       }),
     });
+  });
+
+  it("uses the /v1 JSON parser limit before the smaller global JSON limit", async () => {
+    const seen = {};
+    upstream = http.createServer((req, res) => {
+      const chunks = [];
+      req.on("data", (chunk) => chunks.push(chunk));
+      req.on("end", () => {
+        seen.bodyLength = Buffer.concat(chunks).length;
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true }));
+      });
+    });
+    const port = await listen(upstream);
+    const app = createApp({
+      gatewayUrl: `http://127.0.0.1:${port}`,
+      openAiJsonLimit: "10kb",
+      globalJsonLimit: "1kb",
+    });
+    const payload = {
+      model: "openclaw/default",
+      messages: [{ role: "user", content: "x".repeat(2048) }],
+    };
+
+    const res = await request(app)
+      .post("/v1/chat/completions")
+      .set("Authorization", "Bearer gateway-token")
+      .send(payload);
+
+    expect(res.status).toBe(200);
+    expect(seen.bodyLength).toBe(Buffer.byteLength(JSON.stringify(payload)));
   });
 
   describe("createGatewayProxyHeaders (unit)", () => {

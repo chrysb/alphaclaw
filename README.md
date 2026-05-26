@@ -174,7 +174,7 @@ AlphaClaw exposes an OpenAI-compatible API surface on the same public port as th
 | `/v1/embeddings`                | POST    | Routes to OpenClaw's embeddings endpoint.                          |
 | `/v1/models`, `/v1/models/<id>` | GET     | Lists OpenClaw agent targets.                                      |
 
-The proxy forwards requests to the loopback OpenClaw gateway. AlphaClaw checks that an `Authorization: Bearer ...` header is present; the actual token is validated by OpenClaw's gateway auth (`OPENCLAW_GATEWAY_TOKEN`). The setup-UI cookie is stripped before forwarding and hop-by-hop response headers are not passed through.
+The proxy forwards requests to the loopback OpenClaw gateway. AlphaClaw requires `Authorization: Bearer <OPENCLAW_GATEWAY_TOKEN>` and rejects requests when the gateway token is missing or does not match before forwarding to OpenClaw. The setup-UI cookie is stripped before forwarding, hop-by-hop response headers are not passed through, and `/v1` JSON request bodies are accepted up to 50 MB.
 
 **Security boundary (important).** OpenClaw treats `/v1/chat/completions` as a full operator-access surface. A caller with a valid `OPENCLAW_GATEWAY_TOKEN` can run any tool the configured agent profile allows. Treat this token like an owner credential:
 

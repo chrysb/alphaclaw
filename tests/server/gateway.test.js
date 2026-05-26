@@ -586,6 +586,7 @@ describe("server/gateway restart behavior", () => {
                   url: "https://old.example.com/mcp",
                   transport: "streamable-http",
                   headers: { Authorization: "Bearer ${REMOTE_MCP_API_TOKEN}" },
+                  _alphaclawManaged: true,
                 },
               },
             },
@@ -595,6 +596,39 @@ describe("server/gateway restart behavior", () => {
 
           expect(changed).toBe(true);
           expect(io.getConfig().mcp).toBeUndefined();
+        },
+      );
+    });
+
+    it("preserves an unmarked user remote MCP server when env vars are unset", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: undefined,
+          REMOTE_MCP_API_TOKEN: undefined,
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                remote: {
+                  url: "https://user.example.com/mcp",
+                  transport: "sse",
+                  headers: { Authorization: "Bearer user-token" },
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote).toEqual({
+            url: "https://user.example.com/mcp",
+            transport: "sse",
+            headers: { Authorization: "Bearer user-token" },
+          });
         },
       );
     });
