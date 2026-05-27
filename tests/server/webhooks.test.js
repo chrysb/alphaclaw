@@ -3,6 +3,7 @@ const path = require("path");
 const {
   createWebhook,
   getTransformRelativePath,
+  updateWebhookDestination,
 } = require("../../lib/server/webhooks");
 
 const createMemoryFs = (initialFiles = {}) => {
@@ -166,5 +167,60 @@ describe("server/webhooks", () => {
       (entry) => entry?.match?.path === "agent-fallback",
     );
     expect(mapping?.agentId).toBe("main");
+  });
+
+  it("updates webhook destination and can reset to default route", () => {
+    const openclawDir = "/tmp/openclaw";
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        agents: {
+          list: [
+            { id: "main", default: true },
+            { id: "alpha" },
+          ],
+        },
+      }),
+    });
+    createWebhook({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "destination-edit",
+      destination: {
+        channel: "direct",
+        to: "session-1",
+        agentId: "main",
+      },
+    });
+    const updated = updateWebhookDestination({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "destination-edit",
+      destination: {
+        channel: "group",
+        to: "session-2",
+        agentId: "alpha",
+      },
+    });
+    expect(updated).toEqual(
+      expect.objectContaining({
+        channel: "group",
+        to: "session-2",
+        agentId: "alpha",
+      }),
+    );
+    const reset = updateWebhookDestination({
+      fs,
+      constants: { OPENCLAW_DIR: openclawDir },
+      name: "destination-edit",
+      destination: null,
+    });
+    expect(reset).toEqual(
+      expect.objectContaining({
+        channel: "last",
+        agentId: "alpha",
+      }),
+    );
+    expect(reset?.to ?? "").toBe("");
   });
 });

@@ -10,21 +10,41 @@ const loadDoctorDb = () => {
   return require(modulePath);
 };
 
+let currentDoctorDb = null;
+let currentRootDir = "";
+
+const createDoctorDbContext = (prefix) => {
+  currentRootDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  currentDoctorDb = loadDoctorDb();
+  const dbResult = currentDoctorDb.initDoctorDb({ rootDir: currentRootDir });
+  return {
+    ...currentDoctorDb,
+    ...dbResult,
+    rootDir: currentRootDir,
+  };
+};
+
 describe("server/doctor-db", () => {
+  afterEach(() => {
+    if (currentDoctorDb?.closeDoctorDb) {
+      currentDoctorDb.closeDoctorDb();
+      currentDoctorDb = null;
+    }
+    if (currentRootDir) {
+      fs.rmSync(currentRootDir, { recursive: true, force: true });
+      currentRootDir = "";
+    }
+  });
+
   it("initializes doctor.db under root db directory", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-db-init-"));
-    const { initDoctorDb } = loadDoctorDb();
+    const result = createDoctorDbContext("doctor-db-init-");
 
-    const result = initDoctorDb({ rootDir });
-
-    expect(result.path).toBe(path.join(rootDir, "db", "doctor.db"));
+    expect(result.path).toBe(path.join(result.rootDir, "db", "doctor.db"));
     expect(fs.existsSync(result.path)).toBe(true);
   });
 
   it("stores runs and cards with aggregated counts", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-db-cards-"));
     const {
-      initDoctorDb,
       createDoctorRun,
       insertDoctorCards,
       completeDoctorRun,
@@ -34,8 +54,7 @@ describe("server/doctor-db", () => {
       getDoctorCardsByRunId,
       setInitialWorkspaceBaseline,
       updateDoctorCardStatus,
-    } = loadDoctorDb();
-    initDoctorDb({ rootDir });
+    } = createDoctorDbContext("doctor-db-cards-");
     setInitialWorkspaceBaseline({
       fingerprint: "initial-fingerprint",
       manifest: { "README.md": "hash-readme" },

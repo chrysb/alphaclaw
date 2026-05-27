@@ -3,6 +3,7 @@ const os = require("os");
 const path = require("path");
 
 const {
+  promoteCloneToTarget,
   alignHookTransforms,
   applySecretExtraction,
 } = require("../../lib/server/onboarding/import/import-applier");
@@ -22,6 +23,52 @@ afterEach(() => {
 });
 
 describe("import-applier", () => {
+  it("merges imported files into an existing target directory", () => {
+    const tempDir = createTempDir();
+    const targetDir = createTempDir();
+
+    fs.writeFileSync(
+      path.join(tempDir, "openclaw.json"),
+      JSON.stringify({ channels: { telegram: { enabled: true } } }, null, 2),
+      "utf8",
+    );
+    fs.mkdirSync(path.join(tempDir, "workspace"), { recursive: true });
+    fs.writeFileSync(
+      path.join(tempDir, "workspace", "AGENTS.md"),
+      "# imported workspace\n",
+      "utf8",
+    );
+
+    fs.writeFileSync(
+      path.join(targetDir, "openclaw.json"),
+      JSON.stringify({ channels: { telegram: { enabled: false } } }, null, 2),
+      "utf8",
+    );
+    fs.writeFileSync(
+      path.join(targetDir, "exec-approvals.json"),
+      JSON.stringify({ version: 1, defaults: { security: "full" } }, null, 2),
+      "utf8",
+    );
+
+    const result = promoteCloneToTarget({
+      fs,
+      tempDir,
+      targetDir,
+    });
+
+    expect(result).toEqual({ ok: true });
+    expect(
+      JSON.parse(fs.readFileSync(path.join(targetDir, "openclaw.json"), "utf8")),
+    ).toEqual({
+      channels: { telegram: { enabled: true } },
+    });
+    expect(
+      fs.readFileSync(path.join(targetDir, "workspace", "AGENTS.md"), "utf8"),
+    ).toBe("# imported workspace\n");
+    expect(fs.existsSync(path.join(targetDir, "exec-approvals.json"))).toBe(true);
+    expect(fs.existsSync(tempDir)).toBe(false);
+  });
+
   it("relocates mismatched hook transforms into _backup and writes a shim", () => {
     const baseDir = createTempDir();
     const legacyTransformDir = path.join(

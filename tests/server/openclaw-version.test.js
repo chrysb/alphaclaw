@@ -1,6 +1,9 @@
 const childProcess = require("child_process");
 
-const { kNpmPackageRoot } = require("../../lib/server/constants");
+const {
+  kNpmPackageRoot,
+  kOpenclawUpdateCopyTimeoutMs,
+} = require("../../lib/server/constants");
 const modulePath = require.resolve("../../lib/server/openclaw-version");
 const originalExec = childProcess.exec;
 const originalExecSync = childProcess.execSync;
@@ -155,7 +158,7 @@ describe("server/openclaw-version", () => {
     expect(execMock).toHaveBeenNthCalledWith(
       2,
       expect.stringMatching(/^cp -af /),
-      expect.objectContaining({ timeout: 60000 }),
+      expect.objectContaining({ timeout: kOpenclawUpdateCopyTimeoutMs }),
       expect.any(Function),
     );
     expect(restartGateway).toHaveBeenCalledTimes(1);

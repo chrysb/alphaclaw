@@ -10,12 +10,40 @@ const loadUsageDb = () => {
   return require(modulePath);
 };
 
+let currentUsageDb = null;
+let currentDatabase = null;
+let currentRootDir = "";
+
+const createUsageDbContext = (prefix) => {
+  currentRootDir = fs.mkdtempSync(path.join(os.tmpdir(), prefix));
+  currentUsageDb = loadUsageDb();
+  const { path: dbPath } = currentUsageDb.initUsageDb({ rootDir: currentRootDir });
+  currentDatabase = new DatabaseSync(dbPath);
+  return {
+    ...currentUsageDb,
+    database: currentDatabase,
+    rootDir: currentRootDir,
+  };
+};
+
 describe("server/usage-db", () => {
+  afterEach(() => {
+    if (currentDatabase) {
+      currentDatabase.close();
+      currentDatabase = null;
+    }
+    if (currentUsageDb?.closeUsageDb) {
+      currentUsageDb.closeUsageDb();
+      currentUsageDb = null;
+    }
+    if (currentRootDir) {
+      fs.rmSync(currentRootDir, { recursive: true, force: true });
+      currentRootDir = "";
+    }
+  });
+
   it("sums per-model costs for session detail totals", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-cost-"));
-    const { initUsageDb, getSessionDetail } = loadUsageDb();
-    const { path: dbPath } = initUsageDb({ rootDir });
-    const database = new DatabaseSync(dbPath);
+    const { database, getSessionDetail } = createUsageDbContext("usage-db-cost-");
 
     const insertUsageEvent = database.prepare(`
       INSERT INTO usage_events (
@@ -98,15 +126,10 @@ describe("server/usage-db", () => {
     expect(detail).toBeTruthy();
     expect(detail.totalCost).toBeCloseTo(expectedCost, 8);
     expect(detail.totalCost).toBeCloseTo(summedBreakdownCost, 8);
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("returns cost distribution by agent and source", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-agent-breakdown-"));
-    const { initUsageDb, getDailySummary } = loadUsageDb();
-    const { path: dbPath } = initUsageDb({ rootDir });
-    const database = new DatabaseSync(dbPath);
+    const { database, getDailySummary } = createUsageDbContext("usage-db-agent-breakdown-");
     const now = Date.now();
 
     const insertUsageEvent = database.prepare(`
@@ -220,15 +243,10 @@ describe("server/usage-db", () => {
     expect(dailyOps.totalCost).toBeCloseTo(10, 8);
 
     expect(summary.costByAgent.totals.totalCost).toBeCloseTo(22.5, 8);
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("applies tiered pricing per event, not aggregated totals", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-tiered-event-"));
-    const { initUsageDb, getSessionDetail } = loadUsageDb();
-    const { path: dbPath } = initUsageDb({ rootDir });
-    const database = new DatabaseSync(dbPath);
+    const { database, getSessionDetail } = createUsageDbContext("usage-db-tiered-event-");
     const now = Date.now();
 
     const insertUsageEvent = database.prepare(`
@@ -291,15 +309,10 @@ describe("server/usage-db", () => {
 
     expect(detail).toBeTruthy();
     expect(detail.totalCost).toBeCloseTo(7.5, 8);
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("aggregates usage by session key pattern", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-pattern-"));
-    const { initUsageDb, getSessionUsageByKeyPattern } = loadUsageDb();
-    const { path: dbPath } = initUsageDb({ rootDir });
-    const database = new DatabaseSync(dbPath);
+    const { database, getSessionUsageByKeyPattern } = createUsageDbContext("usage-db-pattern-");
     const now = Date.now();
 
     const insertUsageEvent = database.prepare(`
@@ -380,15 +393,11 @@ describe("server/usage-db", () => {
     expect(usage.totals.totalCost).toBeCloseTo(7.5, 8);
     expect(usage.modelBreakdown).toHaveLength(1);
     expect(usage.modelBreakdown[0].model).toBe("gpt-4o");
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 
   it("counts distinct cron runs correctly across multi-model events", () => {
-    const rootDir = fs.mkdtempSync(path.join(os.tmpdir(), "usage-db-pattern-run-count-"));
-    const { initUsageDb, getSessionUsageByKeyPattern } = loadUsageDb();
-    const { path: dbPath } = initUsageDb({ rootDir });
-    const database = new DatabaseSync(dbPath);
+    const { database, getSessionUsageByKeyPattern } =
+      createUsageDbContext("usage-db-pattern-run-count-");
     const now = Date.now();
 
     const insertUsageEvent = database.prepare(`
@@ -468,7 +477,5 @@ describe("server/usage-db", () => {
     expect(usage.totals.eventCount).toBe(3);
     expect(usage.totals.runCount).toBe(2);
     expect(usage.totals.totalTokens).toBe(200_000);
-
-    fs.rmSync(rootDir, { recursive: true, force: true });
   });
 });

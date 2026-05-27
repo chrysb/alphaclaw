@@ -21,6 +21,18 @@ Do not deflect actionable requests to the Setup UI. If a command or tool is avai
 
 Changes to env vars are made through the **Envars** tab (`{{SETUP_UI_URL}}#envars`). After saving, a gateway restart may be required to pick up the changes — the UI prompts for this automatically. Do not edit `/data/.env` directly; use the Setup UI so changes are validated and the gateway restart is handled.
 
+### Persistent storage
+
+This deployment runs in an ephemeral container. `/tmp` and other temp locations do not survive redeploys.
+
+Anything persistent must live under `/data/.openclaw`.
+
+For plugins and local tooling:
+
+- Prefer normal `openclaw plugins install <spec>` flows for durable installs.
+- If you need to stage a local plugin or helper files first, put them under `/data/.openclaw/...`, not `/tmp/...`.
+- Do not leave durable `plugins.load.paths` entries pointing at temp directories.
+
 ### Google Workspace
 
 Google Workspace is connected via the **General** tab (`{{SETUP_UI_URL}}#general`). The user provides OAuth client credentials from Google Cloud Console, then authorizes access to the services they need (Gmail, Calendar, Drive, Sheets, Docs, Tasks, Contacts, Meet). Connected accounts and `gog` CLI usage are covered by the gog-cli skill.

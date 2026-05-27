@@ -16,7 +16,21 @@ const loadDoctorService = () => {
 
 const repeatText = (length, character = "A") => character.repeat(length);
 
+let currentDoctorDb = null;
+
+const loadManagedDoctorDb = () => {
+  currentDoctorDb = loadDoctorDb();
+  return currentDoctorDb;
+};
+
 describe("server/doctor-service", () => {
+  afterEach(() => {
+    if (currentDoctorDb?.closeDoctorDb) {
+      currentDoctorDb.closeDoctorDb();
+      currentDoctorDb = null;
+    }
+  });
+
   it("reuses the previous completed run when the workspace fingerprint is unchanged", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-workspace-"));
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-service-db-"));
@@ -26,7 +40,7 @@ describe("server/doctor-service", () => {
       "utf8",
     );
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const clawCmd = vi.fn(async () => ({
@@ -92,7 +106,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-session-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Workspace Guidance\n", "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const clawCmd = vi.fn(async () => ({
@@ -143,7 +157,7 @@ describe("server/doctor-service", () => {
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Workspace Guidance\n", "utf8");
     fs.writeFileSync(path.join(workspaceRoot, "README.md"), "# Initial docs\n", "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     let runCount = 0;
@@ -225,7 +239,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-drift-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const listDoctorRuns = ({ limit } = {}) =>
@@ -283,7 +297,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-initial-baseline-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const { createDoctorService } = loadDoctorService();
@@ -323,7 +337,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-healthy-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\nKeep it short.\n", "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const { createDoctorService } = loadDoctorService();
@@ -355,7 +369,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-file-limit-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), repeatText(20001), "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const { createDoctorService } = loadDoctorService();
@@ -411,7 +425,7 @@ describe("server/doctor-service", () => {
       fs.writeFileSync(path.join(workspaceRoot, filePath), repeatText(20000), "utf8");
     }
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const { createDoctorService } = loadDoctorService();
@@ -454,7 +468,7 @@ describe("server/doctor-service", () => {
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-import-db-"));
     fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), repeatText(20001), "utf8");
 
-    const doctorDb = loadDoctorDb();
+    const doctorDb = loadManagedDoctorDb();
     doctorDb.initDoctorDb({ rootDir: dbRoot });
 
     const { createDoctorService } = loadDoctorService();

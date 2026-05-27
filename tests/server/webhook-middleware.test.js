@@ -55,6 +55,7 @@ describe("server/webhook-middleware", () => {
       );
       expect(response.status).toBe(200);
       expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("POST");
       expect(calls[0].url).toBe("/hooks/schwab-oauth?code=AUTH_CODE&session=SESSION_ID");
       expect(calls[0].headers["content-type"]).toContain("application/json");
       expect(JSON.parse(calls[0].bodyText)).toEqual({
@@ -82,6 +83,7 @@ describe("server/webhook-middleware", () => {
         );
       expect(response.status).toBe(200);
       expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("POST");
       expect(JSON.parse(calls[0].bodyText)).toEqual({
         code: "BODY_CODE",
         session: "SESSION_ID",
@@ -106,6 +108,7 @@ describe("server/webhook-middleware", () => {
       );
       expect(response.status).toBe(200);
       expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("POST");
       expect(JSON.parse(calls[0].bodyText)).toEqual({
         code: "AUTH_CODE",
         session: "SESSION_ID",
@@ -135,6 +138,7 @@ describe("server/webhook-middleware", () => {
       const response = await request(app).get("/hooks/schwab-oauth?token=SECRET_TOKEN");
       expect(response.status).toBe(200);
       expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("POST");
       expect(calls[0].headers.authorization).toBe("Bearer SECRET_TOKEN");
       expect(calls[0].url).toBe("/hooks/schwab-oauth");
       expect(calls[0].bodyText).toBe("{}");
@@ -161,6 +165,7 @@ describe("server/webhook-middleware", () => {
         .set("authorization", "Bearer HEADER_TOKEN");
       expect(response.status).toBe(200);
       expect(calls).toHaveLength(1);
+      expect(calls[0].method).toBe("POST");
       expect(calls[0].headers.authorization).toBe("Bearer HEADER_TOKEN");
       expect(calls[0].url).toBe("/hooks/schwab-oauth?session=SESSION_ID");
       expect(JSON.parse(calls[0].bodyText)).toEqual({

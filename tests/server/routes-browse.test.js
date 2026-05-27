@@ -7,8 +7,12 @@ const request = require("supertest");
 
 const { registerBrowseRoutes } = require("../../lib/server/routes/browse");
 
-const createTestRoot = () =>
-  fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-browse-test-"));
+const createdTestRoots = [];
+const createTestRoot = () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-browse-test-"));
+  createdTestRoots.push(dir);
+  return dir;
+};
 
 const createApp = (kRootDir) => {
   const app = express();
@@ -26,6 +30,12 @@ const runGit = (cwd, args) =>
     .trim();
 
 describe("server/routes/browse", () => {
+  afterEach(() => {
+    for (const dir of createdTestRoots.splice(0)) {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
   it("returns browse tree rooted at configured directory", async () => {
     const rootDir = createTestRoot();
     fs.mkdirSync(path.join(rootDir, "devices"), { recursive: true });
