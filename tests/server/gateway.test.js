@@ -12,6 +12,7 @@ const {
 } = require("../../lib/server/openclaw-runtime-env");
 
 const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
+const kAlphaclawConfigPath = path.join(OPENCLAW_DIR, "alphaclaw.json");
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
@@ -383,8 +384,7 @@ describe("server/gateway restart behavior", () => {
     expect(currentConfig.gateway.controlUi.allowedOrigins).toEqual([
       "https://setup.example.com",
     ]);
-    expect(currentConfig.gateway.http.endpoints.chatCompletions.enabled).toBe(true);
-    expect(currentConfig.gateway.http.endpoints.responses.enabled).toBe(true);
+    expect(currentConfig.gateway.http).toBeUndefined();
   });
 
   it("preserves existing allowed origins and remains idempotent", () => {
@@ -420,12 +420,11 @@ describe("server/gateway restart behavior", () => {
       "https://existing.example.com",
       "https://setup.example.com",
     ]);
-    expect(currentConfig.gateway.http.endpoints.chatCompletions.enabled).toBe(true);
-    expect(currentConfig.gateway.http.endpoints.responses.enabled).toBe(true);
+    expect(currentConfig.gateway.http).toBeUndefined();
     expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
   });
 
-  it("preserves existing gateway endpoint options while enabling public API endpoints", () => {
+  it("preserves existing gateway endpoint options while enabling opted-in public API endpoints", () => {
     let currentConfig = {
       gateway: {
         trustedProxies: ["127.0.0.1"],
@@ -455,6 +454,11 @@ describe("server/gateway restart behavior", () => {
     fs.readFileSync = vi.fn((targetPath) => {
       if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
         return JSON.stringify(currentConfig);
+      }
+      if (targetPath === kAlphaclawConfigPath) {
+        return JSON.stringify({
+          features: { openaiCompatApi: { enabled: true } },
+        });
       }
       return "{}";
     });

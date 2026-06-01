@@ -22,9 +22,16 @@ const createApp = ({
   gatewayToken = "gateway-token",
   openAiJsonLimit = "50mb",
   globalJsonLimit = "5mb",
+  openAiCompatApiEnabled = true,
 }) => {
   const app = express();
-  app.use("/v1", express.json({ limit: openAiJsonLimit }));
+  const openAiParser = express.json({ limit: openAiJsonLimit });
+  app.use("/v1", (req, res, next) => {
+    if (!openAiCompatApiEnabled) {
+      return res.status(404).json({ error: "Not found" });
+    }
+    return openAiParser(req, res, next);
+  });
   app.use(express.json({ limit: globalJsonLimit }));
   registerProxyRoutes({
     app,
@@ -33,6 +40,7 @@ const createApp = ({
     },
     getGatewayUrl: () => gatewayUrl,
     getGatewayToken: () => gatewayToken,
+    isOpenAiCompatApiEnabled: () => openAiCompatApiEnabled,
     SETUP_API_PREFIXES: [],
     requireAuth: (_req, _res, next) => next(),
     oauthCallbackMiddleware: (_req, res) => res.status(204).end(),
@@ -117,6 +125,32 @@ describe("server/routes/proxy OpenAI compatibility", () => {
 
     expect(res.status).toBe(401);
     expect(res.body).toEqual({ error: "Unauthorized" });
+    expect(upstreamCalls).toBe(0);
+  });
+
+  it("returns 404 for /v1 requests when the API feature is disabled", async () => {
+    let upstreamCalls = 0;
+    upstream = http.createServer((_req, res) => {
+      upstreamCalls += 1;
+      res.statusCode = 200;
+      res.end("{}");
+    });
+    const port = await listen(upstream);
+    const app = createApp({
+      gatewayUrl: `http://127.0.0.1:${port}`,
+      openAiCompatApiEnabled: false,
+    });
+
+    const res = await request(app)
+      .post("/v1/chat/completions")
+      .set("Authorization", "Bearer gateway-token")
+      .send({
+        model: "openclaw/default",
+        stream: true,
+      });
+
+    expect(res.status).toBe(404);
+    expect(res.body).toEqual({ error: "Not found" });
     expect(upstreamCalls).toBe(0);
   });
 

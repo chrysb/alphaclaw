@@ -98,13 +98,17 @@ describe("server/onboarding/openclaw", () => {
       enabled: true,
       hooks: { allowConversationAccess: true },
     });
-    expect(next.gateway.http.endpoints.chatCompletions.enabled).toBe(true);
-    expect(next.gateway.http.endpoints.responses.enabled).toBe(true);
+    expect(next.gateway.http).toBeUndefined();
   });
 
-  it("preserves existing gateway HTTP endpoint settings while enabling OpenAI compatibility", () => {
+  it("preserves existing gateway HTTP endpoint settings when API exposure is opted in", () => {
     const openclawDir = createTempOpenclawDir();
     const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      path.join(openclawDir, "alphaclaw.json"),
+      JSON.stringify({ features: { openaiCompatApi: { enabled: true } } }),
+      "utf8",
+    );
     fs.writeFileSync(
       configPath,
       JSON.stringify(

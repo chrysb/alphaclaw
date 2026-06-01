@@ -165,7 +165,7 @@ The built-in watchdog monitors gateway health and recovers from failures automat
 
 ## OpenAI-compatible `/v1` proxy
 
-AlphaClaw exposes an OpenAI-compatible API surface on the same public port as the Setup UI:
+AlphaClaw can expose an OpenAI-compatible API surface on the same public port as the Setup UI. It is disabled by default. Enable it from the Setup UI under General -> Features -> API; the setting is persisted in `alphaclaw.json` in the OpenClaw repo so workspace sync can commit the change.
 
 | Path                            | Method  | Notes                                                              |
 | ------------------------------- | ------- | ------------------------------------------------------------------ |
@@ -174,7 +174,7 @@ AlphaClaw exposes an OpenAI-compatible API surface on the same public port as th
 | `/v1/embeddings`                | POST    | Routes to OpenClaw's embeddings endpoint.                          |
 | `/v1/models`, `/v1/models/<id>` | GET     | Lists OpenClaw agent targets.                                      |
 
-The proxy forwards requests to the loopback OpenClaw gateway. AlphaClaw requires `Authorization: Bearer <OPENCLAW_GATEWAY_TOKEN>` and rejects requests when the gateway token is missing or does not match before forwarding to OpenClaw. The setup-UI cookie is stripped before forwarding, hop-by-hop response headers are not passed through, and `/v1` JSON request bodies are accepted up to 50 MB.
+When enabled, the proxy forwards requests to the loopback OpenClaw gateway. AlphaClaw requires `Authorization: Bearer <OPENCLAW_GATEWAY_TOKEN>` and rejects requests when the gateway token is missing or does not match before forwarding to OpenClaw. The setup-UI cookie is stripped before forwarding, hop-by-hop response headers are not passed through, and `/v1` JSON request bodies are accepted up to 50 MB. When disabled or missing from `alphaclaw.json`, `/v1` requests return 404.
 
 **Security boundary (important).** OpenClaw treats `/v1/chat/completions` as a full operator-access surface. A caller with a valid `OPENCLAW_GATEWAY_TOKEN` can run any tool the configured agent profile allows. Treat this token like an owner credential:
 
