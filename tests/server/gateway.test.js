@@ -12,6 +12,7 @@ const {
 } = require("../../lib/server/openclaw-runtime-env");
 
 const kLegacyControlUiSkillPath = path.join(OPENCLAW_DIR, "skills", "control-ui", "SKILL.md");
+const kAlphaclawConfigPath = path.join(OPENCLAW_DIR, "alphaclaw.json");
 
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
@@ -24,19 +25,23 @@ const originalRmSync = fs.rmSync;
 const originalWriteFileSync = fs.writeFileSync;
 const originalCreateConnection = net.createConnection;
 
-const createSocket = (isRunning) => ({
-  setTimeout: vi.fn(),
-  destroy: vi.fn(),
-  on(event, handler) {
-    if (isRunning && event === "connect") {
-      setImmediate(handler);
-    }
-    if (!isRunning && event === "error") {
-      setImmediate(handler);
-    }
-    return this;
-  },
-});
+const createSocket = (isRunning) => {
+  const running =
+    typeof isRunning === "function" ? isRunning() : isRunning;
+  return {
+    setTimeout: vi.fn(),
+    destroy: vi.fn(),
+    on(event, handler) {
+      if (running && event === "connect") {
+        setImmediate(handler);
+      }
+      if (!running && event === "error") {
+        setImmediate(handler);
+      }
+      return this;
+    },
+  };
+};
 
 const createChild = () => ({
   pid: 1234,
@@ -62,13 +67,19 @@ describe("server/gateway restart behavior", () => {
     delete require.cache[modulePath];
   });
 
-  it("uses force restart when a managed child exists", async () => {
-    const spawnMock = vi.fn(() => createChild());
+  it("always cold-starts when the gateway port is listening", async () => {
+    const managedChild = createChild();
+    const restartSupervisor = createChild();
+    const spawnMock = vi
+      .fn()
+      .mockReturnValueOnce(managedChild)
+      .mockReturnValueOnce(restartSupervisor);
     const execSyncMock = vi.fn(() => "");
     childProcess.spawn = spawnMock;
     childProcess.execSync = execSyncMock;
     fs.existsSync = vi.fn(() => true);
-    net.createConnection = vi.fn(() => createSocket(false));
+    let gatewayPortOpen = false;
+    net.createConnection = vi.fn(() => createSocket(() => gatewayPortOpen));
     delete require.cache[modulePath];
     const gateway = require(modulePath);
     fs.readFileSync = vi.fn(() =>
@@ -86,19 +97,23 @@ describe("server/gateway restart behavior", () => {
     await gateway.startGateway();
     expect(spawnMock).toHaveBeenCalledTimes(1);
 
+    gatewayPortOpen = true;
     const reloadEnv = vi.fn();
-    gateway.restartGateway(reloadEnv);
+    await gateway.restartGateway(reloadEnv);
 
     expect(reloadEnv).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith("openclaw gateway --force", {
-      env: expect.any(Object),
-      timeout: 15000,
-      encoding: "utf8",
-    });
-    expect(spawnMock).toHaveBeenCalledTimes(1);
-    const firstChild = spawnMock.mock.results[0].value;
-    expect(firstChild.kill).not.toHaveBeenCalled();
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      "openclaw gateway restart",
+      expect.anything(),
+    );
+    expect(spawnMock).toHaveBeenCalledTimes(2);
+    expect(spawnMock).toHaveBeenNthCalledWith(
+      2,
+      "openclaw",
+      ["gateway", "--force"],
+      expect.objectContaining({ env: expect.any(Object) }),
+    );
+    expect(managedChild.kill).toHaveBeenCalledWith("SIGTERM");
   });
 
   it("exports the durable OpenClaw state dir in gateway env", () => {
@@ -136,13 +151,15 @@ describe("server/gateway restart behavior", () => {
     }
   });
 
-  it("uses force restart when no managed child exists", () => {
-    const spawnMock = vi.fn(() => createChild());
+  it("uses force cold start when the gateway port is not listening", async () => {
+    const restartSupervisor = createChild();
+    const spawnMock = vi.fn(() => restartSupervisor);
     const execSyncMock = vi.fn(() => "");
     childProcess.spawn = spawnMock;
     childProcess.execSync = execSyncMock;
     fs.existsSync = vi.fn(() => true);
-    net.createConnection = vi.fn(() => createSocket(false));
+    let gatewayPortOpen = false;
+    net.createConnection = vi.fn(() => createSocket(() => gatewayPortOpen));
     delete require.cache[modulePath];
     const gateway = require(modulePath);
     fs.readFileSync = vi.fn(() =>
@@ -158,16 +175,25 @@ describe("server/gateway restart behavior", () => {
     );
 
     const reloadEnv = vi.fn();
-    gateway.restartGateway(reloadEnv);
+    const restartPromise = gateway.restartGateway(reloadEnv);
+    gatewayPortOpen = true;
+    await restartPromise;
 
     expect(reloadEnv).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledTimes(1);
-    expect(execSyncMock).toHaveBeenCalledWith("openclaw gateway --force", {
-      env: expect.any(Object),
-      timeout: 15000,
-      encoding: "utf8",
-    });
-    expect(spawnMock).not.toHaveBeenCalled();
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      "openclaw gateway restart",
+      expect.anything(),
+    );
+    expect(spawnMock).toHaveBeenCalledTimes(1);
+    expect(spawnMock).toHaveBeenCalledWith(
+      "openclaw",
+      ["gateway", "--force"],
+      expect.objectContaining({ env: expect.any(Object) }),
+    );
+    expect(execSyncMock).not.toHaveBeenCalledWith(
+      "openclaw gateway --force",
+      expect.anything(),
+    );
   });
 
   it("retries channel plugin preflight after cleaning stale install stages", () => {
@@ -240,7 +266,8 @@ describe("server/gateway restart behavior", () => {
     childProcess.spawn = spawnMock;
     childProcess.execSync = execSyncMock;
     fs.existsSync = vi.fn(() => true);
-    net.createConnection = vi.fn(() => createSocket(false));
+    let gatewayPortOpen = false;
+    net.createConnection = vi.fn(() => createSocket(() => gatewayPortOpen));
     delete require.cache[modulePath];
     const gateway = require(modulePath);
     gateway.setGatewayExitHandler(exitHandler);
@@ -257,7 +284,9 @@ describe("server/gateway restart behavior", () => {
     );
 
     await gateway.startGateway();
-    gateway.restartGateway(vi.fn());
+    const restartPromise = gateway.restartGateway(vi.fn());
+    gatewayPortOpen = true;
+    await restartPromise;
 
     const exitRegistration = child.on.mock.calls.find((call) => call[0] === "exit");
     expect(exitRegistration).toBeTruthy();
@@ -383,6 +412,7 @@ describe("server/gateway restart behavior", () => {
     expect(currentConfig.gateway.controlUi.allowedOrigins).toEqual([
       "https://setup.example.com",
     ]);
+    expect(currentConfig.gateway.http).toBeUndefined();
   });
 
   it("preserves existing allowed origins and remains idempotent", () => {
@@ -418,7 +448,456 @@ describe("server/gateway restart behavior", () => {
       "https://existing.example.com",
       "https://setup.example.com",
     ]);
+    expect(currentConfig.gateway.http).toBeUndefined();
     expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+  });
+
+  it("preserves existing gateway endpoint options while enabling opted-in public API endpoints", () => {
+    let currentConfig = {
+      gateway: {
+        trustedProxies: ["127.0.0.1"],
+        http: {
+          endpoints: {
+            chatCompletions: {
+              maxBodyBytes: 12345,
+            },
+            responses: {
+              maxBodyBytes: 67890,
+            },
+          },
+        },
+        controlUi: {
+          allowedOrigins: ["https://setup.example.com"],
+        },
+      },
+    };
+    fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+    fs.writeFileSync = vi.fn((targetPath, contents) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        currentConfig = JSON.parse(contents);
+      }
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify(currentConfig);
+      }
+      if (targetPath === kAlphaclawConfigPath) {
+        return JSON.stringify({
+          features: { openaiCompatApi: { enabled: true } },
+        });
+      }
+      return "{}";
+    });
+
+    const changed = gateway.ensureGatewayProxyConfig("https://setup.example.com");
+
+    expect(changed).toBe(true);
+    expect(currentConfig.gateway.http.endpoints.chatCompletions).toEqual({
+      enabled: true,
+      maxBodyBytes: 12345,
+    });
+    expect(currentConfig.gateway.http.endpoints.responses).toEqual({
+      enabled: true,
+      maxBodyBytes: 67890,
+    });
+  });
+
+  describe("Managed remote MCP server config", () => {
+    const kRemoteMcpEnvKeys = [
+      "REMOTE_MCP_URL",
+      "REMOTE_MCP_API_TOKEN",
+      "REMOTE_MCP_PROXY_URL",
+      "REMOTE_MCP_NAME",
+    ];
+
+    const withEnv = (vars, fn) => {
+      const prev = {};
+      for (const key of kRemoteMcpEnvKeys) prev[key] = process.env[key];
+      try {
+        for (const [key, value] of Object.entries(vars)) {
+          if (value === undefined) delete process.env[key];
+          else process.env[key] = value;
+        }
+        return fn();
+      } finally {
+        for (const key of kRemoteMcpEnvKeys) {
+          if (prev[key] === undefined) delete process.env[key];
+          else process.env[key] = prev[key];
+        }
+      }
+    };
+
+    const setupConfigIo = (initial) => {
+      let currentConfig = initial;
+      let lastRawContents = null;
+      fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+      fs.writeFileSync = vi.fn((targetPath, contents) => {
+        if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+          lastRawContents = contents;
+          currentConfig = JSON.parse(contents);
+        }
+      });
+      delete require.cache[modulePath];
+      const gateway = require(modulePath);
+      fs.readFileSync = vi.fn((targetPath) => {
+        if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+          return JSON.stringify(currentConfig);
+        }
+        return "{}";
+      });
+      return {
+        gateway,
+        getConfig: () => currentConfig,
+        getRawContents: () => lastRawContents,
+      };
+    };
+
+    it("writes remote MCP server with placeholder when env vars are set", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote).toEqual({
+            url: "https://sure.example.com/mcp",
+            transport: "streamable-http",
+            headers: { Authorization: "Bearer ${REMOTE_MCP_API_TOKEN}" },
+            _alphaclawManaged: true,
+          });
+          expect(io.getRawContents()).not.toContain("sk-sure-secret-token");
+          expect(io.getRawContents()).toContain("Bearer ${REMOTE_MCP_API_TOKEN}");
+        },
+      );
+    });
+
+    it("routes through REMOTE_MCP_PROXY_URL when set", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: "http://127.0.0.1:8889/mcp",
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote.url).toBe(
+            "http://127.0.0.1:8889/mcp",
+          );
+          expect(io.getConfig().mcp.servers.remote.headers.Authorization).toBe(
+            "Bearer ${REMOTE_MCP_API_TOKEN}",
+          );
+        },
+      );
+    });
+
+    it("removes existing remote MCP server when env vars unset", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: undefined,
+          REMOTE_MCP_API_TOKEN: undefined,
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                remote: {
+                  url: "https://old.example.com/mcp",
+                  transport: "streamable-http",
+                  headers: { Authorization: "Bearer ${REMOTE_MCP_API_TOKEN}" },
+                  _alphaclawManaged: true,
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp).toBeUndefined();
+        },
+      );
+    });
+
+    it("preserves an unmarked user remote MCP server when env vars are unset", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: undefined,
+          REMOTE_MCP_API_TOKEN: undefined,
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                remote: {
+                  url: "https://user.example.com/mcp",
+                  transport: "sse",
+                  headers: { Authorization: "Bearer user-token" },
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote).toEqual({
+            url: "https://user.example.com/mcp",
+            transport: "sse",
+            headers: { Authorization: "Bearer user-token" },
+          });
+        },
+      );
+    });
+
+    it("uses REMOTE_MCP_NAME as the server key when set", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+          REMOTE_MCP_NAME: "sure",
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.sure).toBeDefined();
+          expect(io.getConfig().mcp.servers.remote).toBeUndefined();
+          expect(io.getConfig().mcp.servers.sure.url).toBe(
+            "https://sure.example.com/mcp",
+          );
+        },
+      );
+    });
+
+    it("is idempotent when remote MCP server already matches", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: "http://127.0.0.1:8889/mcp",
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const firstChanged = io.gateway.ensureGatewayProxyConfig(undefined);
+          const secondChanged = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(firstChanged).toBe(true);
+          expect(secondChanged).toBe(false);
+          expect(fs.writeFileSync).toHaveBeenCalledTimes(1);
+        },
+      );
+    });
+
+    it("uses REMOTE_MCP_URL directly when REMOTE_MCP_PROXY_URL is unset", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote.url).toBe(
+            "https://sure.example.com/mcp",
+          );
+        },
+      );
+    });
+
+    it("scrubs an existing plaintext Authorization back to the placeholder reference", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+          PIPELOCK_ENABLED: undefined,
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                sure: {
+                  url: "https://sure.example.com/mcp",
+                  transport: "streamable-http",
+                  headers: {
+                    Authorization: "Bearer sk-sure-secret-token",
+                  },
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote.headers.Authorization).toBe(
+            "Bearer ${REMOTE_MCP_API_TOKEN}",
+          );
+          expect(io.getRawContents()).not.toContain("sk-sure-secret-token");
+        },
+      );
+    });
+
+    it("removes the prior managed entry when REMOTE_MCP_NAME changes", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+          REMOTE_MCP_NAME: "notion",
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                sure: {
+                  url: "https://old.example.com/mcp",
+                  transport: "streamable-http",
+                  headers: { Authorization: "Bearer ${REMOTE_MCP_API_TOKEN}" },
+                  _alphaclawManaged: true,
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.sure).toBeUndefined();
+          expect(io.getConfig().mcp.servers.notion).toBeDefined();
+          expect(io.getConfig().mcp.servers.notion._alphaclawManaged).toBe(true);
+        },
+      );
+    });
+
+    it("does not touch unmarked user entries when REMOTE_MCP_NAME differs", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+          REMOTE_MCP_NAME: "notion",
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                "user-server": {
+                  url: "https://user.example.com/mcp",
+                  transport: "sse",
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers["user-server"]).toEqual({
+            url: "https://user.example.com/mcp",
+            transport: "sse",
+          });
+          expect(io.getConfig().mcp.servers.notion._alphaclawManaged).toBe(true);
+        },
+      );
+    });
+
+    it.each([
+      ["__proto__"],
+      ["constructor"],
+      ["prototype"],
+      ["has spaces"],
+      ["path/like"],
+      ["dot.notation"],
+      [""],
+    ])("rejects invalid REMOTE_MCP_NAME %j and falls back to default", (badName) => {
+      const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+          REMOTE_MCP_NAME: badName === "" ? undefined : badName,
+        },
+        () => {
+          const io = setupConfigIo({ gateway: {} });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.remote).toBeDefined();
+          expect(Object.keys(io.getConfig().mcp.servers)).not.toContain(badName);
+          // Empty REMOTE_MCP_NAME is a normal default, not a warning.
+          if (badName) {
+            expect(warnSpy).toHaveBeenCalledWith(
+              expect.stringContaining("REMOTE_MCP_NAME"),
+            );
+          }
+        },
+      );
+      warnSpy.mockRestore();
+    });
+
+    it("preserves unrelated mcp.servers entries when the remote config changes", () => {
+      withEnv(
+        {
+          REMOTE_MCP_URL: "https://sure.example.com/mcp",
+          REMOTE_MCP_API_TOKEN: "sk-sure-secret-token",
+          REMOTE_MCP_PROXY_URL: undefined,
+        },
+        () => {
+          const io = setupConfigIo({
+            gateway: {},
+            mcp: {
+              servers: {
+                other: {
+                  url: "https://other.example.com/mcp",
+                  transport: "sse",
+                },
+              },
+            },
+          });
+
+          const changed = io.gateway.ensureGatewayProxyConfig(undefined);
+
+          expect(changed).toBe(true);
+          expect(io.getConfig().mcp.servers.other).toEqual({
+            url: "https://other.example.com/mcp",
+            transport: "sse",
+          });
+          expect(io.getConfig().mcp.servers.remote.url).toBe(
+            "https://sure.example.com/mcp",
+          );
+        },
+      );
+    });
   });
 
   it("reports channel status per account while preserving provider summary", () => {

@@ -2,6 +2,7 @@ const {
   parseJsonFromNoisyOutput,
   parseJwtPayload,
   getCodexAccountId,
+  getClientKey,
   resolveGithubRepoUrl,
   normalizeOnboardingModels,
 } = require("../../lib/server/helpers");
@@ -52,6 +53,15 @@ describe("server/helpers", () => {
   it("returns null for invalid JWT payloads", () => {
     expect(parseJwtPayload("bad.token")).toBeNull();
     expect(getCodexAccountId("bad.token.value")).toBeNull();
+  });
+
+  it("does not use raw x-forwarded-for as the client key fallback", () => {
+    const key = getClientKey({
+      headers: { "x-forwarded-for": "203.0.113.10" },
+      socket: { remoteAddress: "::ffff:127.0.0.1" },
+    });
+
+    expect(key).toBe("127.0.0.1");
   });
 
   it("normalizes onboarding models by filtering, deduping, and sorting", () => {

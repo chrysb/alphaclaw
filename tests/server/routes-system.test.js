@@ -73,6 +73,7 @@ const createSystemDeps = () => {
     clawCmd: vi.fn(async () => ({ ok: true, stdout: "" })),
     restartGateway: vi.fn(),
     restartRequiredState: {
+      markRequired: vi.fn(),
       getSnapshot: vi.fn(async () => ({
         restartRequired: false,
         restartInProgress: false,
@@ -94,6 +95,8 @@ const createSystemDeps = () => {
       removeApiKeyProfileForEnvVar: vi.fn(),
     },
     OPENCLAW_DIR: "/tmp/openclaw",
+    ensureGatewayProxyConfig: vi.fn(() => false),
+    getBaseUrl: vi.fn(() => "https://setup.example.com"),
   };
   return deps;
 };
@@ -260,6 +263,29 @@ describe("server/routes/system", () => {
     ]);
   });
 
+  it("hides and preserves WHATSAPP_OWNER_NUMBER on /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+    ]);
+    const app = createApp(deps);
+
+    const getRes = await request(app).get("/api/env");
+    expect(getRes.status).toBe(200);
+    expect(
+      getRes.body.vars.some((entry) => entry.key === "WHATSAPP_OWNER_NUMBER"),
+    ).toBe(false);
+
+    const putRes = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: "same" }],
+    });
+    expect(putRes.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "same" },
+      { key: "WHATSAPP_OWNER_NUMBER", value: "+15551234567" },
+    ]);
+  });
+
   it("syncs API-key auth profiles from known env vars on save", async () => {
     const deps = createSystemDeps();
     const app = createApp(deps);
@@ -350,6 +376,13 @@ describe("server/routes/system", () => {
         gateway: "running",
         configExists: true,
         openclawVersion: "1.2.3",
+        alphaclaw: {
+          features: {
+            openaiCompatApi: {
+              enabled: false,
+            },
+          },
+        },
         syncCron: expect.objectContaining({
           enabled: true,
           schedule: "0 * * * *",
@@ -643,6 +676,109 @@ describe("server/routes/system", () => {
         process.env.ALPHACLAW_SKIP_SYSTEM_CRON_INSTALL = previousValue;
       }
     }
+  });
+
+  it("returns AlphaClaw config on GET /api/alphaclaw/config", async () => {
+    const deps = createSystemDeps();
+    deps.fs.readFileSync.mockImplementation((targetPath) => {
+      if (targetPath === "/tmp/openclaw/alphaclaw.json") {
+        return JSON.stringify({
+          features: { openaiCompatApi: { enabled: true } },
+        });
+      }
+      throw new Error("no config");
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/alphaclaw/config");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      config: {
+        features: {
+          openaiCompatApi: {
+            enabled: true,
+          },
+        },
+      },
+    });
+  });
+
+  it("persists the OpenAI-compatible API feature toggle", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .put("/api/alphaclaw/config/features/openai-compat-api")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(
+      expect.objectContaining({
+        ok: true,
+        changed: true,
+        gatewayConfigChanged: false,
+        config: {
+          features: {
+            openaiCompatApi: {
+              enabled: true,
+            },
+          },
+        },
+      }),
+    );
+    expect(deps.fs.mkdirSync).toHaveBeenCalledWith("/tmp/openclaw", {
+      recursive: true,
+    });
+    expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
+      "/tmp/openclaw/alphaclaw.json",
+      expect.stringContaining('"enabled": true'),
+    );
+    expect(deps.ensureGatewayProxyConfig).toHaveBeenCalledWith(
+      "https://setup.example.com",
+    );
+  });
+
+  it("marks restart required when enabling API changes OpenClaw gateway config", async () => {
+    const deps = createSystemDeps();
+    deps.ensureGatewayProxyConfig.mockReturnValue(true);
+    deps.restartRequiredState.getSnapshot.mockResolvedValueOnce({
+      restartRequired: true,
+      restartInProgress: false,
+      gatewayRunning: true,
+    });
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .put("/api/alphaclaw/config/features/openai-compat-api")
+      .send({ enabled: true });
+
+    expect(res.status).toBe(200);
+    expect(res.body.restartRequired).toBe(true);
+    expect(res.body.gatewayConfigChanged).toBe(true);
+    expect(deps.restartRequiredState.markRequired).toHaveBeenCalledWith(
+      "openai_compat_api_enabled",
+    );
+  });
+
+  it("rejects non-boolean OpenAI-compatible API feature updates", async () => {
+    const deps = createSystemDeps();
+    const app = createApp(deps);
+
+    const res = await request(app)
+      .put("/api/alphaclaw/config/features/openai-compat-api")
+      .send({ enabled: "yes" });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "enabled must be a boolean",
+    });
+    expect(deps.fs.writeFileSync).not.toHaveBeenCalledWith(
+      "/tmp/openclaw/alphaclaw.json",
+      expect.any(String),
+    );
   });
 
   it("returns alphaclaw version status on GET /api/alphaclaw/version", async () => {

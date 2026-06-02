@@ -25,7 +25,23 @@ describe("frontend/model-catalog", () => {
     ).toBe("anthropic/claude-opus-4-6");
   });
 
-  it("picks the first featured onboarding model when nothing is selected", async () => {
+  it("defaults to Claude Opus 4.8 when it is in the catalog", async () => {
+    const { getInitialOnboardingModelKey } = await import(
+      "../../lib/public/js/lib/model-catalog.js"
+    );
+
+    expect(
+      getInitialOnboardingModelKey({
+        catalog: [
+          { key: "openai-codex/gpt-5.4", label: "GPT-5.4" },
+          { key: "anthropic/claude-opus-4-7", label: "Opus 4.7" },
+          { key: "anthropic/claude-opus-4-8", label: "Opus 4.8" },
+        ],
+      }),
+    ).toBe("anthropic/claude-opus-4-8");
+  });
+
+  it("falls back to the first featured model when Opus 4.8 is unavailable", async () => {
     const { getInitialOnboardingModelKey } = await import(
       "../../lib/public/js/lib/model-catalog.js"
     );
