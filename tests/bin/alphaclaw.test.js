@@ -85,7 +85,7 @@ describe("bin/alphaclaw port check", () => {
     expect(output).toContain("SETUP_PASSWORD is missing or empty");
   });
 
-  it("exports OPENCLAW_STATE_DIR during managed startup", () => {
+  it("exports managed OpenClaw paths without clobbering HOME", () => {
     const preloadPath = path.join(tmpDir, "capture-openclaw-env.js");
     const capturePath = path.join(tmpDir, "captured-openclaw-env.json");
     fs.writeFileSync(
@@ -187,6 +187,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
       env: {
         ...process.env,
         SETUP_PASSWORD: "test-password",
+        HOME: tmpHome,
+        OPENCLAW_HOME: tmpDir,
         ALPHACLAW_ROOT_DIR: tmpDir,
         ALPHACLAW_TEST_HOME: tmpHome,
         ALPHACLAW_CAPTURE_ENV_PATH: capturePath,
@@ -196,12 +198,12 @@ Module._load = function patchedLoad(request, parent, isMain) {
 
     const reportedEnv = JSON.parse(fs.readFileSync(capturePath, "utf8"));
     expect(reportedEnv).toEqual({
-      HOME: tmpDir,
-      OPENCLAW_HOME: tmpDir,
+      HOME: tmpHome,
       OPENCLAW_CONFIG_PATH: path.join(tmpDir, ".openclaw", "openclaw.json"),
       OPENCLAW_STATE_DIR: path.join(tmpDir, ".openclaw"),
       XDG_CONFIG_HOME: path.join(tmpDir, ".openclaw"),
     });
+    expect(reportedEnv.OPENCLAW_HOME).toBeUndefined();
 
   });
 

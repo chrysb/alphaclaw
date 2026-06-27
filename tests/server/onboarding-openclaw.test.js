@@ -98,6 +98,57 @@ describe("server/onboarding/openclaw", () => {
       enabled: true,
       hooks: { allowConversationAccess: true },
     });
+    expect(next.gateway.http).toBeUndefined();
+  });
+
+  it("preserves existing gateway HTTP endpoint settings when API exposure is opted in", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      path.join(openclawDir, "alphaclaw.json"),
+      JSON.stringify({ features: { openaiCompatApi: { enabled: true } } }),
+      "utf8",
+    );
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          plugins: { allow: [], load: { paths: [] }, entries: {} },
+          channels: {},
+          gateway: {
+            http: {
+              endpoints: {
+                chatCompletions: {
+                  maxBodyBytes: 1234,
+                },
+                responses: {
+                  maxBodyBytes: 5678,
+                },
+              },
+            },
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: {},
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.gateway.http.endpoints.chatCompletions).toEqual({
+      enabled: true,
+      maxBodyBytes: 1234,
+    });
+    expect(next.gateway.http.endpoints.responses).toEqual({
+      enabled: true,
+      maxBodyBytes: 5678,
+    });
   });
 
   it("resets imported allowlist dmPolicy to pairing when re-enabling discord", () => {

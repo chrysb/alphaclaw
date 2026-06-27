@@ -71,7 +71,7 @@ const createBaseDeps = ({ onboarded = false, hasCodexOauth = false } = {}) => {
     },
     ensureGatewayProxyConfig: vi.fn(),
     getBaseUrl: vi.fn(() => "https://example.com"),
-    startGateway: vi.fn(),
+    runOnboardedBootSequence: vi.fn(),
   };
 };
 
@@ -412,7 +412,7 @@ describe("server/routes/onboarding", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
-    expect(deps.startGateway).toHaveBeenCalledTimes(1);
+    expect(deps.runOnboardedBootSequence).toHaveBeenCalledTimes(1);
     expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
       "openai",
       "sk-test-123456789",

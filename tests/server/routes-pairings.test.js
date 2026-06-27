@@ -3,7 +3,7 @@ const request = require("supertest");
 
 const { registerPairingRoutes } = require("../../lib/server/routes/pairings");
 
-const createApp = ({ clawCmd, isOnboarded, fsModule }) => {
+const createApp = ({ clawCmd, isOnboarded, fsModule, approveDevicePairingDirect }) => {
   const app = express();
   app.use(express.json());
   registerPairingRoutes({
@@ -12,6 +12,7 @@ const createApp = ({ clawCmd, isOnboarded, fsModule }) => {
     isOnboarded,
     fsModule,
     openclawDir: "/tmp/openclaw",
+    approveDevicePairingDirect,
   });
   return app;
 };
@@ -483,6 +484,11 @@ describe("server/routes/pairings", () => {
       }
       return { ok: true, stdout: "{}", stderr: "" };
     });
+    const approveDevicePairingDirect = vi.fn(async () => ({
+      status: "approved",
+      requestId: "req-cli-1",
+      device: { deviceId: "cli-device-1" },
+    }));
     const fsModule = {
       existsSync: vi.fn(() => cliMarkerWritten),
       mkdirSync: vi.fn(),
@@ -496,6 +502,7 @@ describe("server/routes/pairings", () => {
       clawCmd,
       isOnboarded: () => true,
       fsModule,
+      approveDevicePairingDirect,
     });
 
     const res = await request(app).get("/api/devices");
@@ -505,7 +512,14 @@ describe("server/routes/pairings", () => {
       pending: [],
       cliAutoApproveComplete: true,
     });
-    expect(clawCmd).toHaveBeenCalledWith("devices approve req-cli-1", { quiet: true });
+    expect(clawCmd).not.toHaveBeenCalledWith("devices approve req-cli-1", { quiet: true });
+    expect(approveDevicePairingDirect).toHaveBeenCalledWith(
+      "req-cli-1",
+      {
+        callerScopes: expect.arrayContaining(["operator.admin", "operator.pairing"]),
+      },
+      "/tmp/openclaw",
+    );
     expect(fsModule.writeFileSync).toHaveBeenCalledWith(
       "/tmp/openclaw/.alphaclaw/.cli-device-auto-approved",
       expect.stringContaining("approvedAt"),
@@ -562,6 +576,86 @@ describe("server/routes/pairings", () => {
       quiet: true,
       timeoutMs: 5000,
     });
+  });
+
+  it("approves device pairing through the OpenClaw helper with admin caller scope", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const approveDevicePairingDirect = vi.fn(async () => ({
+      status: "approved",
+      requestId: "req-admin-1",
+      device: {
+        deviceId: "admin-device-1",
+        publicKey: "public-key",
+        clientId: "openclaw-control-ui",
+        tokens: {
+          operator: {
+            token: "secret-token",
+            role: "operator",
+            scopes: ["operator.admin"],
+          },
+        },
+      },
+    }));
+    const fsModule = {
+      existsSync: vi.fn(() => true),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+      approveDevicePairingDirect,
+    });
+
+    const res = await request(app).post("/api/devices/req-admin-1/approve");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      requestId: "req-admin-1",
+      device: {
+        deviceId: "admin-device-1",
+        clientId: "openclaw-control-ui",
+      },
+    });
+    expect(approveDevicePairingDirect).toHaveBeenCalledWith(
+      "req-admin-1",
+      {
+        callerScopes: expect.arrayContaining(["operator.admin", "operator.pairing"]),
+      },
+      "/tmp/openclaw",
+    );
+    expect(clawCmd).not.toHaveBeenCalledWith(expect.stringContaining("devices approve"));
+  });
+
+  it("returns a visible failure when direct device approval lacks scope", async () => {
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "", stderr: "" }));
+    const approveDevicePairingDirect = vi.fn(async () => ({
+      status: "forbidden",
+      reason: "caller-missing-scope",
+      scope: "operator.admin",
+    }));
+    const fsModule = {
+      existsSync: vi.fn(() => true),
+      mkdirSync: vi.fn(),
+      writeFileSync: vi.fn(),
+    };
+    const app = createApp({
+      clawCmd,
+      isOnboarded: () => true,
+      fsModule,
+      approveDevicePairingDirect,
+    });
+
+    const res = await request(app).post("/api/devices/req-admin-2/approve");
+
+    expect(res.status).toBe(403);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "missing scope: operator.admin",
+    });
+    expect(clawCmd).not.toHaveBeenCalledWith(expect.stringContaining("devices approve"));
   });
 
   it("does not auto-approve when CLI marker already exists", async () => {

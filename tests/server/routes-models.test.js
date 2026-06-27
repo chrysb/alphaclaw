@@ -177,6 +177,24 @@ describe("server/routes/models", () => {
     expect(deps.shellCmd).not.toHaveBeenCalled();
   });
 
+  it("returns thinking options for a model key on GET /api/models/thinking-options", async () => {
+    const deps = createModelDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).get(
+      "/api/models/thinking-options?modelKey=anthropic/claude-opus-4-7",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.modelKey).toBe("anthropic/claude-opus-4-7");
+    expect(Array.isArray(res.body.levels)).toBe(true);
+    expect(res.body.levels.length).toBeGreaterThan(1);
+    expect(res.body.levels.some((entry) => entry.id === "off")).toBe(true);
+    expect(typeof res.body.modelDefault).toBe("string");
+    expect(typeof res.body.inheritedDefault).toBe("string");
+  });
+
   it("returns model status payload on GET /api/models/status", async () => {
     const deps = createModelDeps();
     deps.shellCmd.mockResolvedValue("{}");

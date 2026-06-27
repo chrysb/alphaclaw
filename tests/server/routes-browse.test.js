@@ -79,6 +79,76 @@ describe("server/routes/browse", () => {
     ).toBe(false);
   });
 
+  it("caps requested browse tree depth", async () => {
+    const rootDir = createTestRoot();
+    fs.mkdirSync(path.join(rootDir, "level-1", "level-2", "level-3", "level-4"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(rootDir, "level-1", "level-2", "level-3", "level-4", "too-deep.txt"),
+      "hidden\n",
+      "utf8",
+    );
+    const app = createApp(rootDir);
+
+    const res = await request(app).get("/api/browse/tree").query({ depth: 10 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const level1 = res.body.root.children.find((entry) => entry.name === "level-1");
+    const level2 = level1.children.find((entry) => entry.name === "level-2");
+    const level3 = level2.children.find((entry) => entry.name === "level-3");
+    expect(level3.truncated).toBe(true);
+    expect(level3.children).toEqual([]);
+  });
+
+  it("loads capped folder subtrees by path", async () => {
+    const rootDir = createTestRoot();
+    fs.mkdirSync(path.join(rootDir, "level-1", "level-2", "level-3", "level-4"), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(rootDir, "level-1", "level-2", "level-3", "level-4", "deep.txt"),
+      "visible after expansion\n",
+      "utf8",
+    );
+    const app = createApp(rootDir);
+
+    const res = await request(app)
+      .get("/api/browse/tree")
+      .query({ depth: 10, path: "level-1/level-2/level-3" });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    expect(res.body.root.path).toBe("level-1/level-2/level-3");
+    const level4 = res.body.root.children.find((entry) => entry.name === "level-4");
+    expect(level4.children).toEqual([
+      expect.objectContaining({
+        type: "file",
+        name: "deep.txt",
+        path: "level-1/level-2/level-3/level-4/deep.txt",
+      }),
+    ]);
+  });
+
+  it("honors explicit shallow browse tree depth below the cap", async () => {
+    const rootDir = createTestRoot();
+    fs.mkdirSync(path.join(rootDir, "level-1", "level-2"), { recursive: true });
+    fs.writeFileSync(
+      path.join(rootDir, "level-1", "level-2", "nested.txt"),
+      "hidden\n",
+      "utf8",
+    );
+    const app = createApp(rootDir);
+
+    const res = await request(app).get("/api/browse/tree").query({ depth: 1 });
+
+    expect(res.status).toBe(200);
+    expect(res.body.ok).toBe(true);
+    const level1 = res.body.root.children.find((entry) => entry.name === "level-1");
+    expect(level1.children).toEqual([]);
+  });
+
   it("rejects path traversal on read", async () => {
     const rootDir = createTestRoot();
     const app = createApp(rootDir);

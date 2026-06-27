@@ -129,7 +129,7 @@ describe("server/agents/service", () => {
     expect(agent.workspace).toBe("/tmp/openclaw/workspace-sales-custom");
   });
 
-  it("removes the agent model key when clearing an override", () => {
+  it("removes the agent model key when clearing an override", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
         agents: {
@@ -150,14 +150,14 @@ describe("server/agents/service", () => {
       OPENCLAW_DIR: "/tmp/openclaw",
     });
 
-    const updated = service.updateAgent("main", { model: null });
+    const updated = await service.updateAgent("main", { model: null });
     const config = fsMock.readConfig();
 
     expect(updated).not.toHaveProperty("model");
     expect(config.agents.list[0]).not.toHaveProperty("model");
   });
 
-  it("persists tools config updates for agents", () => {
+  it("persists tools config updates for agents", async () => {
     const fsMock = buildFsMock({
       initialConfig: {
         agents: {
@@ -178,7 +178,7 @@ describe("server/agents/service", () => {
       OPENCLAW_DIR: "/tmp/openclaw",
     });
 
-    const updated = service.updateAgent("main", {
+    const updated = await service.updateAgent("main", {
       tools: {
         profile: "minimal",
         alsoAllow: ["read"],
@@ -202,6 +202,33 @@ describe("server/agents/service", () => {
       alsoAllow: ["read"],
       deny: ["session_status"],
     });
+  });
+
+  it("persists and clears per-agent thinkingDefault", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          defaults: { thinkingDefault: "low" },
+          list: [{ id: "main", default: true }],
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    const updated = await service.updateAgent("main", {
+      thinkingDefault: "high",
+    });
+    expect(updated.thinkingDefault).toBe("high");
+    expect(fsMock.readConfig().agents.list[0].thinkingDefault).toBe("high");
+
+    const cleared = await service.updateAgent("main", { thinkingDefault: null });
+    expect(cleared).not.toHaveProperty("thinkingDefault");
+    expect(fsMock.readConfig().agents.list[0]).not.toHaveProperty(
+      "thinkingDefault",
+    );
   });
 
   it("calculates workspace size recursively for an agent", () => {
@@ -1250,19 +1277,17 @@ describe("server/agents/service", () => {
 
     expect(result.channel).toBe("telegram");
     expect(writeEnvFile.mock.invocationCallOrder[0]).toBeLessThan(
-      fsMock.writeFileSync.mock.invocationCallOrder[0],
-    );
-    expect(writeEnvFile.mock.invocationCallOrder[0]).toBeLessThan(
       restartGateway.mock.invocationCallOrder[0],
     );
-    expect(restartGateway.mock.invocationCallOrder[0]).toBeLessThan(
-      fsMock.writeFileSync.mock.invocationCallOrder[0],
+    expect(clawCmd.mock.invocationCallOrder[clawCmd.mock.invocationCallOrder.length - 1]).toBeLessThan(
+      restartGateway.mock.invocationCallOrder[0],
     );
     expect(clawCmd).toHaveBeenNthCalledWith(
       1,
       "channels add --channel 'telegram' --name 'Telegram' --token '123:abc'",
       { quiet: true, timeoutMs: 30000 },
     );
+    expect(restartGateway).toHaveBeenCalledTimes(1);
   });
 
   it("creates a discord channel account via channels add cli", async () => {

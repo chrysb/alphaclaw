@@ -19,6 +19,12 @@ const createFetchResponse = ({ ok = true, status = 200, body = {} } = {}) => ({
   ),
 });
 
+const createFsMock = (overrides = {}) => ({
+  ...fs,
+  writeFileSync: vi.fn(),
+  ...overrides,
+});
+
 const loadVersionModule = ({ execMock } = {}) => {
   if (execMock) childProcess.exec = execMock;
   delete require.cache[modulePath];
@@ -392,7 +398,7 @@ describe("server/alphaclaw-version", () => {
     const { service } = createService({
       fetchMock,
       execMock,
-      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+      fsImpl: createFsMock({ existsSync: vi.fn(() => false) }),
     });
 
     const firstPromise = service.updateAlphaclaw();
@@ -420,7 +426,7 @@ describe("server/alphaclaw-version", () => {
     const { service } = createService({
       execMock,
       fetchMock: vi.fn(),
-      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+      fsImpl: createFsMock({ existsSync: vi.fn(() => false) }),
     });
 
     const result = await service.updateAlphaclaw();
@@ -476,24 +482,22 @@ describe("server/alphaclaw-version", () => {
     const execMock = vi.fn().mockImplementation((cmd, opts, callback) => {
       callback(null, "added 1 package", "");
     });
-    const writeSpy = vi.spyOn(fs, "writeFileSync");
+    const fsMock = createFsMock({ existsSync: vi.fn(() => false) });
     const { service } = createService({
       execMock,
-      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+      fsImpl: fsMock,
     });
 
     const result = await service.updateAlphaclaw();
 
     expect(result.status).toBe(200);
     const markerPath = path.join(kRootDir, ".alphaclaw-update-pending");
-    const markerCall = writeSpy.mock.calls.find(
+    const markerCall = fsMock.writeFileSync.mock.calls.find(
       (call) => call[0] === markerPath,
     );
     expect(markerCall).toBeTruthy();
     const markerData = JSON.parse(markerCall[1]);
     expect(markerData).toHaveProperty("from");
     expect(markerData).toHaveProperty("ts");
-
-    writeSpy.mockRestore();
   });
 });

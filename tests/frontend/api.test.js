@@ -187,6 +187,21 @@ describe("frontend/api", () => {
     );
   });
 
+  it("approveDevice encodes ids and throws API errors", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(403, { ok: false, error: "missing scope" }));
+    const api = await loadApiModule();
+
+    await expect(api.approveDevice("req/admin 1")).rejects.toThrow("missing scope");
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/devices/req%2Fadmin%201/approve",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+      }),
+    );
+  });
+
   it("fetchUsageSummary calls usage summary endpoint", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, summary: { daily: [] } }));
     const api = await loadApiModule();
@@ -422,6 +437,47 @@ describe("frontend/api", () => {
     );
     expectLastFetchHeaders("application/json");
     expect(result).toEqual({ ok: true, committed: true });
+  });
+
+  it("fetchBrowseTree defaults to a bounded tree depth", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, tree: [] }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchBrowseTree();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/tree?depth=3",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, tree: [] });
+  });
+
+  it("fetchBrowseTree requests a folder subtree by path", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, root: {} }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchBrowseTree({
+      path: "workspace/hooks/bootstrap",
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/tree?depth=3&path=workspace%2Fhooks%2Fbootstrap",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, root: {} });
+  });
+
+  it("fetchBrowseTree preserves numeric depth calls", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, root: {} }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchBrowseTree(2);
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/browse/tree?depth=2",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, root: {} });
   });
 
   it("fetchBrowseFileDiff calls git diff endpoint with encoded path", async () => {

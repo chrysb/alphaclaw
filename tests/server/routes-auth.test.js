@@ -1,5 +1,8 @@
 const express = require("express");
 const request = require("supertest");
+const { createLoginThrottle } = require("../../lib/server/login-throttle");
+const { kLoginGlobalMaxAttempts } = require("../../lib/server/constants");
+const { getClientKey } = require("../../lib/server/helpers");
 
 const loadAuthRoutes = () => {
   vi.resetModules();
@@ -17,7 +20,10 @@ const createLoginThrottleMock = () => ({
   cleanupLoginAttemptStates: vi.fn(),
 });
 
-const createTestApp = ({ setupPassword, loginThrottle } = {}) => {
+const getTestIp = (index) =>
+  `203.0.${Math.floor(index / 250)}.${(index % 250) + 1}`;
+
+const createTestApp = ({ setupPassword, loginThrottle, trustProxy } = {}) => {
   if (typeof setupPassword === "string") {
     process.env.SETUP_PASSWORD = setupPassword;
   } else {
@@ -26,6 +32,7 @@ const createTestApp = ({ setupPassword, loginThrottle } = {}) => {
 
   const { registerAuthRoutes } = loadAuthRoutes();
   const app = express();
+  if (trustProxy !== undefined) app.set("trust proxy", trustProxy);
   app.use(express.json());
   app.use(express.urlencoded({ extended: false }));
   const throttle = loginThrottle || createLoginThrottleMock();
@@ -93,6 +100,30 @@ describe("server/routes/auth", () => {
       error: "Missing password in request body",
     });
     expect(throttle.getClientKey).not.toHaveBeenCalled();
+  });
+
+  it("applies global throttling when proxy-derived client keys rotate", async () => {
+    const { app } = createTestApp({
+      setupPassword: "secret",
+      trustProxy: 1,
+      loginThrottle: { ...createLoginThrottle(), getClientKey },
+    });
+
+    for (let i = 0; i < kLoginGlobalMaxAttempts - 1; i += 1) {
+      const res = await request(app)
+        .post("/api/auth/login")
+        .set("X-Forwarded-For", getTestIp(i))
+        .send({ password: "wrong" });
+      expect(res.status).toBe(401);
+    }
+
+    const res = await request(app)
+      .post("/api/auth/login")
+      .set("X-Forwarded-For", getTestIp(kLoginGlobalMaxAttempts))
+      .send({ password: "wrong" });
+
+    expect(res.status).toBe(429);
+    expect(res.headers["retry-after"]).toBeTruthy();
   });
 
   it("sets auth cookie on success and allows protected API by cookie", async () => {

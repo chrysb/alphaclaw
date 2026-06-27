@@ -11,6 +11,10 @@ const {
   resolveRealGitPath,
   shouldRefreshHourlyGitSyncScript,
 } = require("../lib/cli/git-runtime");
+const {
+  ensureMainUpstream,
+  restoreMissingOpenclawConfigFromRemote,
+} = require("../lib/cli/openclaw-config-restore");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
   ensureUsageTrackerPluginEntry,
@@ -499,11 +503,10 @@ if (!kSetupPassword) {
 }
 
 // ---------------------------------------------------------------------------
-// 7. Set OPENCLAW_HOME globally so all child processes inherit it
+// 7. Set managed OpenClaw state paths for child processes
 // ---------------------------------------------------------------------------
 
-process.env.OPENCLAW_HOME = rootDir;
-process.env.HOME = rootDir;
+delete process.env.OPENCLAW_HOME;
 process.env.OPENCLAW_CONFIG_PATH = path.join(openclawDir, "openclaw.json");
 process.env.OPENCLAW_STATE_DIR = openclawDir;
 process.env.GOG_KEYRING_PASSWORD =
@@ -661,152 +664,60 @@ try {
 // ---------------------------------------------------------------------------
 
 const configPath = path.join(openclawDir, "openclaw.json");
+const githubRepo = process.env.GITHUB_WORKSPACE_REPO;
+
+if (fs.existsSync(path.join(openclawDir, ".git"))) {
+  if (githubRepo) {
+    const repoUrl = githubRepo
+      .replace(/^git@github\.com:/, "")
+      .replace(/^https:\/\/github\.com\//, "")
+      .replace(/\.git$/, "");
+    const remoteUrl = `https://github.com/${repoUrl}.git`;
+    try {
+      execSync(`git remote set-url origin "${remoteUrl}"`, {
+        cwd: openclawDir,
+        stdio: "ignore",
+      });
+      console.log("[alphaclaw] Repo ready");
+    } catch {}
+  }
+
+  // Migration path: scrub persisted PATs from existing GitHub origin URLs.
+  try {
+    const existingOrigin = execSync("git remote get-url origin", {
+      cwd: openclawDir,
+      stdio: ["ignore", "pipe", "ignore"],
+      encoding: "utf8",
+    }).trim();
+    const match = existingOrigin.match(/^https:\/\/[^/@]+@github\.com\/(.+)$/i);
+    if (match?.[1]) {
+      const cleanedPath = String(match[1]).replace(/\.git$/i, "");
+      const cleanedOrigin = `https://github.com/${cleanedPath}.git`;
+      execSync(`git remote set-url origin "${cleanedOrigin}"`, {
+        cwd: openclawDir,
+        stdio: "ignore",
+      });
+      console.log("[alphaclaw] Scrubbed tokenized GitHub remote URL");
+    }
+  } catch {}
+
+  restoreMissingOpenclawConfigFromRemote({
+    openclawDir,
+    configPath,
+    env: process.env,
+  });
+  if (
+    ensureMainUpstream({
+      openclawDir,
+      gitEnv: process.env,
+    })
+  ) {
+    console.log("[alphaclaw] Set main upstream to origin/main");
+  }
+}
 
 if (fs.existsSync(configPath)) {
   console.log("[alphaclaw] Config exists, reconciling channels...");
-
-  const githubRepo = process.env.GITHUB_WORKSPACE_REPO;
-  if (fs.existsSync(path.join(openclawDir, ".git"))) {
-    if (githubRepo) {
-      const repoUrl = githubRepo
-        .replace(/^git@github\.com:/, "")
-        .replace(/^https:\/\/github\.com\//, "")
-        .replace(/\.git$/, "");
-      const remoteUrl = `https://github.com/${repoUrl}.git`;
-      try {
-        execSync(`git remote set-url origin "${remoteUrl}"`, {
-          cwd: openclawDir,
-          stdio: "ignore",
-        });
-        console.log("[alphaclaw] Repo ready");
-      } catch {}
-    }
-
-    // Migration path: scrub persisted PATs from existing GitHub origin URLs.
-    try {
-      const existingOrigin = execSync("git remote get-url origin", {
-        cwd: openclawDir,
-        stdio: ["ignore", "pipe", "ignore"],
-        encoding: "utf8",
-      }).trim();
-      const match = existingOrigin.match(
-        /^https:\/\/[^/@]+@github\.com\/(.+)$/i,
-      );
-      if (match?.[1]) {
-        const cleanedPath = String(match[1]).replace(/\.git$/i, "");
-        const cleanedOrigin = `https://github.com/${cleanedPath}.git`;
-        execSync(`git remote set-url origin "${cleanedOrigin}"`, {
-          cwd: openclawDir,
-          stdio: "ignore",
-        });
-        console.log("[alphaclaw] Scrubbed tokenized GitHub remote URL");
-      }
-    } catch {}
-
-    const bootRestoreConfigFromRemote = () => {
-      const branch = (() => {
-        try {
-          return (
-            String(
-              execSync("git symbolic-ref --short HEAD", {
-                cwd: openclawDir,
-                stdio: ["ignore", "pipe", "ignore"],
-                encoding: "utf8",
-              }),
-            ).trim() || "main"
-          );
-        } catch {
-          return "main";
-        }
-      })();
-      const githubToken = String(process.env.GITHUB_TOKEN || "").trim();
-      const gitEnv = {
-        ...process.env,
-        GIT_TERMINAL_PROMPT: "0",
-      };
-      const askPassPath = path.join(
-        os.tmpdir(),
-        `alphaclaw-boot-git-askpass-${process.pid}.sh`,
-      );
-      try {
-        if (githubToken) {
-          fs.writeFileSync(
-            askPassPath,
-            [
-              "#!/usr/bin/env sh",
-              'case "$1" in',
-              '  *Username*) echo "x-access-token" ;;',
-              '  *Password*) echo "${GITHUB_TOKEN:-}" ;;',
-              '  *) echo "" ;;',
-              "esac",
-              "",
-            ].join("\n"),
-            { mode: 0o700 },
-          );
-          gitEnv.GITHUB_TOKEN = githubToken;
-          gitEnv.GIT_TERMINAL_PROMPT = "0";
-          gitEnv.GIT_ASKPASS = askPassPath;
-        }
-        execSync(`git ls-remote --exit-code --heads origin "${branch}"`, {
-          cwd: openclawDir,
-          stdio: "ignore",
-          env: gitEnv,
-          timeout: 10000,
-        });
-        execSync(`git fetch --quiet origin "${branch}"`, {
-          cwd: openclawDir,
-          stdio: "ignore",
-          env: gitEnv,
-          timeout: 10000,
-        });
-        try {
-          execSync("git show-ref --verify --quiet refs/heads/main", {
-            cwd: openclawDir,
-            stdio: "ignore",
-          });
-          try {
-            execSync("git rev-parse --abbrev-ref --symbolic-full-name main@{upstream}", {
-              cwd: openclawDir,
-              stdio: "ignore",
-            });
-          } catch {
-            execSync("git branch --set-upstream-to=origin/main main", {
-              cwd: openclawDir,
-              stdio: "ignore",
-              env: gitEnv,
-            });
-            console.log("[alphaclaw] Set main upstream to origin/main");
-          }
-        } catch {}
-        const remoteConfig = String(
-          execSync(`git show "origin/${branch}:openclaw.json"`, {
-            cwd: openclawDir,
-            stdio: ["ignore", "pipe", "ignore"],
-            encoding: "utf8",
-            env: gitEnv,
-            timeout: 10000,
-          }),
-        );
-        if (remoteConfig.trim()) {
-          fs.writeFileSync(configPath, remoteConfig);
-          console.log(
-            `[alphaclaw] Restored openclaw.json from origin/${branch}`,
-          );
-        }
-      } catch (e) {
-        console.log(
-          `[alphaclaw] Remote config restore skipped: ${String(e.message || "").slice(0, 200)}`,
-        );
-      } finally {
-        if (githubToken) {
-          try {
-            fs.rmSync(askPassPath, { force: true });
-          } catch {}
-        }
-      }
-    };
-    bootRestoreConfigFromRemote();
-  }
 
   try {
     const cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
