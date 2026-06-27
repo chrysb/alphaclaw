@@ -2,6 +2,9 @@ const express = require("express");
 const request = require("supertest");
 
 const { registerSystemRoutes } = require("../../lib/server/routes/system");
+const {
+  kSecretUnchangedValue,
+} = require("../../lib/server/secret-redaction");
 
 const createSystemDeps = () => {
   const deps = {
@@ -128,13 +131,17 @@ describe("server/routes/system", () => {
       expect.arrayContaining([
         expect.objectContaining({
           key: "OPENAI_API_KEY",
-          value: "abc",
+          value: kSecretUnchangedValue,
+          hasValue: true,
+          redacted: true,
           features: ["Models", "Embeddings", "TTS", "STT"],
           source: "env_file",
         }),
         expect.objectContaining({
           key: "GITHUB_TOKEN",
           value: "",
+          hasValue: false,
+          redacted: false,
           source: "unset",
         }),
         expect.objectContaining({
@@ -158,6 +165,37 @@ describe("server/routes/system", () => {
       ]),
     );
     expect(res.body.restartRequired).toBe(false);
+  });
+
+  it("reveals visible environment variables on demand", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "OPENAI_API_KEY", value: "sk-live-123" },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/env/reveal?key=OPENAI_API_KEY");
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      key: "OPENAI_API_KEY",
+      value: "sk-live-123",
+      hasValue: true,
+    });
+  });
+
+  it("does not reveal hidden known environment variables", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "ANTHROPIC_TOKEN", value: "hidden-token" },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/env/reveal?key=ANTHROPIC_TOKEN");
+
+    expect(res.status).toBe(404);
+    expect(res.body.ok).toBe(false);
   });
 
   it("rejects reserved vars on PUT /api/env", async () => {
@@ -233,6 +271,27 @@ describe("server/routes/system", () => {
       { key: "OPENAI_API_KEY", value: "same" },
       { key: "ANTHROPIC_TOKEN", value: "hidden-token" },
     ]);
+  });
+
+  it("preserves redacted vars on PUT /api/env", async () => {
+    const deps = createSystemDeps();
+    deps.readEnvFile.mockReturnValue([
+      { key: "OPENAI_API_KEY", value: "sk-existing" },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/env").send({
+      vars: [{ key: "OPENAI_API_KEY", value: kSecretUnchangedValue }],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.writeEnvFile).toHaveBeenCalledWith([
+      { key: "OPENAI_API_KEY", value: "sk-existing" },
+    ]);
+    expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
+      "openai",
+      "sk-existing",
+    );
   });
 
   it("hides and preserves managed slack channel tokens on /api/env", async () => {

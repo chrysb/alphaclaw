@@ -11,6 +11,9 @@ const {
 } = require("../../lib/server/model-catalog-cache");
 const { registerModelRoutes } = require("../../lib/server/routes/models");
 const { kFallbackOnboardingModels } = require("../../lib/server/constants");
+const {
+  kSecretUnchangedValue,
+} = require("../../lib/server/secret-redaction");
 
 const flushPromises = async () => {
   await Promise.resolve();
@@ -323,9 +326,101 @@ describe("server/routes/models", () => {
         id: "google:default",
         type: "api_key",
         provider: "google",
-        key: "AI-live-123",
+        key: kSecretUnchangedValue,
+        keyHasValue: true,
+        keyRedacted: true,
       },
     ]);
+  });
+
+  it("reveals env-backed auth profile secrets on demand", async () => {
+    const deps = createModelDeps();
+    deps.readEnvFile.mockReturnValue([{ key: "GEMINI_API_KEY", value: "AI-live-123" }]);
+    deps.authProfiles.listApiKeyProviders.mockReturnValue(["google"]);
+    deps.authProfiles.getEnvVarForApiKeyProvider.mockImplementation((provider) =>
+      provider === "google" ? "GEMINI_API_KEY" : "",
+    );
+    const app = createApp(deps);
+
+    const res = await request(app).get(
+      "/api/models/auth/google%3Adefault/reveal?field=key",
+    );
+
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual({
+      ok: true,
+      profileId: "google:default",
+      field: "key",
+      value: "AI-live-123",
+      hasValue: true,
+    });
+  });
+
+  it("redacts direct auth profile reads", async () => {
+    const deps = createModelDeps();
+    deps.authProfiles.listProfiles.mockReturnValue([
+      {
+        id: "openai:default",
+        type: "api_key",
+        provider: "openai",
+        key: "sk-live-123",
+      },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).get("/api/models/auth");
+
+    expect(res.status).toBe(200);
+    expect(res.body.profiles).toEqual([
+      {
+        id: "openai:default",
+        type: "api_key",
+        provider: "openai",
+        key: kSecretUnchangedValue,
+        keyHasValue: true,
+        keyRedacted: true,
+      },
+    ]);
+  });
+
+  it("preserves redacted auth profile placeholders on save", async () => {
+    const deps = createModelDeps();
+    deps.shellCmd.mockResolvedValue("");
+    deps.readEnvFile.mockReturnValue([
+      { key: "OPENAI_API_KEY", value: "sk-existing" },
+    ]);
+    deps.authProfiles.listProfiles.mockReturnValue([
+      {
+        id: "openai:default",
+        type: "api_key",
+        provider: "openai",
+        key: "sk-existing",
+      },
+    ]);
+    const app = createApp(deps);
+
+    const res = await request(app).put("/api/models/config").send({
+      profiles: [
+        {
+          id: "openai:default",
+          type: "api_key",
+          provider: "openai",
+          key: kSecretUnchangedValue,
+        },
+      ],
+    });
+
+    expect(res.status).toBe(200);
+    expect(deps.authProfiles.upsertProfile).toHaveBeenCalledWith(
+      "openai:default",
+      {
+        type: "api_key",
+        provider: "openai",
+        key: "sk-existing",
+      },
+      undefined,
+    );
+    expect(deps.writeEnvFile).not.toHaveBeenCalled();
   });
 
   it("writes API-key model auth changes back to env vars", async () => {

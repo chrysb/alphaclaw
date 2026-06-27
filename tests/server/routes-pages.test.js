@@ -30,4 +30,13 @@ describe("server/routes/pages", () => {
     expect(res.status).toBe(302);
     expect(res.headers.location).toBe("/setup.html");
   });
+
+  it("serves the setup shell for known SPA app routes", async () => {
+    const app = createTestApp();
+
+    const res = await request(app).get("/envars");
+
+    expect(res.status).toBe(200);
+    expect(res.text).toContain('<div id="app"></div>');
+  });
 });
