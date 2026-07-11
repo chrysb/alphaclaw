@@ -97,4 +97,19 @@ describe("server/usage-tracker-config", () => {
       allowConversationAccess: true,
     });
   });
+
+  it("persists the Telegram streaming migration during boot reconciliation", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ channels: { telegram: { streaming: true } } }),
+      "utf8",
+    );
+
+    expect(ensureUsageTrackerPluginConfig({ fsModule: fs, openclawDir })).toBe(true);
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.telegram.streaming).toEqual({ mode: "partial" });
+  });
 });
