@@ -242,9 +242,9 @@ describe("server/auth-profiles", () => {
     });
 
     const store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toEqual({
+    expect(store.profiles["openai:codex-cli"]).toEqual({
       type: "oauth",
-      provider: "openai-codex",
+      provider: "openai",
       access: "jwt",
       refresh: "rt",
       expires: 9999999999999,
@@ -252,7 +252,7 @@ describe("server/auth-profiles", () => {
     });
 
     const config = readJson("openclaw.json");
-    expect(config.auth.profiles["openai-codex:codex-cli"].mode).toBe("oauth");
+    expect(config.auth.profiles["openai:codex-cli"].mode).toBe("oauth");
   });
 
   it("legacy removeCodexProfiles removes all codex profiles", () => {
@@ -263,15 +263,15 @@ describe("server/auth-profiles", () => {
     });
 
     let store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeDefined();
+    expect(store.profiles["openai:codex-cli"]).toBeDefined();
 
     ap.removeCodexProfiles();
 
     store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeUndefined();
+    expect(store.profiles["openai:codex-cli"]).toBeUndefined();
 
     const config = readJson("openclaw.json");
-    expect(config.auth?.profiles?.["openai-codex:codex-cli"]).toBeUndefined();
+    expect(config.auth?.profiles?.["openai:codex-cli"]).toBeUndefined();
   });
 
   it("does not write auth refs into incomplete pre-onboarding config", () => {
@@ -297,7 +297,7 @@ describe("server/auth-profiles", () => {
     });
 
     const store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeDefined();
+    expect(store.profiles["openai:codex-cli"]).toBeDefined();
 
     const config = readJson("openclaw.json");
     expect(config.auth?.profiles || {}).toEqual({});
