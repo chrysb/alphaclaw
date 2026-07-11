@@ -4,7 +4,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
-const { execSync } = require("child_process");
+const { execFileSync, execSync } = require("child_process");
 const {
   shouldSkipSystemCronInstall,
   resolveGitAskPassPath,
@@ -730,6 +730,20 @@ if (fs.existsSync(path.join(openclawDir, ".git"))) {
     })
   ) {
     console.log("[alphaclaw] Set main upstream to origin/main");
+  }
+}
+
+if (fs.existsSync(configPath)) {
+  try {
+    execFileSync(process.execPath, [
+      path.join(__dirname, "..", "lib", "scripts", "migrate-openclaw-codex.js"),
+    ], {
+      env: process.env,
+      stdio: "inherit",
+      timeout: 60_000,
+    });
+  } catch (error) {
+    console.error(`[alphaclaw] Codex migration process failed: ${error.message}`);
   }
 }
 
