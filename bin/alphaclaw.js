@@ -21,6 +21,9 @@ const {
 } = require("../lib/cli/openclaw-config-restore");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
+  migrateLegacyTelegramStreamingConfig,
+} = require("../lib/server/openclaw-config-migrations");
+const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
 
@@ -740,7 +743,10 @@ if (fs.existsSync(configPath)) {
     if (!cfg.plugins.load) cfg.plugins.load = {};
     if (!Array.isArray(cfg.plugins.load.paths)) cfg.plugins.load.paths = [];
     if (!cfg.plugins.entries) cfg.plugins.entries = {};
-    let changed = false;
+    let changed = migrateLegacyTelegramStreamingConfig(cfg);
+    if (changed) {
+      console.log("[alphaclaw] Migrated legacy Telegram streaming config");
+    }
 
     if (process.env.TELEGRAM_BOT_TOKEN && !cfg.channels.telegram) {
       cfg.channels.telegram = {
