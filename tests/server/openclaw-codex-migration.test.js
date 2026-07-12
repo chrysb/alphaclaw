@@ -71,6 +71,16 @@ describe("server/openclaw-codex-migration", () => {
     expect(fs.existsSync(path.join(agentDir, "openclaw-agent.sqlite"))).toBe(true);
     expect(fs.existsSync(path.join(agentDir, "auth-profiles.json"))).toBe(false);
 
+    cfg.agents.defaults.models["openai/gpt-5.5"] = {};
+    fs.writeFileSync(configPath, JSON.stringify(cfg), "utf8");
+
+    const restored = await migrateLegacyCodexState({ configPath, env });
+    expect(restored.changed).toBe(true);
+    const restoredCfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(restoredCfg.agents.defaults.models["openai/gpt-5.5"]).toEqual({
+      agentRuntime: { id: "codex" },
+    });
+
     const second = await migrateLegacyCodexState({ configPath, env });
     expect(second.changed).toBe(false);
   });
