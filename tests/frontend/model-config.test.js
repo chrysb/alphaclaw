@@ -32,6 +32,8 @@ describe("frontend/model-config", () => {
       { key: "anthropic/claude-opus-4-8", label: "Opus 4.8" },
       { key: "anthropic/claude-opus-4-7", label: "Opus 4.7" },
       { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
+      { key: "openai/gpt-5.3-codex", label: "Codex 5.3" },
+      { key: "openai/gpt-5.5", label: "GPT-5.5" },
       { key: "openai-codex/gpt-5.3-codex", label: "Codex 5.3" },
       { key: "openai-codex/gpt-5.4", label: "GPT-5.4" },
       { key: "openai-codex/gpt-5.5", label: "GPT-5.5" },
@@ -41,13 +43,31 @@ describe("frontend/model-config", () => {
       "anthropic/claude-opus-4-8",
       "anthropic/claude-opus-4-7",
       "anthropic/claude-opus-4-6",
-      "openai-codex/gpt-5.3-codex",
-      "openai-codex/gpt-5.5",
+      "openai/gpt-5.3-codex",
+      "openai/gpt-5.5",
       "google/gemini-3.1-pro-preview",
     ]);
     expect(featured[0]?.featuredLabel).toBe("Opus 4.8");
     expect(featured[1]?.featuredLabel).toBe("Opus 4.7");
     expect(featured[4]?.featuredLabel).toBe("GPT-5.5");
     expect(featured[5]?.featuredLabel).toBe("Gemini 3.1 Pro");
+  });
+
+  it("keeps canonical GPT-5.5 selectable when live discovery omits it", async () => {
+    const modelConfig = await loadModelConfig();
+    const catalog = modelConfig.withAlwaysAvailableModels([
+      { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
+    ]);
+
+    expect(catalog).toContainEqual({
+      key: "openai/gpt-5.5",
+      provider: "openai",
+      label: "GPT-5.5",
+    });
+    expect(
+      modelConfig.withAlwaysAvailableModels(catalog).filter(
+        (model) => model.key === "openai/gpt-5.5",
+      ),
+    ).toHaveLength(1);
   });
 });
