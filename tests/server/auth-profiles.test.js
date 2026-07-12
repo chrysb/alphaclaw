@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { DatabaseSync } = require("node:sqlite");
 
 let tmpDir;
 let ap;
@@ -64,6 +65,14 @@ beforeEach(() => {
     "auth-profiles.json",
   );
   if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
+  const databasePath = path.join(
+    openclawDir,
+    "agents",
+    "main",
+    "agent",
+    "openclaw-agent.sqlite",
+  );
+  if (fs.existsSync(databasePath)) fs.unlinkSync(databasePath);
 });
 
 afterAll(() => {
@@ -72,6 +81,86 @@ afterAll(() => {
 });
 
 describe("server/auth-profiles", () => {
+  it("reads and updates Codex OAuth credentials in the SQLite auth store", () => {
+    const databasePath = path.join(
+      tmpDir,
+      ".openclaw",
+      "agents",
+      "main",
+      "agent",
+      "openclaw-agent.sqlite",
+    );
+    const database = new DatabaseSync(databasePath);
+    database.exec(`
+      CREATE TABLE auth_profile_store (
+        store_key TEXT NOT NULL PRIMARY KEY,
+        store_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE auth_profile_state (
+        state_key TEXT NOT NULL PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+    database
+      .prepare(
+        "INSERT INTO auth_profile_store (store_key, store_json, updated_at) VALUES (?, ?, ?)",
+      )
+      .run(
+        "primary",
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:codex-cli": {
+              type: "oauth",
+              provider: "openai",
+              access: "sqlite-access",
+              refresh: "sqlite-refresh",
+              expires: 123,
+            },
+          },
+        }),
+        1,
+      );
+    database
+      .prepare(
+        "INSERT INTO auth_profile_state (state_key, state_json, updated_at) VALUES (?, ?, ?)",
+      )
+      .run("primary", JSON.stringify({ version: 1 }), 1);
+    database.close();
+
+    expect(ap.getCodexProfile()).toMatchObject({
+      profileId: "openai:codex-cli",
+      provider: "openai",
+      access: "sqlite-access",
+      refresh: "sqlite-refresh",
+    });
+
+    ap.upsertCodexProfile({
+      access: "updated-access",
+      refresh: "updated-refresh",
+      expires: 456,
+      accountId: "account-1",
+    });
+
+    const updatedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    const row = updatedDatabase
+      .prepare("SELECT store_json FROM auth_profile_store WHERE store_key = ?")
+      .get("primary");
+    updatedDatabase.close();
+    const updated = JSON.parse(row.store_json);
+    expect(updated.profiles["openai:codex-cli"]).toMatchObject({
+      access: "updated-access",
+      refresh: "updated-refresh",
+      expires: 456,
+      accountId: "account-1",
+    });
+    expect(fs.existsSync(path.join(path.dirname(databasePath), "auth-profiles.json"))).toBe(
+      false,
+    );
+  });
+
   it("upserts an api_key profile and syncs openclaw.json", () => {
     ap.upsertProfile("anthropic:default", {
       type: "api_key",
