@@ -748,6 +748,22 @@ if (fs.existsSync(configPath)) {
 }
 
 if (fs.existsSync(configPath)) {
+  try {
+    execFileSync(process.execPath, [
+      path.join(__dirname, "..", "lib", "scripts", "reconcile-codex-plugin.js"),
+    ], {
+      env: process.env,
+      stdio: "inherit",
+      timeout: 150_000,
+    });
+  } catch (error) {
+    console.error(
+      `[alphaclaw] Codex plugin reconciliation process failed: ${error.message}`,
+    );
+  }
+}
+
+if (fs.existsSync(configPath)) {
   console.log("[alphaclaw] Config exists, reconciling channels...");
 
   try {
