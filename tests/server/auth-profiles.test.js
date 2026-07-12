@@ -322,6 +322,27 @@ describe("server/auth-profiles", () => {
     expect(config.gateway.port).toBe(18789);
   });
 
+  it("preserves the Codex runtime marker when model settings are saved", () => {
+    ap.upsertCodexProfile({
+      access: "codex-access",
+      refresh: "codex-refresh",
+      expires: Date.now() + 3_600_000,
+    });
+
+    ap.setModelConfig({
+      primary: "openai/gpt-5.5",
+      configuredModels: {
+        "openai/gpt-5.5": {},
+        "anthropic/claude-opus-4-6": {},
+      },
+    });
+
+    expect(ap.getModelConfig().configuredModels).toEqual({
+      "openai/gpt-5.5": { agentRuntime: { id: "codex" } },
+      "anthropic/claude-opus-4-6": {},
+    });
+  });
+
   it("legacy upsertCodexProfile writes oauth and syncs config", () => {
     ap.upsertCodexProfile({
       access: "jwt",
