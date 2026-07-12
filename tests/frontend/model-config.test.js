@@ -63,6 +63,13 @@ describe("frontend/model-config", () => {
       key: "openai/gpt-5.5",
       provider: "openai",
       label: "GPT-5.5",
+      agentRuntime: { id: "codex" },
+    });
+    expect(catalog).toContainEqual({
+      key: "openai/gpt-5.4-mini",
+      provider: "openai",
+      label: "GPT-5.4 Mini",
+      agentRuntime: { id: "codex" },
     });
     expect(
       modelConfig.withAlwaysAvailableModels(catalog).filter(
