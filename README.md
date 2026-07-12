@@ -214,6 +214,10 @@ npm run test:coverage   # Coverage report
 
 **Requirements:** Node.js ≥ 22.14.0
 
+## Official Website
+
+[alphaclaw.md](https://alphaclaw.md) is the official AlphaClaw website.
+
 ## License
 
 MIT
