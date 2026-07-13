@@ -18,10 +18,12 @@
 <p align="center"><em>First deploy to first message in under five minutes.</em></p>
 
 <p align="center">
+  <a href="https://render.com/templates/alphaclaw"><img height="40" src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img height="40" src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
-  <a href="https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template"><img height="40" src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   <a href="https://updates.alphaclaw.md/desktop/prod/alphaclaw-mac-latest.dmg"><img height="40" src="https://img.shields.io/badge/Download%20for%20macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
 </p>
+
+<p align="center"><strong>Render sponsors AlphaClaw.</strong> Redeem $50 in Render credits with code <code>RENDER-ALPHACLAW</code>.</p>
 
 > **Platform:** AlphaClaw currently targets Docker/Linux deployments. macOS local development is not yet supported.
 
@@ -45,7 +47,7 @@
 
 ## Why AlphaClaw
 
-- **Zero to production in one deploy:** Railway/Render templates ship a complete stack — no manual gateway setup.
+- **Zero to production in one deploy:** Render/Railway templates ship a complete stack — no manual gateway setup.
 - **Self-healing:** Watchdog detects crashes, enters repair mode, relaunches the gateway, and notifies you.
 - **Everything in the browser:** No SSH, no config files to hand-edit, no CLI required after first deploy.
 - **Stays out of the way:** AlphaClaw manages infrastructure; OpenClaw handles the AI.
@@ -56,10 +58,15 @@ AlphaClaw simply wraps OpenClaw, it's not a dependency. Remove AlphaClaw and you
 
 ## Quick Start
 
-### Deploy (recommended)
+### Deploy on Render (recommended)
+
+[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/templates/alphaclaw)
+
+Render sponsors AlphaClaw. Use code **`RENDER-ALPHACLAW`** to redeem **$50 in Render credits**. The deployment is maintained in Render's [official AlphaClaw template repository](https://github.com/render-examples/openclaw-render-template).
+
+### Other deployment options
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic)
-[![Deploy to Render](https://render.com/images/deploy-to-render-button.svg)](https://render.com/deploy?repo=https://github.com/chrysb/openclaw-render-template)
 
 Set `SETUP_PASSWORD` at deploy time and visit your deployment URL. The welcome wizard handles the rest.
 
