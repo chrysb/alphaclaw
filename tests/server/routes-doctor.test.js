@@ -38,6 +38,8 @@ const createDoctorService = () => ({
   })),
   requestCardFix: vi.fn(async ({ cardId, sessionId, replyChannel, replyTo }) => ({
     ok: true,
+    queued: true,
+    runId: "doctor-fix-7-test",
     stdout: "sent",
     card: { id: Number(cardId), sessionId, replyChannel, replyTo },
   })),
@@ -179,7 +181,7 @@ describe("server/routes/doctor", () => {
       prompt: "Use the safer prompt",
     });
 
-    expect(res.status).toBe(200);
+    expect(res.status).toBe(202);
     expect(doctorService.requestCardFix).toHaveBeenCalledWith({
       cardId: "7",
       sessionId: "session-123",

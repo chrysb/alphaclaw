@@ -151,6 +151,76 @@ describe("server/doctor-service", () => {
     );
   });
 
+  it("queues Doctor card fixes through the gateway without waiting for the agent", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fix-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fix-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Workspace Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+    const clawCmd = vi.fn(async () => ({
+      ok: true,
+      stdout: JSON.stringify({ status: "accepted", runId: "gateway-run" }),
+      stderr: "",
+    }));
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "One finding",
+        cards: [
+          {
+            priority: "P1",
+            category: "guidance",
+            title: "Fix guidance drift",
+            summary: "The guidance is stale",
+            recommendation: "Update it",
+            evidence: [{ type: "path", path: "AGENTS.md" }],
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "Update the stale guidance.",
+            status: "open",
+          },
+        ],
+      }),
+    });
+    const [card] = doctorDb.getDoctorCardsByRunId(imported.runId);
+
+    const result = await doctorService.requestCardFix({
+      cardId: card.id,
+      sessionId: "session-123",
+      replyChannel: "telegram",
+      replyTo: "1050",
+      prompt: "Apply the safe fix.",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.queued).toBe(true);
+    expect(result.runId).toMatch(new RegExp(`^doctor-fix-${card.id}-`));
+    expect(clawCmd).toHaveBeenCalledTimes(1);
+    const command = clawCmd.mock.calls[0][0];
+    expect(command).toContain("gateway call agent --json");
+    expect(command).not.toContain("--expect-final");
+    expect(command).toContain('"message":"Apply the safe fix."');
+    expect(command).toContain('"deliver":true');
+    expect(command).toContain('"replyChannel":"telegram"');
+    expect(command).toContain('"replyTo":"1050"');
+  });
+
   it("does not suppress previously fixed findings on later Doctor runs", async () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fixed-rerun-workspace-"));
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fixed-rerun-db-"));
