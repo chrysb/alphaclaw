@@ -36,13 +36,15 @@ const createDoctorService = () => ({
     id: Number(cardId),
     status,
   })),
-  requestCardFix: vi.fn(async ({ cardId, sessionId, replyChannel, replyTo }) => ({
-    ok: true,
-    queued: true,
-    runId: "doctor-fix-7-test",
-    stdout: "sent",
-    card: { id: Number(cardId), sessionId, replyChannel, replyTo },
-  })),
+  requestCardFix: vi.fn(
+    async ({ cardId, sessionKey, replyChannel, replyTo }) => ({
+      ok: true,
+      queued: true,
+      runId: "doctor-fix-7-test",
+      stdout: "sent",
+      card: { id: Number(cardId), sessionKey, replyChannel, replyTo },
+    }),
+  ),
 });
 
 const createApp = (doctorService) => {
@@ -175,7 +177,7 @@ describe("server/routes/doctor", () => {
     const app = createApp(doctorService);
 
     const res = await request(app).post("/api/doctor/findings/7/fix").send({
-      sessionId: "session-123",
+      sessionKey: "agent:main:telegram:direct:1050",
       replyChannel: "telegram",
       replyTo: "1050",
       prompt: "Use the safer prompt",
@@ -184,7 +186,7 @@ describe("server/routes/doctor", () => {
     expect(res.status).toBe(202);
     expect(doctorService.requestCardFix).toHaveBeenCalledWith({
       cardId: "7",
-      sessionId: "session-123",
+      sessionKey: "agent:main:telegram:direct:1050",
       replyChannel: "telegram",
       replyTo: "1050",
       prompt: "Use the safer prompt",

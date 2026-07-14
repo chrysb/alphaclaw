@@ -202,9 +202,7 @@ describe("server/doctor-service", () => {
 
     const result = await doctorService.requestCardFix({
       cardId: card.id,
-      sessionId: "session-123",
-      replyChannel: "telegram",
-      replyTo: "1050",
+      sessionKey: "agent:main:doctor:42",
       prompt: "Apply the safe fix.",
     });
 
@@ -216,9 +214,37 @@ describe("server/doctor-service", () => {
     expect(command).toContain("gateway call agent --json");
     expect(command).not.toContain("--expect-final");
     expect(command).toContain('"message":"Apply the safe fix."');
-    expect(command).toContain('"deliver":true');
-    expect(command).toContain('"replyChannel":"telegram"');
-    expect(command).toContain('"replyTo":"1050"');
+    expect(command).toContain('"sessionKey":"agent:main:doctor:42"');
+    expect(command).not.toContain('"agentId":"main"');
+    expect(command).not.toContain('"sessionId"');
+    expect(command).not.toContain('"deliver":true');
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("open");
+
+    await doctorService.requestCardFix({
+      cardId: card.id,
+      sessionKey: "agent:main:telegram:direct:1050",
+      replyChannel: "telegram",
+      replyTo: "1050",
+      prompt: "Apply the safe fix.",
+    });
+
+    expect(clawCmd).toHaveBeenCalledTimes(2);
+    const deliveryCommand = clawCmd.mock.calls[1][0];
+    expect(deliveryCommand).toContain(
+      '"sessionKey":"agent:main:telegram:direct:1050"',
+    );
+    expect(deliveryCommand).toContain('"deliver":true');
+    expect(deliveryCommand).toContain('"replyChannel":"telegram"');
+    expect(deliveryCommand).toContain('"replyTo":"1050"');
+    expect(deliveryCommand).not.toContain('"sessionId"');
+
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        prompt: "Apply the safe fix.",
+      }),
+    ).rejects.toThrow("Doctor fix request requires a session key");
+    expect(clawCmd).toHaveBeenCalledTimes(2);
   });
 
   it("does not suppress previously fixed findings on later Doctor runs", async () => {

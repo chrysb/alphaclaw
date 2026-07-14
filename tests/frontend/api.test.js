@@ -309,7 +309,7 @@ describe("frontend/api", () => {
 
     const result = await api.sendDoctorCardFix({
       cardId: 7,
-      sessionId: "session-123",
+      sessionKey: "agent:main:telegram:direct:1050",
       replyChannel: "telegram",
       replyTo: "1050",
       prompt: "Use a more focused fix request",
@@ -320,7 +320,7 @@ describe("frontend/api", () => {
       expect.objectContaining({
         method: "POST",
         body: JSON.stringify({
-          sessionId: "session-123",
+          sessionKey: "agent:main:telegram:direct:1050",
           replyChannel: "telegram",
           replyTo: "1050",
           prompt: "Use a more focused fix request",
