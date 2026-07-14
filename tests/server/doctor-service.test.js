@@ -86,6 +86,12 @@ describe("server/doctor-service", () => {
         ],
       }),
     });
+    const [workingSourceCard] = doctorDb.getDoctorCardsByRunId(imported.runId);
+    doctorDb.startDoctorCardFix({
+      id: workingSourceCard.id,
+      runId: "doctor-fix-active",
+      tokenHash: "active-token-hash",
+    });
 
     const rerun = doctorService.runDoctor();
     const latestRun = doctorDb.getDoctorRun(rerun.runId);
@@ -98,7 +104,9 @@ describe("server/doctor-service", () => {
     expect(latestRun.engine).toBe("deterministic_reuse");
     expect(latestRun.reusedFromRunId).toBe(imported.runId);
     expect(latestRun.summary).toMatch(/^No workspace changes since last scan/);
-    expect(doctorDb.getDoctorCardsByRunId(rerun.runId)).toHaveLength(1);
+    expect(doctorDb.getDoctorCardsByRunId(rerun.runId)).toEqual([
+      expect.objectContaining({ status: "open" }),
+    ]);
   });
 
   it("runs Doctor analysis in a dedicated doctor session", async () => {
@@ -177,8 +185,12 @@ describe("server/doctor-service", () => {
       getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
       getDoctorCard: doctorDb.getDoctorCard,
       updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      startDoctorCardFix: doctorDb.startDoctorCardFix,
+      cancelDoctorCardFix: doctorDb.cancelDoctorCardFix,
+      completeDoctorCardFix: doctorDb.completeDoctorCardFix,
       workspaceRoot,
       managedRoot: workspaceRoot,
+      callbackBaseUrl: "http://127.0.0.1:3456",
     });
     const imported = doctorService.importDoctorResult({
       rawOutput: JSON.stringify({
@@ -213,12 +225,17 @@ describe("server/doctor-service", () => {
     const command = clawCmd.mock.calls[0][0];
     expect(command).toContain("gateway call agent --json");
     expect(command).not.toContain("--expect-final");
-    expect(command).toContain('"message":"Apply the safe fix."');
+    expect(command).toContain('"message":"Apply the safe fix.\\n\\n');
     expect(command).toContain('"sessionKey":"agent:main:doctor:42"');
     expect(command).not.toContain('"agentId":"main"');
     expect(command).not.toContain('"sessionId"');
     expect(command).not.toContain('"deliver":true');
-    expect(doctorDb.getDoctorCard(card.id).status).toBe("open");
+    expect(command).toContain("AlphaClaw completion callback:");
+    expect(command).toContain(
+      `http://127.0.0.1:3456/api/doctor/findings/${card.id}/complete`,
+    );
+    expect(command).toContain("Do not call the completion callback");
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("working");
 
     await doctorService.requestCardFix({
       cardId: card.id,
@@ -238,13 +255,26 @@ describe("server/doctor-service", () => {
     expect(deliveryCommand).toContain('"replyTo":"1050"');
     expect(deliveryCommand).not.toContain('"sessionId"');
 
+    clawCmd.mockResolvedValueOnce({
+      ok: false,
+      stderr: "gateway unavailable",
+    });
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:42",
+        prompt: "Apply the safe fix.",
+      }),
+    ).rejects.toThrow("gateway unavailable");
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("open");
+
     await expect(
       doctorService.requestCardFix({
         cardId: card.id,
         prompt: "Apply the safe fix.",
       }),
     ).rejects.toThrow("Doctor fix request requires a session key");
-    expect(clawCmd).toHaveBeenCalledTimes(2);
+    expect(clawCmd).toHaveBeenCalledTimes(3);
   });
 
   it("does not suppress previously fixed findings on later Doctor runs", async () => {

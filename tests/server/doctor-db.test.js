@@ -53,6 +53,9 @@ describe("server/doctor-db", () => {
       getLatestDoctorRun,
       getDoctorCardsByRunId,
       setInitialWorkspaceBaseline,
+      startDoctorCardFix,
+      cancelDoctorCardFix,
+      completeDoctorCardFix,
       updateDoctorCardStatus,
     } = createDoctorDbContext("doctor-db-cards-");
     setInitialWorkspaceBaseline({
@@ -119,7 +122,7 @@ describe("server/doctor-db", () => {
     expect(run.reusedFromRunId).toBe(9);
     expect(run.cardCount).toBe(2);
     expect(run.priorityCounts).toEqual({ P0: 1, P1: 0, P2: 1 });
-    expect(run.statusCounts).toEqual({ open: 1, dismissed: 1, fixed: 0 });
+    expect(run.statusCounts).toEqual({ open: 1, working: 0, dismissed: 1, fixed: 0 });
     expect(cards).toHaveLength(2);
     expect(latestRun.id).toBe(runId);
 
@@ -128,5 +131,62 @@ describe("server/doctor-db", () => {
       status: kDoctorCardStatus.fixed,
     });
     expect(updatedCard.status).toBe(kDoctorCardStatus.fixed);
+
+    const workingCard = startDoctorCardFix({
+      id: cards[1].id,
+      runId: "doctor-fix-test",
+      tokenHash: "token-hash",
+    });
+    expect(workingCard.status).toBe(kDoctorCardStatus.working);
+    expect(
+      completeDoctorCardFix({
+        id: cards[1].id,
+        runId: "wrong-run",
+        tokenHash: "token-hash",
+      }),
+    ).toBeNull();
+    expect(
+      completeDoctorCardFix({
+        id: cards[1].id,
+        runId: "doctor-fix-test",
+        tokenHash: "wrong-token",
+      }),
+    ).toBeNull();
+    const completedCard = completeDoctorCardFix({
+      id: cards[1].id,
+      runId: "doctor-fix-test",
+      tokenHash: "token-hash",
+    });
+    expect(completedCard.status).toBe(kDoctorCardStatus.fixed);
+    expect(
+      completeDoctorCardFix({
+        id: cards[1].id,
+        runId: "doctor-fix-test",
+        tokenHash: "token-hash",
+      }),
+    ).toBeNull();
+
+    startDoctorCardFix({
+      id: cards[1].id,
+      runId: "doctor-fix-cancel",
+      tokenHash: "cancel-token-hash",
+    });
+    expect(
+      cancelDoctorCardFix({ id: cards[1].id, runId: "doctor-fix-cancel" }).status,
+    ).toBe(kDoctorCardStatus.open);
+
+    startDoctorCardFix({
+      id: cards[1].id,
+      runId: "doctor-fix-manual-reopen",
+      tokenHash: "manual-reopen-token-hash",
+    });
+    updateDoctorCardStatus({ id: cards[1].id, status: kDoctorCardStatus.open });
+    expect(
+      completeDoctorCardFix({
+        id: cards[1].id,
+        runId: "doctor-fix-manual-reopen",
+        tokenHash: "manual-reopen-token-hash",
+      }),
+    ).toBeNull();
   });
 });
