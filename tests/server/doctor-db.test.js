@@ -132,12 +132,23 @@ describe("server/doctor-db", () => {
     });
     expect(updatedCard.status).toBe(kDoctorCardStatus.fixed);
 
+    updateDoctorCardStatus({
+      id: cards[1].id,
+      status: kDoctorCardStatus.open,
+    });
     const workingCard = startDoctorCardFix({
       id: cards[1].id,
       runId: "doctor-fix-test",
       tokenHash: "token-hash",
     });
     expect(workingCard.status).toBe(kDoctorCardStatus.working);
+    expect(
+      startDoctorCardFix({
+        id: cards[1].id,
+        runId: "doctor-fix-concurrent",
+        tokenHash: "concurrent-token-hash",
+      }),
+    ).toBeNull();
     expect(
       completeDoctorCardFix({
         id: cards[1].id,
@@ -166,6 +177,10 @@ describe("server/doctor-db", () => {
       }),
     ).toBeNull();
 
+    updateDoctorCardStatus({
+      id: cards[1].id,
+      status: kDoctorCardStatus.open,
+    });
     startDoctorCardFix({
       id: cards[1].id,
       runId: "doctor-fix-cancel",

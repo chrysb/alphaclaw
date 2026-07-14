@@ -187,10 +187,9 @@ describe("server/doctor-service", () => {
       updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
       startDoctorCardFix: doctorDb.startDoctorCardFix,
       cancelDoctorCardFix: doctorDb.cancelDoctorCardFix,
-      completeDoctorCardFix: doctorDb.completeDoctorCardFix,
       workspaceRoot,
       managedRoot: workspaceRoot,
-      callbackBaseUrl: "http://127.0.0.1:3456",
+      alphaclawRootDir: "/data",
     });
     const imported = doctorService.importDoctorResult({
       rawOutput: JSON.stringify({
@@ -231,11 +230,25 @@ describe("server/doctor-service", () => {
     expect(command).not.toContain('"sessionId"');
     expect(command).not.toContain('"deliver":true');
     expect(command).toContain("AlphaClaw completion callback:");
-    expect(command).toContain(
-      `http://127.0.0.1:3456/api/doctor/findings/${card.id}/complete`,
-    );
+    expect(command).toContain("alphaclaw --root-dir");
+    expect(command).toContain("/data");
+    expect(command).toContain("doctor finding complete");
+    expect(command).toContain(`--id`);
+    expect(command).toContain(result.runId);
+    expect(command).toContain("--token");
     expect(command).toContain("Do not call the completion callback");
     expect(doctorDb.getDoctorCard(card.id).status).toBe("working");
+
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:42",
+        prompt: "Apply the safe fix again.",
+      }),
+    ).rejects.toThrow("Doctor fix already in progress");
+    expect(clawCmd).toHaveBeenCalledTimes(1);
+
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "open" });
 
     await doctorService.requestCardFix({
       cardId: card.id,
@@ -255,6 +268,7 @@ describe("server/doctor-service", () => {
     expect(deliveryCommand).toContain('"replyTo":"1050"');
     expect(deliveryCommand).not.toContain('"sessionId"');
 
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "open" });
     clawCmd.mockResolvedValueOnce({
       ok: false,
       stderr: "gateway unavailable",

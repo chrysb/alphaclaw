@@ -36,10 +36,6 @@ const createDoctorService = () => ({
     id: Number(cardId),
     status,
   })),
-  completeCardFix: vi.fn(({ cardId, runId }) => ({
-    ok: true,
-    card: { id: Number(cardId), status: "fixed", runId },
-  })),
   requestCardFix: vi.fn(
     async ({ cardId, sessionKey, replyChannel, replyTo }) => ({
       ok: true,
@@ -63,43 +59,6 @@ const createApp = (doctorService) => {
 };
 
 describe("server/routes/doctor", () => {
-  it("completes a Doctor fix through its scoped callback", async () => {
-    const doctorService = createDoctorService();
-    const app = createApp(doctorService);
-
-    const res = await request(app).post("/api/doctor/findings/7/complete").send({
-      runId: "doctor-fix-7-test",
-      token: "one-time-token",
-    });
-
-    expect(res.status).toBe(200);
-    expect(doctorService.completeCardFix).toHaveBeenCalledWith({
-      cardId: "7",
-      runId: "doctor-fix-7-test",
-      token: "one-time-token",
-    });
-    expect(res.body.card.status).toBe("fixed");
-  });
-
-  it("does not reveal details for an invalid Doctor fix callback", async () => {
-    const doctorService = createDoctorService();
-    doctorService.completeCardFix.mockImplementation(() => {
-      throw new Error("Invalid Doctor fix completion callback");
-    });
-    const app = createApp(doctorService);
-
-    const res = await request(app).post("/api/doctor/findings/7/complete").send({
-      runId: "wrong-run",
-      token: "wrong-token",
-    });
-
-    expect(res.status).toBe(404);
-    expect(res.body).toEqual({
-      ok: false,
-      error: "Doctor fix callback not found",
-    });
-  });
-
   it("returns Doctor status", async () => {
     const doctorService = createDoctorService();
     const app = createApp(doctorService);
@@ -233,5 +192,21 @@ describe("server/routes/doctor", () => {
       prompt: "Use the safer prompt",
     });
     expect(res.body.ok).toBe(true);
+  });
+
+  it("returns 409 when a Doctor fix is already in progress", async () => {
+    const doctorService = createDoctorService();
+    doctorService.requestCardFix.mockRejectedValue(
+      new Error("Doctor fix already in progress"),
+    );
+    const app = createApp(doctorService);
+
+    const res = await request(app).post("/api/doctor/findings/7/fix").send({
+      sessionKey: "agent:main:doctor:42",
+      prompt: "Try again",
+    });
+
+    expect(res.status).toBe(409);
+    expect(res.body.error).toBe("Doctor fix already in progress");
   });
 });
