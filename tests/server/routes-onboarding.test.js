@@ -190,7 +190,7 @@ describe("server/routes/onboarding", () => {
     expect(deps.shellCmd).not.toHaveBeenCalled();
   });
 
-  it("requires codex oauth for openai-codex provider", async () => {
+  it("requires codex oauth or an OpenAI API key for openai-codex provider", async () => {
     const deps = createBaseDeps({ hasCodexOauth: false });
     const app = createApp(deps);
 
@@ -208,7 +208,27 @@ describe("server/routes/onboarding", () => {
     expect(res.status).toBe(400);
     expect(res.body).toEqual({
       ok: false,
-      error: "Connect OpenAI Codex OAuth before continuing",
+      error: "Connect OpenAI Codex OAuth or add an OpenAI API key before continuing",
+    });
+  });
+
+  it("requires codex oauth or an OpenAI API key for canonical GPT-5.5", async () => {
+    const deps = createBaseDeps({ hasCodexOauth: false });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/onboard").send({
+      modelKey: "openai/gpt-5.5",
+      vars: [
+        { key: "GITHUB_TOKEN", value: "ghp_test_123456789" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_123456789" },
+      ],
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body).toEqual({
+      ok: false,
+      error: "Connect OpenAI Codex OAuth or add an OpenAI API key before continuing",
     });
   });
 
@@ -412,6 +432,13 @@ describe("server/routes/onboarding", () => {
 
     expect(res.status).toBe(200);
     expect(res.body).toEqual({ ok: true });
+    const progressRes = await request(app).get("/api/onboard/progress");
+    expect(progressRes.status).toBe(200);
+    expect(progressRes.body).toMatchObject({
+      active: false,
+      stage: "starting_gateway",
+      message: "Starting gateway...",
+    });
     expect(deps.runOnboardedBootSequence).toHaveBeenCalledTimes(1);
     expect(deps.authProfiles.upsertApiKeyProfileForEnvVar).toHaveBeenCalledWith(
       "openai",

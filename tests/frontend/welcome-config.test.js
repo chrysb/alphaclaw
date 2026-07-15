@@ -39,7 +39,7 @@ describe("frontend/welcome-config", () => {
           codexLoading: false,
         },
       ),
-    ).toBe("Connect Codex OAuth to continue.");
+    ).toBe("Connect Codex OAuth or enter an OpenAI API key to continue.");
   });
 
   it("requires both Slack tokens before the channels step can pass", async () => {
