@@ -17,7 +17,7 @@ describe("frontend/model-config", () => {
   it("returns visible AI field keys for provider", async () => {
     const modelConfig = await loadModelConfig();
     const keys = modelConfig.getVisibleAiFieldKeys("openai-codex");
-    expect(keys.has("OPENAI_API_KEY")).toBe(false);
+    expect(keys.has("OPENAI_API_KEY")).toBe(true);
     expect(keys.has("ANTHROPIC_API_KEY")).toBe(false);
     const zaiKeys = modelConfig.getVisibleAiFieldKeys("zai");
     expect(zaiKeys.has("ZAI_API_KEY")).toBe(true);
@@ -32,9 +32,7 @@ describe("frontend/model-config", () => {
       { key: "anthropic/claude-opus-4-8", label: "Opus 4.8" },
       { key: "anthropic/claude-opus-4-7", label: "Opus 4.7" },
       { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
-      { key: "openai/gpt-5.3-codex", label: "Codex 5.3" },
       { key: "openai/gpt-5.5", label: "GPT-5.5" },
-      { key: "openai-codex/gpt-5.3-codex", label: "Codex 5.3" },
       { key: "openai-codex/gpt-5.4", label: "GPT-5.4" },
       { key: "openai-codex/gpt-5.5", label: "GPT-5.5" },
     ]);
@@ -43,14 +41,46 @@ describe("frontend/model-config", () => {
       "anthropic/claude-opus-4-8",
       "anthropic/claude-opus-4-7",
       "anthropic/claude-opus-4-6",
-      "openai/gpt-5.3-codex",
       "openai/gpt-5.5",
       "google/gemini-3.1-pro-preview",
     ]);
     expect(featured[0]?.featuredLabel).toBe("Opus 4.8");
     expect(featured[1]?.featuredLabel).toBe("Opus 4.7");
-    expect(featured[4]?.featuredLabel).toBe("GPT-5.5");
-    expect(featured[5]?.featuredLabel).toBe("Gemini 3.1 Pro");
+    expect(featured[3]?.featuredLabel).toBe("GPT-5.5");
+    expect(featured[4]?.featuredLabel).toBe("Gemini 3.1 Pro");
+  });
+
+  it("removes deprecated Codex 5.3 models from onboarding", async () => {
+    const modelConfig = await loadModelConfig();
+    const models = modelConfig.getOnboardingModels([
+      { key: "openai/gpt-5.3-codex" },
+      { key: "openai-codex/gpt-5.3-codex" },
+      { key: "openai/gpt-5.5", agentRuntime: { id: "codex" } },
+    ]);
+
+    expect(models.map((model) => model.key)).toEqual(["openai/gpt-5.5"]);
+    expect(
+      modelConfig.isDeprecatedOnboardingModelKey("openai/gpt-5.3-codex"),
+    ).toBe(true);
+    expect(
+      modelConfig.isDeprecatedOnboardingModelKey("openai/gpt-5.5"),
+    ).toBe(false);
+  });
+
+  it("uses Codex OAuth for canonical models with the Codex runtime", async () => {
+    const modelConfig = await loadModelConfig();
+    expect(
+      modelConfig.getOnboardingModelProvider({
+        modelKey: "openai/gpt-5.5",
+        models: [{ key: "openai/gpt-5.5" }],
+      }),
+    ).toBe("openai-codex");
+    expect(
+      modelConfig.getOnboardingModelProvider({
+        modelKey: "openai/gpt-4.1",
+        models: [{ key: "openai/gpt-4.1" }],
+      }),
+    ).toBe("openai");
   });
 
   it("keeps canonical GPT-5.5 selectable when live discovery omits it", async () => {
