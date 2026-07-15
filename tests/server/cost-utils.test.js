@@ -29,4 +29,31 @@ describe("server/cost-utils", () => {
     expect(breakdown.pricingFound).toBe(true);
     expect(breakdown.totalCost).toBeCloseTo(5, 8);
   });
+
+  it("prices provider-qualified GPT-5.5 correctly without gpt-5 shadowing", () => {
+    const breakdown = deriveCostBreakdown({
+      provider: "openai",
+      model: "openai/gpt-5.5",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+
+    expect(breakdown.pricingFound).toBe(true);
+    // GPT-5.5 is input: 5.0, output: 30.0 (total $35.0 per million)
+    // GPT-5 would be input: 1.25, output: 10.0 (total $11.25 per million)
+    expect(breakdown.totalCost).toBeCloseTo(35.0, 8);
+  });
+
+  it("prices provider-qualified GPT-5.4-mini correctly without gpt-5 shadowing", () => {
+    const breakdown = deriveCostBreakdown({
+      provider: "openai",
+      model: "openai/gpt-5.4-mini",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+    });
+
+    expect(breakdown.pricingFound).toBe(true);
+    // GPT-5.4-mini is input: 0.75, output: 4.5 (total $5.25 per million)
+    expect(breakdown.totalCost).toBeCloseTo(5.25, 8);
+  });
 });
