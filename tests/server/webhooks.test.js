@@ -2,6 +2,7 @@ const path = require("path");
 
 const {
   createWebhook,
+  ensureWebhookMappingIds,
   getTransformRelativePath,
   updateWebhookDestination,
 } = require("../../lib/server/webhooks");
@@ -80,6 +81,7 @@ describe("server/webhooks", () => {
     );
     expect(mapping).toEqual(
       expect.objectContaining({
+        id: "gmail-alerts",
         deliver: true,
         channel: "telegram",
         to: "-1003709908795:4011",
@@ -97,6 +99,45 @@ describe("server/webhooks", () => {
         agentId: "main",
       }),
     );
+  });
+
+  it("backfills stable IDs on existing webhook mappings", () => {
+    const openclawDir = "/tmp/openclaw";
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const fs = createMemoryFs({
+      [configPath]: JSON.stringify({
+        hooks: {
+          mappings: [
+            { match: { path: "schwab" }, action: "agent" },
+            { id: "", match: { path: "/gmail/" }, action: "agent" },
+            { id: "fathom", match: { path: "fathom" }, action: "agent" },
+            { match: { path: "nested/unsupported" }, action: "agent" },
+          ],
+        },
+      }),
+    });
+
+    expect(
+      ensureWebhookMappingIds({
+        fs,
+        constants: { OPENCLAW_DIR: openclawDir },
+      }),
+    ).toEqual({ changed: true, updatedIds: ["schwab", "gmail"] });
+
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(config.hooks.mappings).toEqual([
+      expect.objectContaining({ id: "schwab" }),
+      expect.objectContaining({ id: "gmail" }),
+      expect.objectContaining({ id: "fathom" }),
+      expect.objectContaining({ match: { path: "nested/unsupported" } }),
+    ]);
+    expect(config.hooks.mappings[3]).not.toHaveProperty("id");
+    expect(
+      ensureWebhookMappingIds({
+        fs,
+        constants: { OPENCLAW_DIR: openclawDir },
+      }),
+    ).toEqual({ changed: false, updatedIds: [] });
   });
 
   it("defaults mapping delivery channel to last and falls back to default agent", () => {
