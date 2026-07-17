@@ -112,6 +112,10 @@ describe("server/webhooks", () => {
             { id: "", match: { path: "/gmail/" }, action: "agent" },
             { id: "fathom", match: { path: "fathom" }, action: "agent" },
             { match: { path: "nested/unsupported" }, action: "agent" },
+            { match: { path: "schwab" }, action: "agent" },
+            { name: "Nightly Sync", action: "agent" },
+            { match: { source: "Salesforce" }, action: "agent" },
+            { action: "agent" },
           ],
         },
       }),
@@ -122,16 +126,30 @@ describe("server/webhooks", () => {
         fs,
         constants: { OPENCLAW_DIR: openclawDir },
       }),
-    ).toEqual({ changed: true, updatedIds: ["schwab", "gmail"] });
+    ).toEqual({
+      changed: true,
+      updatedIds: [
+        "schwab",
+        "gmail",
+        "nested-unsupported",
+        "schwab-2",
+        "nightly-sync",
+        "source-salesforce",
+        "mapping-8",
+      ],
+    });
 
     const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(config.hooks.mappings).toEqual([
       expect.objectContaining({ id: "schwab" }),
       expect.objectContaining({ id: "gmail" }),
       expect.objectContaining({ id: "fathom" }),
-      expect.objectContaining({ match: { path: "nested/unsupported" } }),
+      expect.objectContaining({ id: "nested-unsupported" }),
+      expect.objectContaining({ id: "schwab-2" }),
+      expect.objectContaining({ id: "nightly-sync" }),
+      expect.objectContaining({ id: "source-salesforce" }),
+      expect.objectContaining({ id: "mapping-8" }),
     ]);
-    expect(config.hooks.mappings[3]).not.toHaveProperty("id");
     expect(
       ensureWebhookMappingIds({
         fs,
