@@ -547,6 +547,74 @@ describe("server/watchdog", () => {
     expect(watchdog.getStatus().uptimeMs).toBe(0);
   });
 
+  it("pauses recovery when OpenClaw exits with EX_CONFIG", async () => {
+    const { watchdog, clawCmd, launchGatewayProcess, notifier } = createHarness({
+      autoRepair: true,
+    });
+
+    watchdog.onGatewayExit({
+      code: 78,
+      expectedExit: false,
+      stderrTail: ["Invalid config"],
+    });
+    await flushMicrotasks();
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "configuration_error",
+        health: "unhealthy",
+        crashCountInWindow: 0,
+      }),
+    );
+    expect(clawCmd).not.toHaveBeenCalled();
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    expect(
+      notifier.notify.mock.calls.some((call) =>
+        String(call?.[0] || "").includes("Gateway configuration invalid"),
+      ),
+    ).toBe(true);
+  });
+
+  it("latches EX_CONFIG across in-flight and periodic health checks", async () => {
+    vi.useFakeTimers();
+    let resolveHealthCheck;
+    const healthCheck = new Promise((resolve) => {
+      resolveHealthCheck = resolve;
+    });
+    const { watchdog, clawCmd, launchGatewayProcess } = createHarness({
+      autoRepair: true,
+      fetchImpl: async () => healthCheck,
+    });
+
+    watchdog.onGatewayLaunch({
+      startedAt: Date.now() - 60_000,
+      pid: 1234,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    watchdog.onGatewayExit({
+      code: 78,
+      expectedExit: false,
+      stderrTail: ["Invalid config"],
+    });
+    resolveHealthCheck({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, status: "live" }),
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "configuration_error",
+        health: "unhealthy",
+      }),
+    );
+    expect(clawCmd).not.toHaveBeenCalled();
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    watchdog.stop();
+  });
+
   it("clears uptimeStartedAt on expected restart", () => {
     const { watchdog } = createHarness();
 

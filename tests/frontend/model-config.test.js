@@ -33,6 +33,7 @@ describe("frontend/model-config", () => {
       { key: "anthropic/claude-opus-4-7", label: "Opus 4.7" },
       { key: "anthropic/claude-opus-4-6", label: "Opus 4.6" },
       { key: "openai/gpt-5.5", label: "GPT-5.5" },
+      { key: "openai/gpt-5.6-sol", label: "GPT-5.6 Sol" },
       { key: "openai-codex/gpt-5.4", label: "GPT-5.4" },
       { key: "openai-codex/gpt-5.5", label: "GPT-5.5" },
     ]);
@@ -41,13 +42,15 @@ describe("frontend/model-config", () => {
       "anthropic/claude-opus-4-8",
       "anthropic/claude-opus-4-7",
       "anthropic/claude-opus-4-6",
+      "openai/gpt-5.6-sol",
       "openai/gpt-5.5",
       "google/gemini-3.1-pro-preview",
     ]);
     expect(featured[0]?.featuredLabel).toBe("Opus 4.8");
     expect(featured[1]?.featuredLabel).toBe("Opus 4.7");
-    expect(featured[3]?.featuredLabel).toBe("GPT-5.5");
-    expect(featured[4]?.featuredLabel).toBe("Gemini 3.1 Pro");
+    expect(featured[3]?.featuredLabel).toBe("GPT-5.6 Sol");
+    expect(featured[4]?.featuredLabel).toBe("GPT-5.5");
+    expect(featured[5]?.featuredLabel).toBe("Gemini 3.1 Pro");
   });
 
   it("removes deprecated Codex 5.3 models from onboarding", async () => {
@@ -90,6 +93,24 @@ describe("frontend/model-config", () => {
     ]);
 
     expect(catalog).toContainEqual({
+      key: "openai/gpt-5.6-sol",
+      provider: "openai",
+      label: "GPT-5.6 Sol",
+      agentRuntime: { id: "codex" },
+    });
+    expect(catalog).toContainEqual({
+      key: "openai/gpt-5.6-terra",
+      provider: "openai",
+      label: "GPT-5.6 Terra",
+      agentRuntime: { id: "codex" },
+    });
+    expect(catalog).toContainEqual({
+      key: "openai/gpt-5.6-luna",
+      provider: "openai",
+      label: "GPT-5.6 Luna",
+      agentRuntime: { id: "codex" },
+    });
+    expect(catalog).toContainEqual({
       key: "openai/gpt-5.5",
       provider: "openai",
       label: "GPT-5.5",
@@ -106,5 +127,18 @@ describe("frontend/model-config", () => {
         (model) => model.key === "openai/gpt-5.5",
       ),
     ).toHaveLength(1);
+
+    const enriched = modelConfig.withAlwaysAvailableModels([
+      { key: "openai/gpt-5.6-sol", label: "gpt-5.6-sol" },
+    ]);
+    expect(enriched[0]).toEqual({
+      key: "openai/gpt-5.6-sol",
+      provider: "openai",
+      label: "GPT-5.6 Sol",
+      agentRuntime: { id: "codex" },
+    });
+    expect(modelConfig.getFriendlyModelLabel("openai/gpt-5.5", "gpt-5.5")).toBe(
+      "GPT-5.5",
+    );
   });
 });

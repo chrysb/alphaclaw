@@ -33,7 +33,7 @@ const writeCacheFile = ({
   fs.writeFileSync(
     cachePath,
     `${JSON.stringify(
-      { version: 1, fetchedAt, openclawVersion, models },
+      { version: 2, fetchedAt, openclawVersion, models },
       null,
       2,
     )}\n`,

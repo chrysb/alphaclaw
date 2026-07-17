@@ -26,6 +26,7 @@ const {
 const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
+const { assertSupportedNodeVersion } = require("../lib/node-runtime");
 
 const kUsageTrackerPluginPath = path.resolve(
   __dirname,
@@ -135,6 +136,15 @@ Examples:
   alphaclaw telegram topic add --thread 12 --name "Ops" --agent ops
 `);
   process.exit(0);
+}
+
+if (command === "start") {
+  try {
+    assertSupportedNodeVersion();
+  } catch (error) {
+    console.error(`[alphaclaw] ${error.message}`);
+    process.exit(1);
+  }
 }
 
 const quoteArg = (value) => `'${String(value || "").replace(/'/g, "'\"'\"'")}'`;
@@ -789,6 +799,30 @@ if (fs.existsSync(path.join(openclawDir, ".git"))) {
     })
   ) {
     console.log("[alphaclaw] Set main upstream to origin/main");
+  }
+}
+
+// Persist config-shape migrations before any OpenClaw import or CLI command.
+// Newer OpenClaw releases validate config eagerly and cannot repair a shape
+// that prevents the CLI from starting.
+if (fs.existsSync(configPath)) {
+  try {
+    const cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    if (migrateLegacyTelegramStreamingConfig(cfg)) {
+      let content = `${JSON.stringify(cfg, null, 2)}\n`;
+      for (const [secret, envRef] of buildSecretReplacements(process.env)) {
+        if (!secret) continue;
+        content = content
+          .split(JSON.stringify(secret))
+          .join(JSON.stringify(envRef));
+      }
+      fs.writeFileSync(configPath, content, "utf8");
+      console.log("[alphaclaw] Migrated legacy Telegram streaming config");
+    }
+  } catch (error) {
+    console.error(
+      `[alphaclaw] Preflight config migration failed: ${error.message}`,
+    );
   }
 }
 

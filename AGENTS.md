@@ -23,7 +23,7 @@ Runtime model:
 
 ### Key Technologies
 
-- Node.js 22.14+ runtime.
+- Node.js 22.22.3+ runtime (or a supported Node 24.15+/25.9+ release).
 - Express-based HTTP API server.
 - `http-proxy` for gateway proxy behavior.
 - OpenClaw CLI/gateway process orchestration.

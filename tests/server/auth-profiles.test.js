@@ -341,6 +341,41 @@ describe("server/auth-profiles", () => {
       "openai/gpt-5.5": { agentRuntime: { id: "codex" } },
       "anthropic/claude-opus-4-6": {},
     });
+    const config = readJson("openclaw.json");
+    expect(config.plugins.allow).toContain("codex");
+    expect(config.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
+  it("enables the Codex plugin without replacing existing plugin config", () => {
+    const configPath = path.join(tmpDir, ".openclaw", "openclaw.json");
+    const config = readJson("openclaw.json");
+    config.plugins = {
+      allow: ["telegram", "usage-tracker"],
+      entries: {
+        telegram: { enabled: true },
+        codex: { config: { appServer: { transport: "stdio" } } },
+      },
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    ap.setModelConfig({
+      primary: "openai/gpt-5.6-sol",
+      configuredModels: {
+        "openai/gpt-5.6-sol": { agentRuntime: { id: "codex" } },
+      },
+    });
+
+    const updated = readJson("openclaw.json");
+    expect(updated.plugins.allow).toEqual([
+      "telegram",
+      "usage-tracker",
+      "codex",
+    ]);
+    expect(updated.plugins.entries.telegram).toEqual({ enabled: true });
+    expect(updated.plugins.entries.codex).toEqual({
+      enabled: true,
+      config: { appServer: { transport: "stdio" } },
+    });
   });
 
   it("legacy upsertCodexProfile writes oauth and syncs config", () => {
