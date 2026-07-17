@@ -104,6 +104,13 @@ describe("server/routes/webhooks", () => {
     expect(response.body?.webhook?.oauthCallbackUrl).toBe(
       "https://alphaclaw.example.com/oauth/0123456789abcdef0123456789abcdef",
     );
+    const config = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(config.hooks.mappings).toEqual([
+      expect.objectContaining({
+        id: "schwab-oauth",
+        match: { path: "schwab-oauth" },
+      }),
+    ]);
     const transformPath = path.join(
       openclawDir,
       getTransformRelativePath("schwab-oauth"),
