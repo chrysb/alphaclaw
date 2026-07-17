@@ -29,4 +29,22 @@ describe("server/cost-utils", () => {
     expect(breakdown.pricingFound).toBe(true);
     expect(breakdown.totalCost).toBeCloseTo(5, 8);
   });
+
+  it("prices each GPT-5.6 tier", () => {
+    const expected = {
+      "gpt-5.6-sol": 35,
+      "gpt-5.6-terra": 17.5,
+      "gpt-5.6-luna": 7,
+    };
+    for (const [model, total] of Object.entries(expected)) {
+      const breakdown = deriveCostBreakdown({
+        provider: "openai",
+        model,
+        inputTokens: 1_000_000,
+        outputTokens: 1_000_000,
+      });
+      expect(breakdown.pricingFound).toBe(true);
+      expect(breakdown.totalCost).toBeCloseTo(total, 8);
+    }
+  });
 });

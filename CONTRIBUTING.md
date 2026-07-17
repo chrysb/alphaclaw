@@ -43,7 +43,7 @@ For big changes, open an issue describing what you want to build, why, and your 
 
 ### Prerequisites
 
-- Node.js >= 22.14.0
+- Node.js >= 22.22.3 on Node 22, >= 24.15.0 on Node 24, or >= 25.9.0
 - Git
 
 ### Setup

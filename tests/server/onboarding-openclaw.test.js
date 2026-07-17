@@ -101,6 +101,35 @@ describe("server/onboarding/openclaw", () => {
     expect(next.gateway.http).toBeUndefined();
   });
 
+  it("keeps the Codex runtime usable when onboarding creates a plugin allowlist", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(
+        {
+          agents: {
+            defaults: {
+              model: { primary: "openai/gpt-5.6-sol" },
+              models: { "openai/gpt-5.6-sol": {} },
+            },
+          },
+          plugins: { entries: {} },
+          channels: {},
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({ fs, openclawDir, varMap: {} });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.plugins.allow).toEqual(["usage-tracker", "codex"]);
+    expect(next.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
   it("preserves existing gateway HTTP endpoint settings when API exposure is opted in", () => {
     const openclawDir = createTempOpenclawDir();
     const configPath = path.join(openclawDir, "openclaw.json");

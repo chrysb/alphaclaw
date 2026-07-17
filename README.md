@@ -219,7 +219,7 @@ npm run test:watch      # Watch mode
 npm run test:coverage   # Coverage report
 ```
 
-**Requirements:** Node.js ≥ 22.14.0
+**Requirements:** Node.js ≥ 22.22.3 on Node 22, ≥ 24.15.0 on Node 24, or ≥ 25.9.0
 
 ## Official Website
 

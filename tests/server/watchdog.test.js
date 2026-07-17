@@ -547,6 +547,34 @@ describe("server/watchdog", () => {
     expect(watchdog.getStatus().uptimeMs).toBe(0);
   });
 
+  it("pauses recovery when OpenClaw exits with EX_CONFIG", async () => {
+    const { watchdog, clawCmd, launchGatewayProcess, notifier } = createHarness({
+      autoRepair: true,
+    });
+
+    watchdog.onGatewayExit({
+      code: 78,
+      expectedExit: false,
+      stderrTail: ["Invalid config"],
+    });
+    await flushMicrotasks();
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "configuration_error",
+        health: "unhealthy",
+        crashCountInWindow: 0,
+      }),
+    );
+    expect(clawCmd).not.toHaveBeenCalled();
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    expect(
+      notifier.notify.mock.calls.some((call) =>
+        String(call?.[0] || "").includes("Gateway configuration invalid"),
+      ),
+    ).toBe(true);
+  });
+
   it("clears uptimeStartedAt on expected restart", () => {
     const { watchdog } = createHarness();
 

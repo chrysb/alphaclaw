@@ -40,4 +40,20 @@ describe("frontend/models-tab/model-picker", () => {
       }),
     ).toMatchObject({ openai: true, "openai-codex": true });
   });
+
+  it("uses friendly OpenAI labels for catalog and synthetic agent entries", async () => {
+    const modelPicker = await loadModelPicker();
+
+    expect(
+      modelPicker.getModelDisplayLabel({
+        key: "openai/gpt-5.5",
+        label: "gpt-5.5",
+      }),
+    ).toBe("GPT-5.5");
+    expect(modelPicker.buildSyntheticModelEntry("openai/gpt-5.6-sol")).toEqual({
+      key: "openai/gpt-5.6-sol",
+      provider: "openai",
+      label: "GPT-5.6 Sol",
+    });
+  });
 });

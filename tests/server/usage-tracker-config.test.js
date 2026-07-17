@@ -112,4 +112,28 @@ describe("server/usage-tracker-config", () => {
     const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(next.channels.telegram.streaming).toEqual({ mode: "partial" });
   });
+
+  it("repairs a missing Codex plugin allowlist entry during boot", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        agents: {
+          defaults: {
+            model: { primary: "openai/gpt-5.6-sol" },
+            models: { "openai/gpt-5.6-sol": {} },
+          },
+        },
+        plugins: { allow: ["telegram"], entries: {} },
+      }),
+      "utf8",
+    );
+
+    expect(ensureUsageTrackerPluginConfig({ fsModule: fs, openclawDir })).toBe(true);
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.plugins.allow).toEqual(["telegram", "usage-tracker", "codex"]);
+    expect(next.plugins.entries.codex).toEqual({ enabled: true });
+  });
 });
