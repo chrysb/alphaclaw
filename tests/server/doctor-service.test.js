@@ -86,6 +86,12 @@ describe("server/doctor-service", () => {
         ],
       }),
     });
+    const [workingSourceCard] = doctorDb.getDoctorCardsByRunId(imported.runId);
+    doctorDb.startDoctorCardFix({
+      id: workingSourceCard.id,
+      runId: "doctor-fix-active",
+      tokenHash: "active-token-hash",
+    });
 
     const rerun = doctorService.runDoctor();
     const latestRun = doctorDb.getDoctorRun(rerun.runId);
@@ -98,7 +104,9 @@ describe("server/doctor-service", () => {
     expect(latestRun.engine).toBe("deterministic_reuse");
     expect(latestRun.reusedFromRunId).toBe(imported.runId);
     expect(latestRun.summary).toMatch(/^No workspace changes since last scan/);
-    expect(doctorDb.getDoctorCardsByRunId(rerun.runId)).toHaveLength(1);
+    expect(doctorDb.getDoctorCardsByRunId(rerun.runId)).toEqual([
+      expect.objectContaining({ status: "open" }),
+    ]);
   });
 
   it("runs Doctor analysis in a dedicated doctor session", async () => {
@@ -149,6 +157,138 @@ describe("server/doctor-service", () => {
     expect(clawCmd.mock.calls[0][0]).toContain(
       `"sessionKey":"${buildDoctorSessionKey(result.runId)}"`,
     );
+  });
+
+  it("queues Doctor card fixes through the gateway without waiting for the agent", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fix-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-fix-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Workspace Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+    const clawCmd = vi.fn(async () => ({
+      ok: true,
+      stdout: JSON.stringify({ status: "accepted", runId: "gateway-run" }),
+      stderr: "",
+    }));
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      startDoctorCardFix: doctorDb.startDoctorCardFix,
+      cancelDoctorCardFix: doctorDb.cancelDoctorCardFix,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+      alphaclawRootDir: "/data",
+    });
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "One finding",
+        cards: [
+          {
+            priority: "P1",
+            category: "guidance",
+            title: "Fix guidance drift",
+            summary: "The guidance is stale",
+            recommendation: "Update it",
+            evidence: [{ type: "path", path: "AGENTS.md" }],
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "Update the stale guidance.",
+            status: "open",
+          },
+        ],
+      }),
+    });
+    const [card] = doctorDb.getDoctorCardsByRunId(imported.runId);
+
+    const result = await doctorService.requestCardFix({
+      cardId: card.id,
+      sessionKey: "agent:main:doctor:42",
+      prompt: "Apply the safe fix.",
+    });
+
+    expect(result.ok).toBe(true);
+    expect(result.queued).toBe(true);
+    expect(result.runId).toMatch(new RegExp(`^doctor-fix-${card.id}-`));
+    expect(clawCmd).toHaveBeenCalledTimes(1);
+    const command = clawCmd.mock.calls[0][0];
+    expect(command).toContain("gateway call agent --json");
+    expect(command).not.toContain("--expect-final");
+    expect(command).toContain('"message":"Apply the safe fix.\\n\\n');
+    expect(command).toContain('"sessionKey":"agent:main:doctor:42"');
+    expect(command).not.toContain('"agentId":"main"');
+    expect(command).not.toContain('"sessionId"');
+    expect(command).not.toContain('"deliver":true');
+    expect(command).toContain("AlphaClaw completion callback:");
+    expect(command).toContain("alphaclaw --root-dir");
+    expect(command).toContain("/data");
+    expect(command).toContain("doctor finding complete");
+    expect(command).toContain(`--id`);
+    expect(command).toContain(result.runId);
+    expect(command).toContain("--token");
+    expect(command).toContain("Do not call the completion callback");
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("working");
+
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:42",
+        prompt: "Apply the safe fix again.",
+      }),
+    ).rejects.toThrow("Doctor fix already in progress");
+    expect(clawCmd).toHaveBeenCalledTimes(1);
+
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "open" });
+
+    await doctorService.requestCardFix({
+      cardId: card.id,
+      sessionKey: "agent:main:telegram:direct:1050",
+      replyChannel: "telegram",
+      replyTo: "1050",
+      prompt: "Apply the safe fix.",
+    });
+
+    expect(clawCmd).toHaveBeenCalledTimes(2);
+    const deliveryCommand = clawCmd.mock.calls[1][0];
+    expect(deliveryCommand).toContain(
+      '"sessionKey":"agent:main:telegram:direct:1050"',
+    );
+    expect(deliveryCommand).toContain('"deliver":true');
+    expect(deliveryCommand).toContain('"replyChannel":"telegram"');
+    expect(deliveryCommand).toContain('"replyTo":"1050"');
+    expect(deliveryCommand).not.toContain('"sessionId"');
+
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "open" });
+    clawCmd.mockResolvedValueOnce({
+      ok: false,
+      stderr: "gateway unavailable",
+    });
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:42",
+        prompt: "Apply the safe fix.",
+      }),
+    ).rejects.toThrow("gateway unavailable");
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("open");
+
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        prompt: "Apply the safe fix.",
+      }),
+    ).rejects.toThrow("Doctor fix request requires a session key");
+    expect(clawCmd).toHaveBeenCalledTimes(3);
   });
 
   it("does not suppress previously fixed findings on later Doctor runs", async () => {

@@ -1,6 +1,7 @@
 import { mkdirSync, rmSync, copyFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { createRequire } from "node:module";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
 import esbuild from "esbuild";
@@ -8,6 +9,7 @@ import esbuild from "esbuild";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const projectRoot = path.resolve(__dirname, "..");
+const require = createRequire(import.meta.url);
 
 const publicRoot = path.join(projectRoot, "lib", "public");
 const distDir = path.join(publicRoot, "dist");
@@ -15,6 +17,7 @@ const entryPoint = path.join(publicRoot, "js", "app.js");
 const tailwindConfigPath = path.join(projectRoot, "tailwind.config.cjs");
 const tailwindInputPath = path.join(publicRoot, "css", "tailwind.input.css");
 const tailwindOutputPath = path.join(publicRoot, "css", "tailwind.generated.css");
+const tailwindCliPath = require.resolve("tailwindcss/lib/cli.js");
 const xtermCssSrc = path.join(
   projectRoot,
   "node_modules",
@@ -32,11 +35,9 @@ mkdirSync(distDir, { recursive: true });
 mkdirSync(xtermCssDestDir, { recursive: true });
 copyFileSync(xtermCssSrc, xtermCssDest);
 await execFileAsync(
-  "npm",
+  process.execPath,
   [
-    "exec",
-    "tailwindcss",
-    "--",
+    tailwindCliPath,
     "-c",
     tailwindConfigPath,
     "-i",

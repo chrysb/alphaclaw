@@ -101,8 +101,12 @@ Once approved, execute in order:
 
 1. **Ensure clean state**: `git status` should show no uncommitted changes.
    Switch to `main` if not already there.
-2. **Run tests**: `npm test` — abort if any fail.
-3. **Verify the OpenClaw dependency**: if AlphaClaw depends on a pinned
+2. **Preflight stable template access**: for a stable release, run the Render
+   repository permission and remote checks in Phase 4.5 before changing the
+   AlphaClaw version. Abort if the authenticated user cannot push to Render's
+   template; all deployment templates must remain in sync with the release.
+3. **Run tests**: `npm test` — abort if any fail.
+4. **Verify the OpenClaw dependency**: if AlphaClaw depends on a pinned
    `openclaw` version, confirm `package-lock.json` and the local install resolve
    to the same version before publishing.
    ```
@@ -115,10 +119,10 @@ Once approved, execute in order:
    ```
    grep -R -n "allowConversationAccess" node_modules/openclaw/dist/zod-schema-* node_modules/openclaw/dist/runtime-schema-*
    ```
-4. **Bump version**: `npm version <version>` (creates commit + tag).
-5. **Push**: `git push && git push --tags`.
-6. **Publish to npm**: `npm publish` (publishes to `latest` tag).
-7. **Create GitHub release**:
+5. **Bump version**: `npm version <version>` (creates commit + tag).
+6. **Push**: `git push && git push --tags`.
+7. **Publish to npm**: `npm publish` (publishes to `latest` tag).
+8. **Create GitHub release**:
    ```
    gh release create v<version> --title "AlphaClaw <version>" --notes "<body>"
    ```
@@ -136,7 +140,8 @@ Repos:
 - `~/Projects/openclaw-railway-template` (typically `main` for production; `beta`
   only when cutting a beta — see release-beta skill; merge `main` into `beta`
   after stable pins when you want `beta` to match production pins)
-- `~/Projects/openclaw-render-template` (typically `main`)
+- `~/Projects/openclaw-render-template` (typically `main`; this checkout must
+  track `https://github.com/render-examples/openclaw-render-template.git`)
 - `~/Projects/openclaw-apex-template` (typically `main`)
 
 For **each** repo:
@@ -158,6 +163,28 @@ For **each** repo:
    missing an upstream fix required by AlphaClaw.
 5. Commit and push (include both `package.json` and `package-lock.json` when the
    lockfile exists or was added).
+
+Before updating the Render template, verify that the authenticated GitHub user
+can push to Render's repository and that the local checkout targets it:
+
+```
+gh api repos/render-examples/openclaw-render-template --jq '.permissions.push'
+git -C ~/Projects/openclaw-render-template remote get-url origin
+```
+
+The permission check must return `true`, and `origin` must be
+`https://github.com/render-examples/openclaw-render-template.git` (or the SSH
+equivalent). If the checkout still targets the former `chrysb` repository,
+update it before syncing:
+
+```
+git -C ~/Projects/openclaw-render-template remote set-url origin https://github.com/render-examples/openclaw-render-template.git
+git -C ~/Projects/openclaw-render-template fetch origin
+```
+
+Stop before changing or publishing any template if push access is missing; ask
+an administrator of `render-examples/openclaw-render-template` to grant the
+authenticated user write access, then repeat the preflight.
 
 Do not skip Render or Apex: pinning only one template while others stay on
 `latest` causes drift and non-reproducible installs between platforms.

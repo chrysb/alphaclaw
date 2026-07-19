@@ -184,7 +184,7 @@ describe("server/watchdog gateway hardening (e2e)", () => {
     watchdog.stop();
   });
 
-  it("reports config_error on exit 78 and recovers through manual repair", async () => {
+  it("reports configuration_error on exit 78 and recovers through manual repair", async () => {
     const { app, watchdog, gateway, clawCmd, launchGatewayProcess } =
       createStack({ autoRepair: false });
     gateway.healthy = false;
@@ -200,7 +200,7 @@ describe("server/watchdog gateway hardening (e2e)", () => {
     const statusRes = await request(app).get("/api/watchdog/status");
     expect(statusRes.body.status).toEqual(
       expect.objectContaining({
-        lifecycle: "config_error",
+        lifecycle: "configuration_error",
         health: "unhealthy",
         crashCountInWindow: 0,
       }),

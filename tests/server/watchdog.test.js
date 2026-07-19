@@ -549,6 +549,74 @@ describe("server/watchdog", () => {
     expect(watchdog.getStatus().uptimeMs).toBe(0);
   });
 
+  it("pauses recovery when OpenClaw exits with EX_CONFIG", async () => {
+    const { watchdog, clawCmd, launchGatewayProcess, notifier } = createHarness({
+      autoRepair: true,
+    });
+
+    watchdog.onGatewayExit({
+      code: 78,
+      expectedExit: false,
+      stderrTail: ["Invalid config"],
+    });
+    await flushMicrotasks();
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "configuration_error",
+        health: "unhealthy",
+        crashCountInWindow: 0,
+      }),
+    );
+    expect(clawCmd).not.toHaveBeenCalled();
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    expect(
+      notifier.notify.mock.calls.some((call) =>
+        String(call?.[0] || "").includes("Gateway configuration invalid"),
+      ),
+    ).toBe(true);
+  });
+
+  it("latches EX_CONFIG across in-flight and periodic health checks", async () => {
+    vi.useFakeTimers();
+    let resolveHealthCheck;
+    const healthCheck = new Promise((resolve) => {
+      resolveHealthCheck = resolve;
+    });
+    const { watchdog, clawCmd, launchGatewayProcess } = createHarness({
+      autoRepair: true,
+      fetchImpl: async () => healthCheck,
+    });
+
+    watchdog.onGatewayLaunch({
+      startedAt: Date.now() - 60_000,
+      pid: 1234,
+    });
+    await vi.advanceTimersByTimeAsync(0);
+
+    watchdog.onGatewayExit({
+      code: 78,
+      expectedExit: false,
+      stderrTail: ["Invalid config"],
+    });
+    resolveHealthCheck({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ ok: true, status: "live" }),
+    });
+    await vi.advanceTimersByTimeAsync(120_000);
+
+    expect(watchdog.getStatus()).toEqual(
+      expect.objectContaining({
+        lifecycle: "configuration_error",
+        health: "unhealthy",
+      }),
+    );
+    expect(clawCmd).not.toHaveBeenCalled();
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    watchdog.stop();
+  });
+
   it("clears uptimeStartedAt on expected restart", () => {
     const { watchdog } = createHarness();
 
@@ -666,7 +734,7 @@ describe("server/watchdog", () => {
 
     expect(watchdog.getStatus()).toEqual(
       expect.objectContaining({
-        lifecycle: "config_error",
+        lifecycle: "configuration_error",
         health: "unhealthy",
         crashCountInWindow: 0,
       }),
@@ -684,52 +752,15 @@ describe("server/watchdog", () => {
     expect(
       notifier.notify.mock.calls.some(
         (call) =>
-          String(call?.[0] || "").includes("fatal configuration error") &&
-          String(call?.[0] || "").includes("Auto-restart paused"),
+          String(call?.[0] || "").includes("Gateway configuration invalid") &&
+          String(call?.[0] || "").includes("automatic restart is paused"),
       ),
     ).toBe(true);
   });
 
-  it("attempts exactly one auto-repair per config-error incident", async () => {
+  it("does not auto-repair on configuration errors; forced repair clears the latch", async () => {
     const doctorCalls = [];
-    const { watchdog, notifier, launchGatewayProcess } = createHarness({
-      autoRepair: true,
-      clawCmdImpl: async (command) => {
-        if (command === "doctor --fix --yes") {
-          doctorCalls.push(command);
-          return { ok: true, stdout: "fixed" };
-        }
-        return { ok: true, stdout: "" };
-      },
-      fetchImpl: async () => {
-        throw new Error("still unhealthy");
-      },
-    });
-
-    watchdog.onGatewayExit({ code: 78, expectedExit: false });
-    await flushMicrotasks();
-    await flushMicrotasks();
-
-    expect(doctorCalls).toHaveLength(1);
-    expect(launchGatewayProcess).toHaveBeenCalledTimes(1);
-    expect(
-      notifier.notify.mock.calls.some((call) =>
-        String(call?.[0] || "").includes("Attempting one-time auto-repair"),
-      ),
-    ).toBe(true);
-
-    watchdog.onGatewayExit({ code: 78, expectedExit: false });
-    await flushMicrotasks();
-    await flushMicrotasks();
-
-    expect(doctorCalls).toHaveLength(1);
-    expect(launchGatewayProcess).toHaveBeenCalledTimes(1);
-    expect(watchdog.getStatus().lifecycle).toBe("config_error");
-  });
-
-  it("re-arms config-error auto-repair after a verified healthy recovery", async () => {
-    const doctorCalls = [];
-    const { watchdog } = createHarness({
+    const { watchdog, launchGatewayProcess } = createHarness({
       autoRepair: true,
       clawCmdImpl: async (command) => {
         if (command === "doctor --fix --yes") {
@@ -743,14 +774,18 @@ describe("server/watchdog", () => {
     watchdog.onGatewayExit({ code: 78, expectedExit: false });
     await flushMicrotasks();
     await flushMicrotasks();
-    expect(doctorCalls).toHaveLength(1);
 
-    // Repair verification saw a healthy gateway, so a later config error is a
-    // new incident and earns a fresh repair attempt.
-    watchdog.onGatewayExit({ code: 78, expectedExit: false });
-    await flushMicrotasks();
-    await flushMicrotasks();
-    expect(doctorCalls).toHaveLength(2);
+    // Even with auto-repair enabled, EX_CONFIG must not trigger doctor runs.
+    expect(doctorCalls).toHaveLength(0);
+    expect(launchGatewayProcess).not.toHaveBeenCalled();
+    expect(watchdog.getStatus().lifecycle).toBe("configuration_error");
+
+    // A manual (forced) repair is the operator's escape hatch.
+    const result = await watchdog.triggerRepair();
+    expect(result.ok).toBe(true);
+    expect(doctorCalls).toHaveLength(1);
+    expect(launchGatewayProcess).toHaveBeenCalledTimes(1);
+    expect(watchdog.getStatus().lifecycle).toBe("running");
   });
 
   const buildSafeModeFetch = (gatewayState) => async (url) => {

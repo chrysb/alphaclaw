@@ -54,4 +54,45 @@ describe("onboarding/validation", () => {
     });
     expect(res.ok).toBe(true);
   });
+
+  it("accepts canonical GPT-5.5 with Codex OAuth and no OpenAI API key", () => {
+    const res = validateOnboardingInput({
+      vars: kBaseVars(),
+      modelKey: "openai/gpt-5.5",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => true,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.data.selectedProvider).toBe("openai-codex");
+  });
+
+  it("accepts canonical GPT-5.5 with an OpenAI API key and no Codex OAuth", () => {
+    const res = validateOnboardingInput({
+      vars: [...kBaseVars(), { key: "OPENAI_API_KEY", value: "sk-test-123" }],
+      modelKey: "openai/gpt-5.5",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => false,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.data.selectedProvider).toBe("openai-codex");
+  });
+
+  it("accepts GPT-5.6 Codex tiers with Codex OAuth", () => {
+    for (const modelKey of [
+      "openai/gpt-5.6-sol",
+      "openai/gpt-5.6-terra",
+      "openai/gpt-5.6-luna",
+    ]) {
+      const res = validateOnboardingInput({
+        vars: kBaseVars(),
+        modelKey,
+        resolveModelProvider: kResolveProvider,
+        hasCodexOauthProfile: () => true,
+      });
+      expect(res.ok).toBe(true);
+      expect(res.data.selectedProvider).toBe("openai-codex");
+    }
+  });
 });

@@ -157,6 +157,39 @@ describe("server/agents/service", () => {
     expect(config.agents.list[0]).not.toHaveProperty("model");
   });
 
+  it("enables the Codex plugin for an agent-level OpenAI model override", async () => {
+    const fsMock = buildFsMock({
+      initialConfig: {
+        agents: {
+          defaults: {
+            model: { primary: "anthropic/claude-sonnet-4-6" },
+          },
+          list: [{ id: "main", default: true }],
+        },
+        plugins: {
+          allow: ["telegram", "usage-tracker"],
+          entries: { telegram: { enabled: true } },
+        },
+      },
+    });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/tmp/openclaw",
+    });
+
+    await service.updateAgent("main", {
+      model: { primary: "openai/gpt-5.6-sol" },
+    });
+
+    const config = fsMock.readConfig();
+    expect(config.plugins.allow).toEqual([
+      "telegram",
+      "usage-tracker",
+      "codex",
+    ]);
+    expect(config.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
   it("persists tools config updates for agents", async () => {
     const fsMock = buildFsMock({
       initialConfig: {

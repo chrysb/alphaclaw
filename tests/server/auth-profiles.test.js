@@ -1,6 +1,7 @@
 const fs = require("fs");
 const path = require("path");
 const os = require("os");
+const { DatabaseSync } = require("node:sqlite");
 
 let tmpDir;
 let ap;
@@ -64,6 +65,14 @@ beforeEach(() => {
     "auth-profiles.json",
   );
   if (fs.existsSync(storePath)) fs.unlinkSync(storePath);
+  const databasePath = path.join(
+    openclawDir,
+    "agents",
+    "main",
+    "agent",
+    "openclaw-agent.sqlite",
+  );
+  if (fs.existsSync(databasePath)) fs.unlinkSync(databasePath);
 });
 
 afterAll(() => {
@@ -72,6 +81,86 @@ afterAll(() => {
 });
 
 describe("server/auth-profiles", () => {
+  it("reads and updates Codex OAuth credentials in the SQLite auth store", () => {
+    const databasePath = path.join(
+      tmpDir,
+      ".openclaw",
+      "agents",
+      "main",
+      "agent",
+      "openclaw-agent.sqlite",
+    );
+    const database = new DatabaseSync(databasePath);
+    database.exec(`
+      CREATE TABLE auth_profile_store (
+        store_key TEXT NOT NULL PRIMARY KEY,
+        store_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+      CREATE TABLE auth_profile_state (
+        state_key TEXT NOT NULL PRIMARY KEY,
+        state_json TEXT NOT NULL,
+        updated_at INTEGER NOT NULL
+      );
+    `);
+    database
+      .prepare(
+        "INSERT INTO auth_profile_store (store_key, store_json, updated_at) VALUES (?, ?, ?)",
+      )
+      .run(
+        "primary",
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai:codex-cli": {
+              type: "oauth",
+              provider: "openai",
+              access: "sqlite-access",
+              refresh: "sqlite-refresh",
+              expires: 123,
+            },
+          },
+        }),
+        1,
+      );
+    database
+      .prepare(
+        "INSERT INTO auth_profile_state (state_key, state_json, updated_at) VALUES (?, ?, ?)",
+      )
+      .run("primary", JSON.stringify({ version: 1 }), 1);
+    database.close();
+
+    expect(ap.getCodexProfile()).toMatchObject({
+      profileId: "openai:codex-cli",
+      provider: "openai",
+      access: "sqlite-access",
+      refresh: "sqlite-refresh",
+    });
+
+    ap.upsertCodexProfile({
+      access: "updated-access",
+      refresh: "updated-refresh",
+      expires: 456,
+      accountId: "account-1",
+    });
+
+    const updatedDatabase = new DatabaseSync(databasePath, { readOnly: true });
+    const row = updatedDatabase
+      .prepare("SELECT store_json FROM auth_profile_store WHERE store_key = ?")
+      .get("primary");
+    updatedDatabase.close();
+    const updated = JSON.parse(row.store_json);
+    expect(updated.profiles["openai:codex-cli"]).toMatchObject({
+      access: "updated-access",
+      refresh: "updated-refresh",
+      expires: 456,
+      accountId: "account-1",
+    });
+    expect(fs.existsSync(path.join(path.dirname(databasePath), "auth-profiles.json"))).toBe(
+      false,
+    );
+  });
+
   it("upserts an api_key profile and syncs openclaw.json", () => {
     ap.upsertProfile("anthropic:default", {
       type: "api_key",
@@ -233,6 +322,62 @@ describe("server/auth-profiles", () => {
     expect(config.gateway.port).toBe(18789);
   });
 
+  it("preserves the Codex runtime marker when model settings are saved", () => {
+    ap.upsertCodexProfile({
+      access: "codex-access",
+      refresh: "codex-refresh",
+      expires: Date.now() + 3_600_000,
+    });
+
+    ap.setModelConfig({
+      primary: "openai/gpt-5.5",
+      configuredModels: {
+        "openai/gpt-5.5": {},
+        "anthropic/claude-opus-4-6": {},
+      },
+    });
+
+    expect(ap.getModelConfig().configuredModels).toEqual({
+      "openai/gpt-5.5": { agentRuntime: { id: "codex" } },
+      "anthropic/claude-opus-4-6": {},
+    });
+    const config = readJson("openclaw.json");
+    expect(config.plugins.allow).toContain("codex");
+    expect(config.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
+  it("enables the Codex plugin without replacing existing plugin config", () => {
+    const configPath = path.join(tmpDir, ".openclaw", "openclaw.json");
+    const config = readJson("openclaw.json");
+    config.plugins = {
+      allow: ["telegram", "usage-tracker"],
+      entries: {
+        telegram: { enabled: true },
+        codex: { config: { appServer: { transport: "stdio" } } },
+      },
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    ap.setModelConfig({
+      primary: "openai/gpt-5.6-sol",
+      configuredModels: {
+        "openai/gpt-5.6-sol": { agentRuntime: { id: "codex" } },
+      },
+    });
+
+    const updated = readJson("openclaw.json");
+    expect(updated.plugins.allow).toEqual([
+      "telegram",
+      "usage-tracker",
+      "codex",
+    ]);
+    expect(updated.plugins.entries.telegram).toEqual({ enabled: true });
+    expect(updated.plugins.entries.codex).toEqual({
+      enabled: true,
+      config: { appServer: { transport: "stdio" } },
+    });
+  });
+
   it("legacy upsertCodexProfile writes oauth and syncs config", () => {
     ap.upsertCodexProfile({
       access: "jwt",
@@ -242,9 +387,9 @@ describe("server/auth-profiles", () => {
     });
 
     const store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toEqual({
+    expect(store.profiles["openai:codex-cli"]).toEqual({
       type: "oauth",
-      provider: "openai-codex",
+      provider: "openai",
       access: "jwt",
       refresh: "rt",
       expires: 9999999999999,
@@ -252,7 +397,7 @@ describe("server/auth-profiles", () => {
     });
 
     const config = readJson("openclaw.json");
-    expect(config.auth.profiles["openai-codex:codex-cli"].mode).toBe("oauth");
+    expect(config.auth.profiles["openai:codex-cli"].mode).toBe("oauth");
   });
 
   it("legacy removeCodexProfiles removes all codex profiles", () => {
@@ -263,15 +408,15 @@ describe("server/auth-profiles", () => {
     });
 
     let store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeDefined();
+    expect(store.profiles["openai:codex-cli"]).toBeDefined();
 
     ap.removeCodexProfiles();
 
     store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeUndefined();
+    expect(store.profiles["openai:codex-cli"]).toBeUndefined();
 
     const config = readJson("openclaw.json");
-    expect(config.auth?.profiles?.["openai-codex:codex-cli"]).toBeUndefined();
+    expect(config.auth?.profiles?.["openai:codex-cli"]).toBeUndefined();
   });
 
   it("does not write auth refs into incomplete pre-onboarding config", () => {
@@ -297,7 +442,7 @@ describe("server/auth-profiles", () => {
     });
 
     const store = readJson("agents/main/agent/auth-profiles.json");
-    expect(store.profiles["openai-codex:codex-cli"]).toBeDefined();
+    expect(store.profiles["openai:codex-cli"]).toBeDefined();
 
     const config = readJson("openclaw.json");
     expect(config.auth?.profiles || {}).toEqual({});

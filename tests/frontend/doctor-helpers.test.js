@@ -9,18 +9,20 @@ describe("frontend/doctor helpers", () => {
       { id: 2, priority: "P1", status: "dismissed" },
       { id: 3, priority: "P2", status: "fixed" },
       { id: 4, priority: "P2", status: "open" },
+      { id: 5, priority: "P2", status: "working" },
     ];
 
     expect(helpers.buildDoctorPriorityCounts(cards)).toEqual({
       P0: 1,
       P1: 1,
-      P2: 2,
+      P2: 3,
     });
     expect(helpers.groupDoctorCardsByStatus(cards)).toEqual({
       open: [
         { id: 1, priority: "P0", status: "open" },
         { id: 4, priority: "P2", status: "open" },
       ],
+      working: [{ id: 5, priority: "P2", status: "working" }],
       dismissed: [{ id: 2, priority: "P1", status: "dismissed" }],
       fixed: [{ id: 3, priority: "P2", status: "fixed" }],
     });
@@ -123,8 +125,10 @@ describe("frontend/doctor helpers", () => {
       "1 change since last run",
     );
     expect(helpers.getDoctorStatusTone("fixed")).toBe("success");
+    expect(helpers.getDoctorStatusTone("working")).toBe("info");
     expect(helpers.buildDoctorStatusFilterOptions()).toEqual([
       { value: "open", label: "Open" },
+      { value: "working", label: "Working" },
       { value: "dismissed", label: "Dismissed" },
       { value: "fixed", label: "Fixed" },
     ]);

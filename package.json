@@ -1,6 +1,6 @@
 {
   "name": "alphaclaw",
-  "version": "0.9.18",
+  "version": "0.9.31",
   "publishConfig": {
     "access": "public"
   },
@@ -52,6 +52,6 @@
     "wouter-preact": "^3.7.1"
   },
   "engines": {
-    "node": ">=22.14.0"
+    "node": ">=22.22.3 <23 || >=24.15.0 <25 || >=25.9.0"
   }
 }

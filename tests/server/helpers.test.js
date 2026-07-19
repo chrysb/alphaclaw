@@ -68,6 +68,7 @@ describe("server/helpers", () => {
     const normalized = normalizeOnboardingModels([
       { key: "unknown/model-a", name: "Ignore me" },
       { key: "openai/gpt-5.1-codex", name: "OpenAI A" },
+      { key: "codex/gpt-5.4-mini", name: "GPT-5.4-Mini" },
       { key: "anthropic/claude-opus-4-6", name: "Opus 4.6" },
       { key: "zai/glm-5", name: "GLM 5" },
       { key: "minimax/MiniMax-M2.5", name: "MiniMax M2.5" },
@@ -96,6 +97,12 @@ describe("server/helpers", () => {
         key: "openai/gpt-5.1-codex",
         provider: "openai",
         label: "OpenAI A",
+      },
+      {
+        key: "openai/gpt-5.4-mini",
+        provider: "openai",
+        label: "GPT-5.4-Mini",
+        agentRuntime: { id: "codex" },
       },
       {
         key: "zai/glm-5",
