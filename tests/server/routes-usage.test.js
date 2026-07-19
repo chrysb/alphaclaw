@@ -139,6 +139,26 @@ describe("server/routes/usage", () => {
     expect(response.body.error).toBe("Session not found");
   });
 
+  it("returns enriched session detail when found", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const response = await request(app).get(
+      "/api/usage/sessions/agent%3Amain%3Acron%3Async",
+    );
+
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(deps.getSessionDetail).toHaveBeenCalledWith({
+      sessionId: "agent:main:cron:sync",
+    });
+    expect(response.body.detail.sessionId).toBe("agent:main:cron:sync");
+    expect(response.body.detail.labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Cron", tone: "blue" },
+    ]);
+  });
+
   it("parses maxPoints for session time series endpoint", async () => {
     const deps = createDeps();
     const app = createApp(deps);
@@ -151,5 +171,108 @@ describe("server/routes/usage", () => {
       sessionId: "abc",
       maxPoints: 200,
     });
+  });
+
+  it("passes the client time zone header through to the summary", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const response = await request(app)
+      .get("/api/usage/summary?days=14")
+      .set("x-client-timezone", "America/New_York");
+
+    expect(response.status).toBe(200);
+    expect(deps.getDailySummary).toHaveBeenCalledWith({
+      days: 14,
+      timeZone: "America/New_York",
+    });
+  });
+
+  it("labels non-direct, non-group telegram channels and falls back on unknown sessions", async () => {
+    const deps = createDeps();
+    deps.getSessionsList = vi.fn(() => [
+      {
+        sessionId: "agent:main:telegram:channel:987",
+        sessionKey: "agent:main:telegram:channel:987",
+      },
+      { sessionId: "", sessionKey: "" },
+      { sessionId: "opaque-session", sessionKey: "opaque-session" },
+      {
+        sessionId: "agent:main:telegram:group:-42:topic:7",
+        sessionKey: "agent:main:telegram:group:-42:topic:7",
+      },
+    ]);
+    vi.spyOn(topicRegistry, "getGroup").mockImplementation(() => {
+      throw new Error("registry unavailable");
+    });
+    const app = createApp(deps);
+
+    const response = await request(app).get("/api/usage/sessions");
+
+    expect(response.status).toBe(200);
+    expect(response.body.sessions[0].labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Telegram Channel", tone: "blue" },
+    ]);
+    expect(response.body.sessions[1].labels).toBeNull();
+    expect(response.body.sessions[2].labels).toBeNull();
+    // Registry failures fall back to raw group/topic ids.
+    expect(response.body.sessions[3].labels).toEqual([
+      { label: "Main", tone: "cyan" },
+      { label: "Group -42", tone: "purple" },
+      { label: "Topic 7", tone: "gray" },
+    ]);
+  });
+
+  it("returns 500 with the error message when summary generation fails", async () => {
+    const deps = createDeps();
+    deps.getDailySummary = vi.fn(() => {
+      throw new Error("summary exploded");
+    });
+    const app = createApp(deps);
+
+    const response = await request(app).get("/api/usage/summary");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ ok: false, error: "summary exploded" });
+  });
+
+  it("returns 500 when the sessions list fails", async () => {
+    const deps = createDeps();
+    deps.getSessionsList = vi.fn(() => {
+      throw new Error("sessions exploded");
+    });
+    const app = createApp(deps);
+
+    const response = await request(app).get("/api/usage/sessions");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ ok: false, error: "sessions exploded" });
+  });
+
+  it("returns 500 when session detail lookup fails", async () => {
+    const deps = createDeps();
+    deps.getSessionDetail = vi.fn(() => {
+      throw new Error("detail exploded");
+    });
+    const app = createApp(deps);
+
+    const response = await request(app).get("/api/usage/sessions/broken");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ ok: false, error: "detail exploded" });
+  });
+
+  it("returns 500 when session time series lookup fails", async () => {
+    const deps = createDeps();
+    deps.getSessionTimeSeries = vi.fn(() => {
+      throw new Error("series exploded");
+    });
+    const app = createApp(deps);
+
+    const response = await request(app).get("/api/usage/sessions/broken/timeseries");
+
+    expect(response.status).toBe(500);
+    expect(response.body).toEqual({ ok: false, error: "series exploded" });
   });
 });

@@ -393,3 +393,35 @@ describe("secret-detector", () => {
     });
   });
 });
+
+describe("extractPreFillValues provider keys and whatsapp owner", () => {
+  it("prefills openai, google, and whatsapp values from plain config values", () => {
+    const fs = createMockFs({
+      "/base/openclaw.json": JSON.stringify({
+        models: {
+          providers: {
+            openai: { apiKey: "sk-openai-live" },
+            google: { apiKey: "AIza-google-live" },
+            anthropic: { apiKey: "${ANTHROPIC_API_KEY}" },
+          },
+        },
+        channels: {
+          whatsapp: {
+            allowFrom: ["${WHATSAPP_OWNER_NUMBER}", "+15559876543"],
+          },
+        },
+      }),
+    });
+
+    const preFill = extractPreFillValues({
+      fs,
+      baseDir: "/base",
+      configFiles: ["openclaw.json"],
+    });
+
+    expect(preFill.OPENAI_API_KEY).toBe("sk-openai-live");
+    expect(preFill.GEMINI_API_KEY).toBe("AIza-google-live");
+    expect(preFill.WHATSAPP_OWNER_NUMBER).toBe("+15559876543");
+    expect(preFill.ANTHROPIC_API_KEY).toBeUndefined();
+  });
+});

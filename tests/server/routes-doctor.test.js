@@ -194,6 +194,150 @@ describe("server/routes/doctor", () => {
     expect(res.body.ok).toBe(true);
   });
 
+  it("lists Doctor runs with a parsed limit", async () => {
+    const doctorService = createDoctorService();
+    const app = createApp(doctorService);
+
+    const res = await request(app).get("/api/doctor/runs?limit=5");
+
+    expect(res.status).toBe(200);
+    expect(res.body.runs).toEqual([{ id: 42, status: "running", cardCount: 0 }]);
+    expect(doctorService.listDoctorRuns).toHaveBeenCalledWith({ limit: 5 });
+  });
+
+  it("returns a single Doctor run and 404 for unknown runs", async () => {
+    const doctorService = createDoctorService();
+    const app = createApp(doctorService);
+
+    const found = await request(app).get("/api/doctor/runs/42");
+    const missing = await request(app).get("/api/doctor/runs/999");
+
+    expect(found.status).toBe(200);
+    expect(found.body.run).toEqual({ id: 42, status: "completed", cardCount: 1 });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toBe("Doctor run not found");
+  });
+
+  it("returns 404 for cards of an unknown run", async () => {
+    const doctorService = createDoctorService();
+    const app = createApp(doctorService);
+
+    const res = await request(app).get("/api/doctor/runs/999/cards");
+
+    expect(res.status).toBe(404);
+    expect(res.body.error).toBe("Doctor run not found");
+  });
+
+  it("rejects invalid Doctor card statuses", async () => {
+    const doctorService = createDoctorService();
+    const app = createApp(doctorService);
+
+    const res = await request(app).post("/api/doctor/cards/7/status").send({
+      status: "working",
+    });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toBe("Invalid Doctor card status");
+    expect(doctorService.setCardStatus).not.toHaveBeenCalled();
+  });
+
+  it("maps card status update errors to 404 or 400", async () => {
+    const doctorService = createDoctorService();
+    doctorService.setCardStatus.mockImplementationOnce(() => {
+      throw new Error("Doctor card not found");
+    });
+    const app = createApp(doctorService);
+
+    const missing = await request(app).post("/api/doctor/cards/7/status").send({
+      status: "fixed",
+    });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toBe("Doctor card not found");
+
+    doctorService.setCardStatus.mockImplementationOnce(() => {
+      throw new Error("Card storage exploded");
+    });
+    const failed = await request(app).post("/api/doctor/cards/7/status").send({
+      status: "open",
+    });
+    expect(failed.status).toBe(400);
+    expect(failed.body.error).toBe("Card storage exploded");
+  });
+
+  it("maps Doctor fix request errors to 404 or 400", async () => {
+    const doctorService = createDoctorService();
+    doctorService.requestCardFix.mockRejectedValueOnce(
+      new Error("Doctor card not found"),
+    );
+    const app = createApp(doctorService);
+
+    const missing = await request(app).post("/api/doctor/findings/7/fix").send({
+      sessionKey: "agent:main:doctor:42",
+    });
+    expect(missing.status).toBe(404);
+    expect(missing.body.error).toBe("Doctor card not found");
+
+    doctorService.requestCardFix.mockRejectedValueOnce(
+      new Error("Could not send Doctor fix request"),
+    );
+    const failed = await request(app).post("/api/doctor/findings/7/fix").send({
+      sessionKey: "agent:main:doctor:42",
+    });
+    expect(failed.status).toBe(400);
+    expect(failed.body.error).toBe("Could not send Doctor fix request");
+  });
+
+  it("returns error statuses when the Doctor service throws", async () => {
+    const doctorService = createDoctorService();
+    doctorService.buildStatus.mockImplementation(() => {
+      throw new Error("status failed");
+    });
+    doctorService.runDoctor.mockImplementation(() => {
+      throw new Error("run failed");
+    });
+    doctorService.importDoctorResult.mockImplementation(() => {
+      throw new Error("Doctor import requires raw output");
+    });
+    doctorService.listDoctorRuns.mockImplementation(() => {
+      throw new Error("runs failed");
+    });
+    doctorService.listDoctorCards.mockImplementation(() => {
+      throw new Error("cards failed");
+    });
+    doctorService.getDoctorRun.mockImplementation(() => {
+      throw new Error("run lookup failed");
+    });
+    const app = createApp(doctorService);
+
+    const statusRes = await request(app).get("/api/doctor/status");
+    expect(statusRes.status).toBe(500);
+    expect(statusRes.body.error).toBe("status failed");
+
+    const runRes = await request(app).post("/api/doctor/run").send({});
+    expect(runRes.status).toBe(500);
+    expect(runRes.body.error).toBe("run failed");
+
+    const importRes = await request(app).post("/api/doctor/import").send({});
+    expect(importRes.status).toBe(400);
+    expect(importRes.body.error).toBe("Doctor import requires raw output");
+
+    const runsRes = await request(app).get("/api/doctor/runs");
+    expect(runsRes.status).toBe(500);
+    expect(runsRes.body.error).toBe("runs failed");
+
+    const cardsRes = await request(app).get("/api/doctor/cards");
+    expect(cardsRes.status).toBe(500);
+    expect(cardsRes.body.error).toBe("cards failed");
+
+    const singleRunRes = await request(app).get("/api/doctor/runs/42");
+    expect(singleRunRes.status).toBe(500);
+    expect(singleRunRes.body.error).toBe("run lookup failed");
+
+    const runCardsRes = await request(app).get("/api/doctor/runs/42/cards");
+    expect(runCardsRes.status).toBe(500);
+    expect(runCardsRes.body.error).toBe("run lookup failed");
+  });
+
   it("returns 409 when a Doctor fix is already in progress", async () => {
     const doctorService = createDoctorService();
     doctorService.requestCardFix.mockRejectedValue(

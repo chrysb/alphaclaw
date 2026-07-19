@@ -5,8 +5,10 @@ const {
   kOpenclawUpdateCopyTimeoutMs,
 } = require("../../lib/server/constants");
 const modulePath = require.resolve("../../lib/server/openclaw-version");
+const nodeRuntime = require("../../lib/node-runtime");
 const originalExec = childProcess.exec;
 const originalExecSync = childProcess.execSync;
+const originalAssertSupportedNodeVersion = nodeRuntime.assertSupportedNodeVersion;
 
 const loadVersionModule = ({ execMock, execSyncMock }) => {
   childProcess.exec = execMock;
@@ -36,6 +38,7 @@ describe("server/openclaw-version", () => {
   afterEach(() => {
     childProcess.exec = originalExec;
     childProcess.execSync = originalExecSync;
+    nodeRuntime.assertSupportedNodeVersion = originalAssertSupportedNodeVersion;
     delete require.cache[modulePath];
   });
 
@@ -214,5 +217,105 @@ describe("server/openclaw-version", () => {
     });
     callbacks[1](null, "", "");
     await firstUpdatePromise;
+  });
+
+  it("returns the cached version when openclaw --version fails", () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock.mockImplementationOnce(() => {
+      throw new Error("spawn openclaw ENOENT");
+    });
+
+    expect(service.readOpenclawVersion()).toBe(null);
+
+    execSyncMock.mockReturnValueOnce("openclaw 2.0.0");
+    expect(service.readOpenclawVersion({ refresh: true })).toBe("2.0.0");
+
+    execSyncMock.mockImplementationOnce(() => {
+      throw new Error("still broken");
+    });
+    expect(service.readOpenclawVersion({ refresh: true })).toBe("2.0.0");
+  });
+
+  it("serves the update status from cache within the TTL", async () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock.mockReturnValueOnce("openclaw 1.2.3").mockReturnValueOnce(
+      JSON.stringify({
+        availability: { available: false, latestVersion: "1.2.3" },
+      }),
+    );
+
+    const first = await service.getVersionStatus(false);
+    const second = await service.getVersionStatus(false);
+
+    expect(first).toEqual({
+      ok: true,
+      currentVersion: "1.2.3",
+      latestVersion: "1.2.3",
+      hasUpdate: false,
+    });
+    expect(second).toEqual(first);
+    expect(execSyncMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("reports an error when update status output has no JSON", async () => {
+    const { service, execSyncMock } = createService();
+    execSyncMock
+      .mockReturnValueOnce("openclaw 1.2.3")
+      .mockReturnValueOnce("no json in this output");
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toContain(
+      "openclaw update status returned invalid JSON payload",
+    );
+  });
+
+  it("rejects updates when the Node.js runtime is unsupported", async () => {
+    nodeRuntime.assertSupportedNodeVersion = () => {
+      throw new Error("Node.js 18.0.0 is not supported.");
+    };
+    const { service, execMock, execSyncMock } = createService();
+    execSyncMock.mockReturnValue("openclaw 1.0.0");
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toContain("is not supported");
+    expect(execMock).not.toHaveBeenCalled();
+  });
+
+  it("returns 500 with stderr details when npm install fails", async () => {
+    const { service, execMock, execSyncMock } = createService();
+    execSyncMock.mockReturnValue("openclaw 1.0.0");
+    execMock.mockImplementation((cmd, opts, callback) => {
+      callback(new Error("exec failed"), "", "npm ERR! EACCES\n");
+    });
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(500);
+    expect(result.body).toEqual({ ok: false, error: "npm ERR! EACCES" });
+    expect(execMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("returns 500 when copying updated openclaw files fails", async () => {
+    const { service, execMock, execSyncMock } = createService();
+    execSyncMock.mockReturnValue("openclaw 1.0.0");
+    execMock
+      .mockImplementationOnce((cmd, opts, callback) => {
+        callback(null, "added 1 package", "");
+      })
+      .mockImplementationOnce((cmd, opts, callback) => {
+        callback(new Error("cp exploded"));
+      });
+
+    const result = await service.updateOpenclaw();
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toBe(
+      "Failed to copy updated openclaw files: cp exploded",
+    );
+    expect(execMock).toHaveBeenCalledTimes(2);
   });
 });

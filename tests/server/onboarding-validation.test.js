@@ -96,3 +96,96 @@ describe("onboarding/validation", () => {
     }
   });
 });
+
+describe("onboarding/validation edge cases", () => {
+  const kResolve = (modelKey) => String(modelKey || "").split("/")[0] || "";
+  const kBase = () => [
+    { key: "GITHUB_TOKEN", value: "ghp_test" },
+    { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+    { key: "TELEGRAM_BOT_TOKEN", value: "telegram_tok" },
+  ];
+  const run = (overrides = {}) =>
+    validateOnboardingInput({
+      vars: kBase(),
+      modelKey: "openai/gpt-5.1-codex",
+      resolveModelProvider: kResolve,
+      hasCodexOauthProfile: () => false,
+      ...overrides,
+    });
+
+  it("rejects anthropic api keys with the wrong prefix", () => {
+    const res = run({
+      vars: [...kBase(), { key: "ANTHROPIC_API_KEY", value: "not-an-api-key" }],
+      modelKey: "anthropic/claude-opus-4-6",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.status).toBe(400);
+    expect(res.error).toBe("ANTHROPIC_API_KEY must start with sk-ant-api");
+  });
+
+  it("rejects payloads with too many environment variables", () => {
+    const vars = Array.from({ length: 65 }, (_, i) => ({
+      key: `VAR_${i}`,
+      value: "x",
+    }));
+    const res = run({ vars });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("Too many environment variables (max 64)");
+  });
+
+  it("rejects variables that are missing a key", () => {
+    const res = run({ vars: [...kBase(), { key: "", value: "x" }] });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("Each variable must include a key");
+  });
+
+  it("rejects variable keys that are too long", () => {
+    const longKey = "K".repeat(129);
+    const res = run({ vars: [...kBase(), { key: longKey, value: "x" }] });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe(`Variable key is too long: ${longKey.slice(0, 32)}...`);
+  });
+
+  it("falls back to any AI credential for providers without a known env key", () => {
+    const res = run({
+      vars: [...kBase(), { key: "GEMINI_API_KEY", value: "AIza-test" }],
+      modelKey: "customprovider/some-model",
+    });
+    expect(res.ok).toBe(true);
+    expect(res.data.selectedProvider).toBe("customprovider");
+  });
+
+  it("rejects providers without a known env key when no AI credential exists", () => {
+    const res = run({
+      vars: kBase(),
+      modelKey: "customprovider/some-model",
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe(
+      'Missing credentials for selected provider "customprovider"',
+    );
+  });
+
+  it("requires github token and workspace repo", () => {
+    const res = run({
+      vars: [
+        { key: "OPENAI_API_KEY", value: "sk-test-123" },
+        { key: "TELEGRAM_BOT_TOKEN", value: "telegram_tok" },
+      ],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("GitHub token and workspace repo are required");
+  });
+
+  it("requires at least one channel token", () => {
+    const res = run({
+      vars: [
+        { key: "OPENAI_API_KEY", value: "sk-test-123" },
+        { key: "GITHUB_TOKEN", value: "ghp_test" },
+        { key: "GITHUB_WORKSPACE_REPO", value: "owner/repo" },
+      ],
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe("At least one channel token is required");
+  });
+});

@@ -6,6 +6,10 @@ const {
   ensureUsageTrackerPluginConfig,
   ensureUsageTrackerPluginEntry,
   pruneStaleUsageTrackerPaths,
+  reconcileDiscordGroupPolicy,
+  reconcileEnabledChannelPlugins,
+  reconcileManagedPluginConfig,
+  kDefaultDiscordGroupPolicy,
   kUsageTrackerPluginPath,
 } = require("../../lib/server/usage-tracker-config");
 
@@ -190,5 +194,130 @@ describe("server/usage-tracker-config", () => {
     const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
     expect(next.plugins.allow).toEqual(["telegram", "usage-tracker", "codex"]);
     expect(next.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
+  it("keeps prune a no-op when only the canonical path is present", () => {
+    const cfg = {
+      plugins: {
+        allow: [],
+        load: { paths: [kUsageTrackerPluginPath] },
+        entries: {},
+      },
+    };
+
+    expect(pruneStaleUsageTrackerPaths(cfg)).toBe(false);
+    expect(cfg.plugins.load.paths).toEqual([kUsageTrackerPluginPath]);
+  });
+
+  describe("reconcileDiscordGroupPolicy", () => {
+    it("ignores missing or disabled discord channel configs", () => {
+      expect(reconcileDiscordGroupPolicy({})).toBe(false);
+      expect(
+        reconcileDiscordGroupPolicy({ channels: { discord: "bad" } }),
+      ).toBe(false);
+      expect(
+        reconcileDiscordGroupPolicy({
+          channels: { discord: { enabled: false, groupPolicy: "allowlist" } },
+        }),
+      ).toBe(false);
+    });
+
+    it("keeps allowlist policy when a guild allowlist exists", () => {
+      const cfg = {
+        channels: {
+          discord: {
+            enabled: true,
+            groupPolicy: "allowlist",
+            guilds: { "123": {} },
+          },
+        },
+      };
+      expect(reconcileDiscordGroupPolicy(cfg)).toBe(false);
+      expect(cfg.channels.discord.groupPolicy).toBe("allowlist");
+    });
+
+    it("keeps non-allowlist policies untouched", () => {
+      const cfg = {
+        channels: { discord: { enabled: true, groupPolicy: "open" } },
+      };
+      expect(reconcileDiscordGroupPolicy(cfg)).toBe(false);
+      expect(cfg.channels.discord.groupPolicy).toBe("open");
+    });
+
+    it("downgrades allowlist policy without a guild allowlist to disabled", () => {
+      const cfg = {
+        channels: {
+          discord: { enabled: true, groupPolicy: "allowlist", guilds: {} },
+        },
+      };
+      expect(reconcileDiscordGroupPolicy(cfg)).toBe(true);
+      expect(cfg.channels.discord.groupPolicy).toBe(kDefaultDiscordGroupPolicy);
+    });
+  });
+
+  describe("reconcileEnabledChannelPlugins", () => {
+    it("allows and enables plugins for enabled channels only", () => {
+      const cfg = {
+        channels: {
+          telegram: { enabled: true },
+          discord: { enabled: false },
+          slack: "not-an-object",
+          whatsapp: { enabled: true },
+        },
+        plugins: {
+          allow: ["telegram"],
+          load: { paths: [] },
+          entries: { telegram: { enabled: false } },
+        },
+      };
+
+      expect(reconcileEnabledChannelPlugins(cfg)).toBe(true);
+      expect(cfg.plugins.allow).toEqual(["telegram", "whatsapp"]);
+      expect(cfg.plugins.entries.telegram).toEqual({ enabled: true });
+      expect(cfg.plugins.entries.whatsapp).toEqual({ enabled: true });
+      expect(cfg.plugins.entries.discord).toBeUndefined();
+      expect(cfg.plugins.entries.slack).toBeUndefined();
+
+      // A second pass finds nothing left to change.
+      expect(reconcileEnabledChannelPlugins(cfg)).toBe(false);
+    });
+  });
+
+  it("reconciles channel plugins and discord policy in the managed pass", () => {
+    const cfg = {
+      channels: {
+        telegram: { enabled: true },
+        discord: { enabled: true, groupPolicy: "allowlist" },
+      },
+      plugins: { allow: [], load: { paths: [] }, entries: {} },
+    };
+
+    expect(reconcileManagedPluginConfig(cfg)).toBe(true);
+    expect(cfg.plugins.allow).toContain("usage-tracker");
+    expect(cfg.plugins.allow).toContain("telegram");
+    expect(cfg.plugins.allow).toContain("discord");
+    expect(cfg.channels.discord.groupPolicy).toBe(kDefaultDiscordGroupPolicy);
+  });
+
+  it("returns false without rewriting an already reconciled config", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    const reconciled = {
+      plugins: {
+        allow: ["usage-tracker"],
+        load: { paths: [kUsageTrackerPluginPath] },
+        entries: {
+          "usage-tracker": {
+            enabled: true,
+            hooks: { allowConversationAccess: true },
+          },
+        },
+      },
+    };
+    fs.writeFileSync(configPath, JSON.stringify(reconciled, null, 2), "utf8");
+    const before = fs.readFileSync(configPath, "utf8");
+
+    expect(ensureUsageTrackerPluginConfig({ fsModule: fs, openclawDir })).toBe(false);
+    expect(fs.readFileSync(configPath, "utf8")).toBe(before);
   });
 });

@@ -3,6 +3,8 @@ const {
   resolveGitAskPassPath,
   resolveGitShimPath,
   prependGitShimDirToPath,
+  normalizeGitSyncFilePath,
+  validateGitSyncFilePath,
   resolveRealGitPath,
   shouldRefreshHourlyGitSyncScript,
 } = require("../../lib/cli/git-runtime");
@@ -116,6 +118,45 @@ describe("cli/git runtime helpers", () => {
     });
 
     expect(resolvedPath).toBe("/custom/git");
+  });
+
+  it("normalizes git sync file paths", () => {
+    expect(normalizeGitSyncFilePath("")).toBe("");
+    expect(normalizeGitSyncFilePath("   ")).toBe("");
+    expect(normalizeGitSyncFilePath(" ./workspace\\notes.md ")).toBe(
+      "workspace/notes.md",
+    );
+    expect(normalizeGitSyncFilePath(".//nested/file.txt")).toBe(
+      "nested/file.txt",
+    );
+  });
+
+  it("validates git sync file paths stay within the workspace", () => {
+    expect(validateGitSyncFilePath("")).toEqual({ ok: true });
+    expect(validateGitSyncFilePath("notes/todo.md")).toEqual({ ok: true });
+    expect(validateGitSyncFilePath("/etc/passwd")).toEqual({
+      ok: false,
+      error: "[alphaclaw] --file must stay within /data/.openclaw",
+    });
+    expect(validateGitSyncFilePath("../escape.md").ok).toBe(false);
+    expect(validateGitSyncFilePath("a/../../b.md").ok).toBe(false);
+  });
+
+  it("returns an empty string when no git candidates are executable", () => {
+    const resolvedPath = resolveRealGitPath({
+      shimPath: "/usr/local/bin/git",
+      execSyncImpl: () => {
+        throw new Error("which failed");
+      },
+      fsModule: {
+        constants: { X_OK: 1 },
+        accessSync: () => {
+          throw new Error("not executable");
+        },
+      },
+    });
+
+    expect(resolvedPath).toBe("");
   });
 
   it("refreshes the managed hourly sync script when it changes or is missing", () => {

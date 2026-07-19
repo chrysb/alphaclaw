@@ -530,6 +530,383 @@ describe("server/alphaclaw-version", () => {
     expect(result.body.error).toContain("npm ERR!");
   });
 
+  it("treats a stable release as an update over a prerelease of the same version", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({ body: { "dist-tags": { latest: "1.0.0" } } }),
+    );
+    const { service } = createService({
+      fetchMock,
+      fsImpl: {
+        ...fs,
+        existsSync: vi.fn(() => false),
+        readFileSync: vi.fn(() => JSON.stringify({ version: "1.0.0-beta.1" })),
+      },
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.currentVersion).toBe("1.0.0-beta.1");
+    expect(status.latestVersion).toBe("1.0.0");
+    expect(status.hasUpdate).toBe(true);
+  });
+
+  it("reports no update when the registry matches the current version", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({ body: { "dist-tags": { latest: "1.0.0" } } }),
+    );
+    const { service } = createService({
+      fetchMock,
+      readOpenclawVersion: () => null,
+      fsImpl: {
+        ...fs,
+        existsSync: vi.fn(() => false),
+        readFileSync: vi.fn(() => JSON.stringify({ version: "1.0.0" })),
+      },
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.hasUpdate).toBe(false);
+    expect(status.ok).toBe(true);
+  });
+
+  it("surfaces raw registry text when the response is not JSON", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({ body: "garbage not-json {" }),
+    );
+    const { service } = createService({
+      fetchMock,
+      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toBe("garbage not-json {");
+  });
+
+  it("surfaces registry error messages for non-2xx responses", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({
+        ok: false,
+        status: 429,
+        body: { message: "rate limited" },
+      }),
+    );
+    const { service } = createService({
+      fetchMock,
+      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toBe("rate limited");
+  });
+
+  it("reports an error when fetch is unavailable for registry checks", async () => {
+    const { service } = createService({
+      fetchMock: null,
+      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toBe(
+      "Fetch is not available for AlphaClaw version checks",
+    );
+  });
+
+  it("reports an error when fetch is unavailable for template checks", async () => {
+    const { service } = createService({
+      env: { RAILWAY_ENVIRONMENT: "production" },
+      fetchMock: null,
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toBe(
+      "Fetch is not available for template version checks",
+    );
+  });
+
+  it("reports an error when the template repository is not configured", async () => {
+    const fetchMock = vi.fn();
+    const { service } = createService({
+      env: {
+        ALPHACLAW_DEPLOYMENT_PROVIDER: "apex",
+        ALPHACLAW_TEMPLATE_REPO_URL: "https://github.com/",
+      },
+      fetchMock,
+    });
+
+    const status = await service.getVersionStatus(false);
+
+    expect(status.ok).toBe(false);
+    expect(status.error).toBe("Template repository is not configured");
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it("serves the template status from cache within the TTL", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({
+        body: {
+          dependencies: {
+            "@chrysb/alphaclaw": "0.8.10",
+            openclaw: "2026.4.10",
+          },
+        },
+      }),
+    );
+    const { service } = createService({
+      env: { RAILWAY_ENVIRONMENT: "production" },
+      readOpenclawVersion: () => "2026.4.10",
+      fetchMock,
+    });
+
+    const first = await service.getVersionStatus(false);
+    const second = await service.getVersionStatus(false);
+
+    expect(first.latestVersion).toBe("0.8.10");
+    expect(second.latestVersion).toBe("0.8.10");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("serves the registry status from cache within the TTL", async () => {
+    const fetchMock = vi.fn(async () =>
+      createFetchResponse({ body: { "dist-tags": { latest: "99.0.0" } } }),
+    );
+    const { service } = createService({
+      fetchMock,
+      fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+    });
+
+    const first = await service.getVersionStatus(false);
+    const second = await service.getVersionStatus(false);
+
+    expect(first.latestVersion).toBe("99.0.0");
+    expect(second.latestVersion).toBe("99.0.0");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("falls back to the cached template status when a refresh fails", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockImplementationOnce(async () =>
+        createFetchResponse({
+          body: {
+            dependencies: {
+              "@chrysb/alphaclaw": "0.8.10",
+              openclaw: "2026.4.10",
+            },
+          },
+        }),
+      )
+      .mockRejectedValueOnce(new Error("network down"));
+    const { service } = createService({
+      env: { RAILWAY_ENVIRONMENT: "production" },
+      readOpenclawVersion: () => "2026.4.10",
+      fetchMock,
+    });
+
+    const first = await service.getVersionStatus(true);
+    expect(first.ok).toBe(true);
+
+    const second = await service.getVersionStatus(true);
+    expect(second.ok).toBe(false);
+    expect(second.error).toBe("network down");
+    expect(second.latestVersion).toBe("0.8.10");
+    expect(second.latestOpenclawVersion).toBe("2026.4.10");
+  });
+
+  it("detects the managed apex strategy when the provider is explicit", () => {
+    const { detectUpdateStrategy } = loadVersionModule({});
+
+    const strategy = detectUpdateStrategy({
+      env: {
+        ALPHACLAW_DEPLOYMENT_PROVIDER: "apex",
+        ALPHACLAW_MANAGED_UPDATE_URL: "http://bridge:3180/update",
+        ALPHACLAW_MANAGED_UPDATE_TOKEN: "bridge-token",
+      },
+    });
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        action: "managed-update",
+        provider: "apex",
+        templateRepoUrl: "https://github.com/chrysb/openclaw-apex-template.git",
+        managedUpdateUrl: "http://bridge:3180/update",
+        managedUpdateToken: "bridge-token",
+      }),
+    );
+  });
+
+  it("detects container deployments through /.dockerenv", () => {
+    const { detectUpdateStrategy } = loadVersionModule({});
+
+    const strategy = detectUpdateStrategy({
+      env: {},
+      fsImpl: {
+        ...fs,
+        existsSync: vi.fn((target) => String(target) === "/.dockerenv"),
+      },
+    });
+
+    expect(strategy).toEqual(
+      expect.objectContaining({
+        action: "instructions",
+        provider: "container",
+        primaryActionLabel: "Done",
+      }),
+    );
+  });
+
+  it("sends a GitHub token when fetching the template head ref", async () => {
+    const fetchMock = vi.fn(async (url, options = {}) => {
+      if (String(url).includes("raw.githubusercontent.com")) {
+        return createFetchResponse({
+          body: {
+            dependencies: {
+              "@chrysb/alphaclaw": "0.8.7",
+              openclaw: "2026.4.10",
+            },
+          },
+        });
+      }
+      if (String(url).includes("/commits/main")) {
+        expect(options.headers.Authorization).toBe("Bearer gh-token");
+        return createFetchResponse({ body: { sha: "abc123" } });
+      }
+      return createFetchResponse({ body: { ok: true } });
+    });
+    const { service } = createService({
+      env: {
+        ALPHACLAW_MANAGED_UPDATE_URL: "http://bridge:3180/update",
+        ALPHACLAW_MANAGED_UPDATE_TOKEN: "bridge-token",
+        GITHUB_TOKEN: "gh-token",
+      },
+      fetchMock,
+    });
+
+    const result = await service.updateAlphaclaw();
+
+    expect(result.status).toBe(200);
+    expect(
+      fetchMock.mock.calls.some(([url]) => String(url).includes("/commits/main")),
+    ).toBe(true);
+  });
+
+  it("returns 502 when the managed update bridge fails", async () => {
+    const fetchMock = vi.fn(async () => {
+      throw new Error("bridge unreachable");
+    });
+    const { service } = createService({
+      env: {
+        ALPHACLAW_MANAGED_UPDATE_URL: "http://bridge:3180/update",
+        ALPHACLAW_MANAGED_UPDATE_TOKEN: "bridge-token",
+      },
+      fetchMock,
+    });
+
+    const result = await service.updateAlphaclaw();
+
+    expect(result.status).toBe(502);
+    expect(result.body.ok).toBe(false);
+    expect(result.body.error).toBe("bridge unreachable");
+    expect(result.body.updateStrategy).toEqual(
+      expect.objectContaining({ action: "managed-update" }),
+    );
+  });
+
+  it("returns 500 when copying updated AlphaClaw files fails", async () => {
+    const execMock = vi
+      .fn()
+      .mockImplementationOnce((cmd, opts, callback) => {
+        callback(null, "added 1 package", "");
+      })
+      .mockImplementationOnce((cmd, opts, callback) => {
+        callback(new Error("disk full"));
+      });
+    const { service } = createService({
+      execMock,
+      fsImpl: createFsMock({ existsSync: vi.fn(() => false) }),
+    });
+
+    const result = await service.updateAlphaclaw();
+
+    expect(result.status).toBe(500);
+    expect(result.body.error).toBe(
+      "Failed to copy updated AlphaClaw files: disk full",
+    );
+    expect(execMock).toHaveBeenCalledTimes(2);
+  });
+
+  it("still succeeds when the update marker cannot be written", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const execMock = vi.fn().mockImplementation((cmd, opts, callback) => {
+      callback(null, "added 1 package", "");
+    });
+    const fsMock = createFsMock({
+      existsSync: vi.fn(() => false),
+      writeFileSync: vi.fn((target) => {
+        if (String(target).includes(".alphaclaw-update-pending")) {
+          throw new Error("read-only filesystem");
+        }
+      }),
+    });
+    const { service } = createService({ execMock, fsImpl: fsMock });
+
+    const result = await service.updateAlphaclaw();
+
+    expect(result.status).toBe(200);
+    expect(result.body.ok).toBe(true);
+    expect(
+      logSpy.mock.calls.some(([message]) =>
+        String(message).includes(
+          "Could not write update marker: read-only filesystem",
+        ),
+      ),
+    ).toBe(true);
+  });
+
+  it("restarts via a container exit when running on a managed platform", () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`exit ${code}`);
+    });
+    const { service } = createService({ env: { RENDER: "true" } });
+
+    expect(() => service.restartProcess()).toThrow("exit 1");
+    expect(exitSpy).toHaveBeenCalledWith(1);
+  });
+
+  it("spawns a detached replacement process outside containers", () => {
+    const exitSpy = vi.spyOn(process, "exit").mockImplementation((code) => {
+      throw new Error(`exit ${code}`);
+    });
+    const originalSpawn = childProcess.spawn;
+    const unref = vi.fn();
+    childProcess.spawn = vi.fn(() => ({ unref }));
+    try {
+      const { service } = createService({
+        env: {},
+        fsImpl: { ...fs, existsSync: vi.fn(() => false) },
+      });
+
+      expect(() => service.restartProcess()).toThrow("exit 0");
+      expect(childProcess.spawn).toHaveBeenCalledWith(
+        process.argv[0],
+        process.argv.slice(1),
+        { detached: true, stdio: "inherit" },
+      );
+      expect(unref).toHaveBeenCalledTimes(1);
+      expect(exitSpy).toHaveBeenCalledWith(0);
+    } finally {
+      childProcess.spawn = originalSpawn;
+    }
+  });
+
   it("writes update marker to kRootDir on successful self-update", async () => {
     const execMock = vi.fn().mockImplementation((cmd, opts, callback) => {
       callback(null, "added 1 package", "");

@@ -1,5 +1,9 @@
 const childProcess = require("child_process");
 
+const {
+  OPENCLAW_DIR,
+  GOG_KEYRING_PASSWORD,
+} = require("../../lib/server/constants");
 const modulePath = require.resolve("../../lib/server/commands");
 const originalExec = childProcess.exec;
 
@@ -68,5 +72,91 @@ describe("server/commands", () => {
       signal: "SIGTERM",
       timedOut: true,
     });
+  });
+
+  it("resolves trimmed stdout and logs it for non-json shell commands", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const execMock = vi.fn((cmd, opts, callback) => {
+      callback(null, "  hello world \n", "");
+    });
+    const { createCommands } = loadCommandsModule({ execMock });
+    const { shellCmd } = createCommands({ gatewayEnv: () => ({}) });
+
+    await expect(shellCmd("echo hello ghp_secret123")).resolves.toBe(
+      "hello world",
+    );
+
+    expect(logSpy).toHaveBeenCalledWith("[onboard] hello world");
+    const runningLog = logSpy.mock.calls.find(([message]) =>
+      String(message).startsWith("[onboard] Running:"),
+    );
+    expect(runningLog[0]).toContain("***");
+    expect(runningLog[0]).not.toContain("ghp_secret123");
+  });
+
+  it("logs clawCmd failures when not quiet", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const execMock = vi.fn((cmd, opts, callback) => {
+      callback(Object.assign(new Error("fail"), { code: 2 }), "", "bad flag\n");
+    });
+    const { createCommands } = loadCommandsModule({ execMock });
+    const { clawCmd } = createCommands({
+      gatewayEnv: () => ({ OPENCLAW_GATEWAY_TOKEN: "token" }),
+    });
+
+    const result = await clawCmd("bad command");
+
+    expect(result).toMatchObject({
+      ok: false,
+      stdout: "",
+      stderr: "bad flag",
+      code: 2,
+      killed: false,
+      signal: null,
+      timedOut: false,
+    });
+    expect(logSpy).toHaveBeenCalledWith("[alphaclaw] Running: openclaw bad command");
+    expect(logSpy).toHaveBeenCalledWith("[alphaclaw] Error: bad flag");
+  });
+
+  it("runs gog commands with the keyring environment", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const execMock = vi.fn((cmd, opts, callback) => {
+      callback(null, "ok\n", "");
+    });
+    const { createCommands } = loadCommandsModule({ execMock });
+    const { gogCmd } = createCommands({ gatewayEnv: () => ({}) });
+
+    const result = await gogCmd("auth list");
+
+    expect(result).toEqual({ ok: true, stdout: "ok", stderr: "" });
+    expect(execMock).toHaveBeenCalledWith(
+      "gog auth list",
+      expect.objectContaining({
+        timeout: 15000,
+        env: expect.objectContaining({
+          XDG_CONFIG_HOME: OPENCLAW_DIR,
+          GOG_KEYRING_PASSWORD,
+        }),
+      }),
+      expect.any(Function),
+    );
+    expect(logSpy).toHaveBeenCalledWith("[alphaclaw] Running: gog auth list");
+  });
+
+  it("logs gog command failures when not quiet", async () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const execMock = vi.fn((cmd, opts, callback) => {
+      callback(new Error("gog exploded"), "", "keyring locked\n");
+    });
+    const { createCommands } = loadCommandsModule({ execMock });
+    const { gogCmd } = createCommands({ gatewayEnv: () => ({}) });
+
+    const result = await gogCmd("gmail list", { quiet: false });
+
+    expect(result).toEqual({ ok: false, stdout: "", stderr: "keyring locked" });
+    expect(logSpy).toHaveBeenCalledWith(
+      "[alphaclaw] gog error: keyring locked",
+    );
   });
 });

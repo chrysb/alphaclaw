@@ -603,6 +603,327 @@ describe("server/doctor-service", () => {
     );
   });
 
+  it("describes reuse elapsed time in hours and days", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-elapsed-workspace-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
+    const { computeWorkspaceSnapshot } = require("../../lib/server/doctor/workspace-fingerprint");
+    const fingerprint = computeWorkspaceSnapshot(workspaceRoot).fingerprint;
+    const { createDoctorService } = loadDoctorService();
+
+    const runReuseWithCompletedAt = (completedAt) => {
+      const summaries = [];
+      const doctorService = createDoctorService({
+        clawCmd: vi.fn(),
+        listDoctorRuns: () => [
+          {
+            id: 1,
+            status: "completed",
+            workspaceFingerprint: fingerprint,
+            completedAt,
+            startedAt: completedAt,
+            rawResult: {},
+          },
+        ],
+        listDoctorCards: () => [],
+        createDoctorRun: () => 2,
+        completeDoctorRun: ({ summary }) => {
+          summaries.push(summary);
+        },
+        insertDoctorCards: vi.fn(),
+        getDoctorRun: () => null,
+        getDoctorCardsByRunId: () => [{ status: "working", title: "Clone me" }],
+        getDoctorCard: () => null,
+        updateDoctorCardStatus: () => null,
+        workspaceRoot,
+        managedRoot: workspaceRoot,
+      });
+      const result = doctorService.runDoctor();
+      expect(result.reusedPreviousRun).toBe(true);
+      return summaries.find((summary) => /No workspace changes/.test(summary || ""));
+    };
+
+    const hoursSummary = runReuseWithCompletedAt(
+      new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString(),
+    );
+    const daysSummary = runReuseWithCompletedAt(
+      new Date(Date.now() - 3 * 24 * 60 * 60 * 1000).toISOString(),
+    );
+
+    expect(hoursSummary).toMatch(/2 hours ago/);
+    expect(daysSummary).toMatch(/3 days ago/);
+  });
+
+  it("captures evidence snippets for path evidence with line ranges", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-snippet-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-snippet-db-"));
+    const lines = Array.from({ length: 30 }, (_, index) => `line ${index + 1}`);
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), lines.join("\n"), "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "Snippet findings",
+        cards: [
+          {
+            priority: "P1",
+            category: "workspace",
+            title: "Snippet capture",
+            summary: "Snippet capture test",
+            recommendation: "Check the lines",
+            evidence: [
+              { type: "path", path: "AGENTS.md", startLine: 2, endLine: 3 },
+              { type: "path", path: "AGENTS.md", startLine: 1, endLine: 30 },
+              { type: "path", path: "AGENTS.md", startLine: 5 },
+              { type: "path", path: "missing.md", startLine: 1, endLine: 2 },
+            ],
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "Fix it safely.",
+            status: "open",
+          },
+        ],
+      }),
+    });
+
+    const [card] = doctorDb.getDoctorCardsByRunId(imported.runId);
+    const [rangeItem, cappedItem, singleLineItem, missingItem] = card.evidence;
+
+    expect(rangeItem.snippet).toMatchObject({
+      text: "line 2\nline 3",
+      startLine: 2,
+      endLine: 3,
+      truncated: false,
+      totalFileLines: 30,
+    });
+    expect(cappedItem.snippet).toMatchObject({
+      startLine: 1,
+      endLine: 20,
+      truncated: true,
+    });
+    expect(singleLineItem.snippet).toMatchObject({
+      text: "line 5",
+      startLine: 5,
+      endLine: 5,
+    });
+    expect(missingItem.snippet).toBeUndefined();
+  });
+
+  it("marks the run failed when the gateway command reports an error", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-gwfail-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-gwfail-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const clawCmd = vi.fn(async () => ({ ok: false, stderr: "gateway exploded" }));
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const result = doctorService.runDoctor();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const run = doctorDb.getDoctorRun(result.runId);
+    expect(run.status).toBe("failed");
+    expect(run.error).toBe("gateway exploded");
+  });
+
+  it("logs raw output and fails the run when normalization rejects the payload", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-badjson-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-badjson-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const consoleErrorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const clawCmd = vi.fn(async () => ({
+      ok: true,
+      stdout: "definitely not doctor json",
+      stderr: "",
+    }));
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const result = doctorService.runDoctor();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    const run = doctorDb.getDoctorRun(result.runId);
+    expect(run.status).toBe("failed");
+    expect(run.error).toMatch(/recognizable cards payload/);
+    const loggedMessages = consoleErrorSpy.mock.calls.map((call) => String(call[0]));
+    expect(loggedMessages.some((message) => /normalize failed/.test(message))).toBe(true);
+    expect(loggedMessages).toContain("definitely not doctor json");
+  });
+
+  it("rejects a second Doctor run while one is in progress", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-busy-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-busy-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    let releaseGateway;
+    const gatewayGate = new Promise((resolve) => {
+      releaseGateway = resolve;
+    });
+    const clawCmd = vi.fn(async () => {
+      await gatewayGate;
+      return { ok: true, stdout: JSON.stringify({ summary: "Done", cards: [] }) };
+    });
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const firstRun = doctorService.runDoctor();
+    const secondRun = doctorService.runDoctor();
+    releaseGateway();
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(firstRun.ok).toBe(true);
+    expect(secondRun.ok).toBe(false);
+    expect(secondRun.alreadyRunning).toBe(true);
+    expect(secondRun.runId).toBe(firstRun.runId);
+    expect(secondRun.error).toBe("Doctor run already in progress");
+  });
+
+  it("requires raw output for imports and open cards plus a working gateway for fixes", async () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-guards-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-guards-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\n", "utf8");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+
+    const clawCmd = vi.fn(async () => ({ ok: true, stdout: "{}", stderr: "" }));
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd,
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      startDoctorCardFix: doctorDb.startDoctorCardFix,
+      cancelDoctorCardFix: doctorDb.cancelDoctorCardFix,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    expect(() => doctorService.importDoctorResult({ rawOutput: "   " })).toThrow(
+      "Doctor import requires raw output",
+    );
+
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "One finding",
+        cards: [
+          {
+            priority: "P1",
+            category: "workspace",
+            title: "Guard checks",
+            summary: "Guard checks",
+            recommendation: "Guard checks",
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "Fix safely.",
+            status: "open",
+          },
+        ],
+      }),
+    });
+    const [card] = doctorDb.getDoctorCardsByRunId(imported.runId);
+
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "fixed" });
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:1",
+        prompt: "Fix it.",
+      }),
+    ).rejects.toThrow("Doctor finding must be open before requesting a fix");
+
+    doctorDb.updateDoctorCardStatus({ id: card.id, status: "open" });
+    clawCmd.mockRejectedValueOnce(new Error("dispatch timeout"));
+    await expect(
+      doctorService.requestCardFix({
+        cardId: card.id,
+        sessionKey: "agent:main:doctor:1",
+        prompt: "Fix it.",
+      }),
+    ).rejects.toThrow("dispatch timeout");
+    expect(doctorDb.getDoctorCard(card.id).status).toBe("open");
+  });
+
   it("adds deterministic truncation cards alongside imported Doctor findings", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-import-"));
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-import-db-"));

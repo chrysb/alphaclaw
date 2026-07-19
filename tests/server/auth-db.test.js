@@ -44,6 +44,47 @@ describe("server/auth-db", () => {
     expect(fs.existsSync(result.path)).toBe(true);
   });
 
+  it("supports delete, entries, and transactional rollback in the throttle store", () => {
+    const { createLoginThrottleStore } = createAuthDbContext("auth-db-store-");
+    const store = createLoginThrottleStore();
+    const state = {
+      attempts: 2,
+      windowStart: 100,
+      lockUntil: 0,
+      failStreak: 1,
+      lastSeenAt: 100,
+    };
+
+    store.set("client:client-1", state);
+    store.set("global:login", { ...state, attempts: 3 });
+
+    expect(store.entries()).toEqual(
+      expect.arrayContaining([
+        ["client:client-1", expect.objectContaining({ attempts: 2, failStreak: 1 })],
+        ["global:login", expect.objectContaining({ attempts: 3 })],
+      ]),
+    );
+
+    store.delete("client:client-1");
+    expect(store.get("client:client-1")).toBeNull();
+    expect(store.entries().map(([stateKey]) => stateKey)).toEqual(["global:login"]);
+
+    expect(() =>
+      store.runExclusive(() => {
+        store.set("client:client-2", state);
+        throw new Error("rollback me");
+      }),
+    ).toThrow("rollback me");
+    expect(store.get("client:client-2")).toBeNull();
+
+    const result = store.runExclusive(() => {
+      store.set("client:client-3", state);
+      return "committed";
+    });
+    expect(result).toBe("committed");
+    expect(store.get("client:client-3")).toMatchObject({ attempts: 2 });
+  });
+
   it("persists login throttle failures across throttle instances", () => {
     const { createLoginThrottleStore } = createAuthDbContext("auth-db-throttle-");
     const firstThrottle = createLoginThrottle({

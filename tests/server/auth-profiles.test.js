@@ -419,6 +419,236 @@ describe("server/auth-profiles", () => {
     expect(config.auth?.profiles?.["openai:codex-cli"]).toBeUndefined();
   });
 
+  it("maps api key providers to env vars and default profile ids", () => {
+    const { getEnvVarForApiKeyProvider } = require("../../lib/server/auth-profiles");
+
+    expect(getEnvVarForApiKeyProvider("anthropic")).toBe("ANTHROPIC_API_KEY");
+    expect(getEnvVarForApiKeyProvider(" groq ")).toBe("GROQ_API_KEY");
+    expect(getEnvVarForApiKeyProvider("unknown-provider")).toBe("");
+    expect(getEnvVarForApiKeyProvider("")).toBe("");
+    expect(ap.getEnvVarForApiKeyProvider("openai")).toBe("OPENAI_API_KEY");
+    expect(ap.listApiKeyProviders()).toEqual(
+      expect.arrayContaining(["anthropic", "openai", "groq"]),
+    );
+    expect(ap.getDefaultProfileIdForApiKeyProvider("groq")).toBe("groq:default");
+    expect(ap.getDefaultProfileIdForApiKeyProvider("  ")).toBe("");
+  });
+
+  it("lists profiles by provider and fetches single profiles", () => {
+    ap.upsertProfile("anthropic:default", {
+      type: "api_key",
+      provider: "anthropic",
+      key: "k1",
+    });
+    ap.upsertProfile("groq:default", {
+      type: "api_key",
+      provider: "groq",
+      key: "k2",
+    });
+
+    expect(ap.listProfilesByProvider("anthropic")).toEqual([
+      { id: "anthropic:default", type: "api_key", provider: "anthropic", key: "k1" },
+    ]);
+    expect(ap.getProfile("groq:default")).toEqual({
+      id: "groq:default",
+      type: "api_key",
+      provider: "groq",
+      key: "k2",
+    });
+    expect(ap.getProfile("missing:default")).toBeNull();
+  });
+
+  it("persists per-provider auth ordering", () => {
+    ap.upsertProfile("anthropic:default", {
+      type: "api_key",
+      provider: "anthropic",
+      key: "k1",
+    });
+    ap.upsertProfile("anthropic:backup", {
+      type: "api_key",
+      provider: "anthropic",
+      key: "k2",
+    });
+
+    ap.setAuthOrder("anthropic", ["anthropic:backup", "anthropic:default"]);
+
+    const store = readJson("agents/main/agent/auth-profiles.json");
+    expect(store.order).toEqual({
+      anthropic: ["anthropic:backup", "anthropic:default"],
+    });
+  });
+
+  it("syncs stored profiles into openclaw.json and skips malformed entries", () => {
+    const storePath = path.join(
+      tmpDir,
+      ".openclaw",
+      "agents",
+      "main",
+      "agent",
+      "auth-profiles.json",
+    );
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          "anthropic:default": {
+            type: "api_key",
+            provider: "anthropic",
+            key: "k1",
+          },
+          "broken:profile": { note: "missing type and provider" },
+        },
+      }),
+    );
+
+    ap.syncConfigAuthReferencesForAgent();
+
+    const config = readJson("openclaw.json");
+    expect(config.auth.profiles["anthropic:default"]).toEqual({
+      provider: "anthropic",
+      mode: "api_key",
+    });
+    expect(config.auth.profiles["broken:profile"]).toBeUndefined();
+  });
+
+  it("skips config sync entirely before onboarding completes", () => {
+    const configPath = path.join(tmpDir, ".openclaw", "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ gateway: { port: 18789 } }, null, 2),
+    );
+    const storePath = path.join(
+      tmpDir,
+      ".openclaw",
+      "agents",
+      "main",
+      "agent",
+      "auth-profiles.json",
+    );
+    fs.writeFileSync(
+      storePath,
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          "anthropic:default": {
+            type: "api_key",
+            provider: "anthropic",
+            key: "k1",
+          },
+        },
+      }),
+    );
+
+    ap.syncConfigAuthReferencesForAgent();
+
+    const config = readJson("openclaw.json");
+    expect(config.auth).toBeUndefined();
+  });
+
+  it("manages default api key profiles for env vars", () => {
+    expect(ap.upsertApiKeyProfileForEnvVar("groq", "")).toBe(false);
+    expect(ap.upsertApiKeyProfileForEnvVar("", "value")).toBe(false);
+
+    expect(ap.upsertApiKeyProfileForEnvVar("groq", "  gsk-key\r\n")).toBe(true);
+    expect(ap.getProfile("groq:default")).toEqual({
+      id: "groq:default",
+      type: "api_key",
+      provider: "groq",
+      key: "gsk-key",
+    });
+
+    expect(ap.removeApiKeyProfileForEnvVar("")).toBe(false);
+    expect(ap.removeApiKeyProfileForEnvVar("mistral")).toBe(false);
+
+    ap.upsertProfile("zai:default", {
+      type: "token",
+      provider: "zai",
+      token: "session-token",
+    });
+    expect(ap.removeApiKeyProfileForEnvVar("zai")).toBe(false);
+    expect(ap.getProfile("zai:default")).not.toBeNull();
+
+    expect(ap.removeApiKeyProfileForEnvVar("groq")).toBe(true);
+    expect(ap.getProfile("groq:default")).toBeNull();
+    expect(ap.removeProfile("groq:default")).toBe(false);
+  });
+
+  it("tolerates an unreadable openclaw.json", () => {
+    const configPath = path.join(tmpDir, ".openclaw", "openclaw.json");
+    fs.writeFileSync(configPath, "definitely not json");
+
+    ap.upsertProfile("anthropic:default", {
+      type: "api_key",
+      provider: "anthropic",
+      key: "k1",
+    });
+
+    const store = readJson("agents/main/agent/auth-profiles.json");
+    expect(store.profiles["anthropic:default"].key).toBe("k1");
+    expect(fs.readFileSync(configPath, "utf8")).toBe("definitely not json");
+
+    const modelConfig = ap.getModelConfig();
+    expect(modelConfig.primary).toBeNull();
+    expect(modelConfig.configuredModels).toEqual({});
+  });
+
+  it("marks openai gpt models with the Codex runtime when reading model config", () => {
+    ap.upsertCodexProfile({
+      access: "codex-access",
+      refresh: "codex-refresh",
+      expires: Date.now() + 3_600_000,
+    });
+    const configPath = path.join(tmpDir, ".openclaw", "openclaw.json");
+    const config = readJson("openclaw.json");
+    config.agents.defaults.models = {
+      "openai/gpt-5.5": {},
+      "anthropic/claude-opus-4-6": {},
+    };
+    fs.writeFileSync(configPath, JSON.stringify(config, null, 2));
+
+    const modelConfig = ap.getModelConfig();
+
+    expect(modelConfig.primary).toBe("anthropic/claude-opus-4-6");
+    expect(modelConfig.configuredModels).toEqual({
+      "openai/gpt-5.5": { agentRuntime: { id: "codex" } },
+      "anthropic/claude-opus-4-6": {},
+    });
+    const updated = readJson("openclaw.json");
+    expect(updated.agents.defaults.models["openai/gpt-5.5"]).toEqual({
+      agentRuntime: { id: "codex" },
+    });
+    expect(updated.plugins.entries.codex).toEqual({ enabled: true });
+  });
+
+  it("falls back to the JSON store when the sqlite auth db lacks tables", () => {
+    const databasePath = path.join(
+      tmpDir,
+      ".openclaw",
+      "agents",
+      "main",
+      "agent",
+      "openclaw-agent.sqlite",
+    );
+    const database = new DatabaseSync(databasePath);
+    database.exec("CREATE TABLE placeholder (id INTEGER PRIMARY KEY)");
+    database.close();
+
+    expect(ap.listProfiles()).toEqual([]);
+
+    ap.upsertProfile("anthropic:default", {
+      type: "api_key",
+      provider: "anthropic",
+      key: "fallback-key",
+    });
+
+    const store = readJson("agents/main/agent/auth-profiles.json");
+    expect(store.profiles["anthropic:default"].key).toBe("fallback-key");
+    expect(ap.getProfile("anthropic:default")).toMatchObject({
+      key: "fallback-key",
+    });
+  });
+
   it("does not write auth refs into incomplete pre-onboarding config", () => {
     fs.writeFileSync(
       path.join(tmpDir, ".openclaw", "openclaw.json"),

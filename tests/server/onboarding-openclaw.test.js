@@ -214,3 +214,256 @@ describe("server/onboarding/openclaw", () => {
     expect(next.channels.discord.token).toBe("${DISCORD_BOT_TOKEN}");
   });
 });
+
+describe("server/onboarding/openclaw buildOnboardArgs branches", () => {
+  const build = (overrides = {}) =>
+    buildOnboardArgs({
+      varMap: {},
+      selectedProvider: "",
+      hasCodexOauth: false,
+      workspaceDir: "/tmp/workspace",
+      ...overrides,
+    });
+
+  it("uses the OpenAI API key for openai-codex when provided", () => {
+    const args = build({
+      selectedProvider: "openai-codex",
+      varMap: { OPENAI_API_KEY: "sk-openai-key" },
+    });
+    expect(args).toContain("--openai-api-key");
+    expect(args).toContain("sk-openai-key");
+  });
+
+  it("skips auth for openai-codex with oauth and no API key", () => {
+    const args = build({
+      selectedProvider: "openai-codex",
+      hasCodexOauth: true,
+    });
+    expect(args).toContain("--auth-choice");
+    expect(args).toContain("skip");
+  });
+
+  it("uses the anthropic setup token for the anthropic provider", () => {
+    const args = build({
+      selectedProvider: "anthropic",
+      varMap: { ANTHROPIC_TOKEN: "sk-ant-oat01-token" },
+    });
+    expect(args).toContain("--token-provider");
+    expect(args).toContain("anthropic");
+    expect(args).toContain("sk-ant-oat01-token");
+  });
+
+  it("uses the OpenAI API key for the openai provider", () => {
+    const args = build({
+      selectedProvider: "openai",
+      varMap: { OPENAI_API_KEY: "sk-openai-key" },
+    });
+    expect(args).toContain("--openai-api-key");
+  });
+
+  it("uses the gemini API key for the google provider", () => {
+    const args = build({
+      selectedProvider: "google",
+      varMap: { GEMINI_API_KEY: "AIza-gemini-key" },
+    });
+    expect(args).toContain("--gemini-api-key");
+    expect(args).toContain("AIza-gemini-key");
+  });
+
+  it("falls back to the anthropic token for unmatched providers", () => {
+    const args = build({
+      selectedProvider: "mistral",
+      varMap: { ANTHROPIC_TOKEN: "sk-ant-oat01-token" },
+    });
+    expect(args).toContain("--token");
+    expect(args).toContain("sk-ant-oat01-token");
+  });
+
+  it("falls back to the anthropic API key for unmatched providers", () => {
+    const args = build({
+      selectedProvider: "mistral",
+      varMap: { ANTHROPIC_API_KEY: "sk-ant-api-key" },
+    });
+    expect(args).toContain("--anthropic-api-key");
+    expect(args).toContain("sk-ant-api-key");
+  });
+
+  it("falls back to the OpenAI API key for unmatched providers", () => {
+    const args = build({
+      selectedProvider: "mistral",
+      varMap: { OPENAI_API_KEY: "sk-openai-key" },
+    });
+    expect(args).toContain("--openai-api-key");
+    expect(args).toContain("sk-openai-key");
+  });
+
+  it("falls back to the gemini API key for unmatched providers", () => {
+    const args = build({
+      selectedProvider: "mistral",
+      varMap: { GEMINI_API_KEY: "AIza-gemini-key" },
+    });
+    expect(args).toContain("--gemini-api-key");
+    expect(args).toContain("AIza-gemini-key");
+  });
+
+  it("falls back to codex oauth skip for unmatched providers with no keys", () => {
+    const args = build({
+      selectedProvider: "mistral",
+      hasCodexOauth: true,
+    });
+    expect(args).toContain("--auth-choice");
+    expect(args).toContain("skip");
+  });
+});
+
+describe("server/onboarding/openclaw channel configuration", () => {
+  it("configures discord, slack, and whatsapp channels for fresh onboarding", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(configPath, "{}", "utf8");
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: {
+        TELEGRAM_BOT_TOKEN: "tg-token-123",
+        DISCORD_BOT_TOKEN: "discord-token-123",
+        SLACK_BOT_TOKEN: "xoxb-slack-bot",
+        SLACK_APP_TOKEN: "xapp-slack-app",
+        WHATSAPP_OWNER_NUMBER: "+15551234567",
+      },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.telegram).toMatchObject({
+      enabled: true,
+      botToken: "${TELEGRAM_BOT_TOKEN}",
+      dmPolicy: "pairing",
+    });
+    expect(next.channels.discord).toMatchObject({
+      enabled: true,
+      token: "${DISCORD_BOT_TOKEN}",
+      dmPolicy: "pairing",
+      groupPolicy: "allowlist",
+    });
+    expect(next.channels.slack).toMatchObject({
+      enabled: true,
+      botToken: "${SLACK_BOT_TOKEN}",
+      appToken: "${SLACK_APP_TOKEN}",
+      mode: "socket",
+      groupPolicy: "open",
+    });
+    expect(next.channels.whatsapp).toMatchObject({
+      enabled: true,
+      allowFrom: ["+15551234567"],
+      groupAllowFrom: ["+15551234567"],
+      dmPolicy: "allowlist",
+      selfChatMode: true,
+    });
+    expect(next.plugins.entries.discord).toEqual({ enabled: true });
+    expect(next.plugins.entries.slack).toEqual({ enabled: true });
+    expect(next.plugins.entries.whatsapp).toEqual({ enabled: true });
+  });
+
+  it("re-enables slack with imported settings during managed import", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        channels: {
+          slack: {
+            enabled: false,
+            mode: "http",
+            dmPolicy: "open",
+            groupPolicy: "allowlist",
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    writeManagedImportOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: {
+        SLACK_BOT_TOKEN: "xoxb-slack-bot",
+        SLACK_APP_TOKEN: "xapp-slack-app",
+      },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.slack).toMatchObject({
+      enabled: true,
+      botToken: "${SLACK_BOT_TOKEN}",
+      appToken: "${SLACK_APP_TOKEN}",
+      mode: "http",
+      dmPolicy: "open",
+      groupPolicy: "allowlist",
+    });
+    expect(next.plugins.entries.slack).toMatchObject({ enabled: true });
+    expect(next.plugins.allow).toContain("slack");
+  });
+
+  it("merges the whatsapp owner into existing allowFrom during managed import", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        channels: {
+          whatsapp: {
+            enabled: false,
+            allowFrom: ["+15550001111"],
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    writeManagedImportOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { WHATSAPP_OWNER_NUMBER: "+15551234567" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.whatsapp).toMatchObject({
+      enabled: true,
+      allowFrom: ["+15550001111", "${WHATSAPP_OWNER_NUMBER}"],
+      groupAllowFrom: ["+15550001111", "${WHATSAPP_OWNER_NUMBER}"],
+      dmPolicy: "allowlist",
+      groupPolicy: "allowlist",
+      selfChatMode: true,
+    });
+    expect(next.plugins.entries.whatsapp).toMatchObject({ enabled: true });
+  });
+
+  it("keeps existing whatsapp allowFrom when the owner ref is already present", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        channels: {
+          whatsapp: {
+            allowFrom: ["${WHATSAPP_OWNER_NUMBER}"],
+          },
+        },
+      }),
+      "utf8",
+    );
+
+    writeManagedImportOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { WHATSAPP_OWNER_NUMBER: "+15551234567" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.channels.whatsapp.allowFrom).toEqual(["${WHATSAPP_OWNER_NUMBER}"]);
+    expect(next.channels.whatsapp.groupAllowFrom).toEqual([
+      "${WHATSAPP_OWNER_NUMBER}",
+    ]);
+  });
+});

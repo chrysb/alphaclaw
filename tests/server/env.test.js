@@ -96,6 +96,96 @@ describe("server/env", () => {
     );
   });
 
+  it("returns an empty list when the env file is missing", () => {
+    const env = loadEnvModule(tmpDir);
+    expect(env.readEnvFile()).toEqual([]);
+  });
+
+  it("skips comments, blank lines, and lines without an equals sign", () => {
+    fs.writeFileSync(
+      path.join(tmpDir, ".env"),
+      [
+        "# a comment",
+        "",
+        "NOT A KEY VALUE LINE",
+        "OPENAI_API_KEY=real",
+      ].join("\n"),
+    );
+    const env = loadEnvModule(tmpDir);
+
+    expect(env.readEnvFile()).toEqual([
+      { key: "OPENAI_API_KEY", value: "real" },
+    ]);
+  });
+
+  it("drops entries without keys when normalizing", () => {
+    const env = loadEnvModule(tmpDir);
+    expect(
+      env.normalizeEnvVars([
+        { value: "orphan" },
+        { key: "   ", value: "blank" },
+        { key: "GOOD", value: "1" },
+      ]),
+    ).toEqual([{ key: "GOOD", value: "1" }]);
+  });
+
+  it("clears process env vars whose file value became empty", () => {
+    fs.writeFileSync(path.join(tmpDir, ".env"), "OPENAI_API_KEY=");
+    const env = loadEnvModule(tmpDir);
+    process.env.OPENAI_API_KEY = "still-set";
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+
+    expect(env.reloadEnv()).toBe(true);
+    expect(process.env.OPENAI_API_KEY).toBeUndefined();
+    expect(logSpy).toHaveBeenCalledWith(
+      "[alphaclaw] Env cleared: OPENAI_API_KEY",
+    );
+  });
+
+  it("reloads when the watcher fires and the env file is unreadable", () => {
+    vi.useFakeTimers();
+    const env = loadEnvModule(tmpDir);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    let watchHandler = null;
+    vi.spyOn(fs, "watchFile").mockImplementation((filePath, options, handler) => {
+      watchHandler = handler;
+    });
+
+    env.startEnvWatcher();
+    // No .env file exists, so the signature read fails and a reload runs.
+    watchHandler();
+    vi.advanceTimersByTime(250);
+
+    expect(
+      logSpy.mock.calls.filter(([line]) =>
+        String(line).includes("changed externally, reloading"),
+      ),
+    ).toHaveLength(1);
+  });
+
+  it("skips reloads when the watched file content is unchanged", () => {
+    vi.useFakeTimers();
+    fs.writeFileSync(path.join(tmpDir, ".env"), "OPENAI_API_KEY=stable");
+    const env = loadEnvModule(tmpDir);
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    let watchHandler = null;
+    vi.spyOn(fs, "watchFile").mockImplementation((filePath, options, handler) => {
+      watchHandler = handler;
+    });
+
+    env.reloadEnv();
+    env.startEnvWatcher();
+    watchHandler();
+    vi.advanceTimersByTime(250);
+
+    expect(process.env.OPENAI_API_KEY).toBe("stable");
+    expect(
+      logSpy.mock.calls.filter(([line]) =>
+        String(line).includes("changed externally, reloading"),
+      ),
+    ).toHaveLength(0);
+  });
+
   it("debounces env watcher events and ignores AlphaClaw's own writes", () => {
     vi.useFakeTimers();
     fs.writeFileSync(path.join(tmpDir, ".env"), "OPENAI_API_KEY=first");

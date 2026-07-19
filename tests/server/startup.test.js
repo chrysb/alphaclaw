@@ -64,4 +64,67 @@ describe("server/startup", () => {
       "gmailWatchService.start",
     ]);
   });
+
+  const createBootDeps = (overrides = {}) => ({
+    ensureManagedExecDefaults: vi.fn(),
+    ensureUsageTrackerPluginConfig: vi.fn(),
+    ensureWebhookMappingIds: vi.fn(() => ({ changed: false, updatedIds: [] })),
+    doSyncPromptFiles: vi.fn(),
+    reloadEnv: vi.fn(),
+    syncChannelConfig: vi.fn(),
+    readEnvFile: vi.fn(() => []),
+    ensureGatewayProxyConfig: vi.fn(),
+    resolveSetupUrl: vi.fn(() => "https://setup.example.com"),
+    startGateway: vi.fn(),
+    watchdog: { start: vi.fn() },
+    gmailWatchService: { start: vi.fn() },
+    ...overrides,
+  });
+
+  it("logs and continues when the ensure steps fail", () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    const deps = createBootDeps({
+      ensureManagedExecDefaults: vi.fn(() => {
+        throw new Error("exec defaults broke");
+      }),
+      ensureUsageTrackerPluginConfig: vi.fn(() => {
+        throw new Error("usage tracker broke");
+      }),
+      ensureWebhookMappingIds: vi.fn(() => {
+        throw new Error("webhook ids broke");
+      }),
+    });
+
+    runOnboardedBootSequence(deps);
+
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[alphaclaw] Failed to ensure managed exec defaults on boot: exec defaults broke",
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[alphaclaw] Failed to ensure usage-tracker plugin config on boot: usage tracker broke",
+    );
+    expect(errorSpy).toHaveBeenCalledWith(
+      "[alphaclaw] Failed to ensure webhook mapping IDs on boot: webhook ids broke",
+    );
+    // Boot still proceeds through the remaining steps.
+    expect(deps.startGateway).toHaveBeenCalled();
+    expect(deps.watchdog.start).toHaveBeenCalled();
+    expect(deps.gmailWatchService.start).toHaveBeenCalled();
+  });
+
+  it("logs the updated webhook mapping ids when the mapping changed", () => {
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    const deps = createBootDeps({
+      ensureWebhookMappingIds: vi.fn(() => ({
+        changed: true,
+        updatedIds: ["gmail", "stripe"],
+      })),
+    });
+
+    runOnboardedBootSequence(deps);
+
+    expect(logSpy).toHaveBeenCalledWith(
+      "[alphaclaw] Added IDs to webhook mappings: gmail, stripe",
+    );
+  });
 });

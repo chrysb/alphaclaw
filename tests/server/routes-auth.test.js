@@ -1,7 +1,11 @@
+const crypto = require("crypto");
 const express = require("express");
 const request = require("supertest");
 const { createLoginThrottle } = require("../../lib/server/login-throttle");
-const { kLoginGlobalMaxAttempts } = require("../../lib/server/constants");
+const {
+  kLoginCleanupIntervalMs,
+  kLoginGlobalMaxAttempts,
+} = require("../../lib/server/constants");
 const { getClientKey } = require("../../lib/server/helpers");
 
 const loadAuthRoutes = () => {
@@ -139,4 +143,67 @@ describe("server/routes/auth", () => {
     expect(protectedRes.body).toEqual({ error: "Unauthorized" });
   });
 
+  it("rejects a correctly signed token whose payload is not JSON", async () => {
+    const { app } = createTestApp({ setupPassword: "secret" });
+    const payload = Buffer.from("definitely-not-json").toString("base64url");
+    const signature = crypto
+      .createHmac("sha256", "secret")
+      .update(payload)
+      .digest("base64url");
+
+    const res = await request(app)
+      .get("/api/protected")
+      .set("Cookie", `setup_token=${payload}.${signature}`);
+
+    expect(res.status).toBe(401);
+    expect(res.body).toEqual({ error: "Unauthorized" });
+  });
+
+  it("returns 503 text for non-API paths when setup password is unset", async () => {
+    const { app } = createTestApp({ setupPassword: "" });
+
+    const res = await request(app).get("/setup/protected");
+
+    expect(res.status).toBe(503);
+    expect(res.text).toContain("Setup auth is not configured");
+  });
+
+  it("redirects unauthenticated non-API requests to the login page", async () => {
+    const { app } = createTestApp({ setupPassword: "secret" });
+
+    const res = await request(app).get("/setup/protected");
+
+    expect(res.status).toBe(302);
+    expect(res.headers.location).toBe("/login.html");
+  });
+
+  it("reports auth status and clears the session cookie on logout", async () => {
+    const { app } = createTestApp({ setupPassword: "secret" });
+
+    const status = await request(app).get("/api/auth/status");
+    expect(status.status).toBe(200);
+    expect(status.body).toEqual({ authEnabled: true });
+
+    const logout = await request(app).post("/api/auth/logout").send({});
+    expect(logout.status).toBe(200);
+    expect(logout.body).toEqual({ ok: true });
+    expect(logout.headers["set-cookie"]?.[0]).toContain("setup_token=;");
+
+    const disabled = createTestApp({ setupPassword: "" });
+    const disabledStatus = await request(disabled.app).get("/api/auth/status");
+    expect(disabledStatus.body).toEqual({ authEnabled: false });
+  });
+
+  it("cleans up throttle state on the scheduled interval", async () => {
+    vi.useFakeTimers();
+    try {
+      const { throttle } = createTestApp({ setupPassword: "secret" });
+
+      vi.advanceTimersByTime(kLoginCleanupIntervalMs + 1);
+
+      expect(throttle.cleanupLoginAttemptStates).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });

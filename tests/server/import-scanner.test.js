@@ -346,3 +346,40 @@ describe("import-scanner", () => {
     });
   });
 });
+
+describe("import-scanner backups and managed refs", () => {
+  it("collects config, cron backups, transform dirs, and managed env refs", () => {
+    const base = "/tmp/test";
+    const fs = createMockFs(
+      {
+        [`${base}/openclaw.json`]: JSON.stringify({
+          env: {
+            vars: {
+              GATEWAY_REF: "${OPENCLAW_GATEWAY_TOKEN}",
+              CUSTOM_REF: "${MY_CUSTOM_VAR}",
+            },
+          },
+        }),
+        [`${base}/openclaw.json.bak`]: "{}",
+        [`${base}/cron/jobs.json`]: "this is not json",
+        [`${base}/cron/jobs.json.bak`]: "{}",
+      },
+      [
+        `${base}/hooks`,
+        `${base}/hooks/transforms`,
+        `${base}/hooks/transforms/gmail`,
+        `${base}/cron`,
+      ],
+    );
+
+    const result = scanWorkspace({ fs, baseDir: base });
+
+    expect(result.gatewayConfig.backups).toEqual(["openclaw.json.bak"]);
+    expect(result.cronJobs.backups).toEqual(["cron/jobs.json.bak"]);
+    expect(result.cronJobs.jobNames).toEqual([]);
+    expect(result.webhooks.dirs).toEqual(["hooks/transforms/gmail"]);
+    expect(result.managedEnvConflicts.found).toBe(true);
+    expect(result.managedEnvConflicts.vars).toContain("OPENCLAW_GATEWAY_TOKEN");
+    expect(result.managedEnvConflicts.vars).not.toContain("MY_CUSTOM_VAR");
+  });
+});

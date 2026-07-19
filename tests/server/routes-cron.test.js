@@ -187,4 +187,150 @@ describe("server/routes/cron", () => {
       expect.objectContaining({ sinceMs: 12345, limitPerJob: 40, sortDir: "desc" }),
     );
   });
+
+  it("returns cron status", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+    const response = await request(app).get("/api/cron/status");
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(response.body.status.jobs).toBe(1);
+    expect(deps.cronService.getStatus).toHaveBeenCalled();
+  });
+
+  it("disables jobs", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+    const response = await request(app).post("/api/cron/jobs/job-a/disable");
+    expect(response.status).toBe(200);
+    expect(response.body.ok).toBe(true);
+    expect(deps.cronService.setJobEnabled).toHaveBeenCalledWith({
+      jobId: "job-a",
+      enabled: false,
+    });
+  });
+
+  it("passes run history filters through to the service", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+    const response = await request(app).get(
+      "/api/cron/jobs/job-a/runs?limit=5&offset=10&status=error&deliveryStatus=delivered&sortDir=asc&query=digest",
+    );
+    expect(response.status).toBe(200);
+    expect(deps.cronService.getJobRuns).toHaveBeenCalledWith({
+      jobId: "job-a",
+      limit: 5,
+      offset: 10,
+      status: "error",
+      deliveryStatus: "delivered",
+      sortDir: "asc",
+      query: "digest",
+    });
+  });
+
+  it("defaults usage and bulk windows to zero when days is absent", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const usageResponse = await request(app).get("/api/cron/jobs/job-a/usage");
+    expect(usageResponse.status).toBe(200);
+    expect(deps.cronService.getJobUsage).toHaveBeenCalledWith({
+      jobId: "job-a",
+      sinceMs: 0,
+    });
+
+    const bulkUsageResponse = await request(app).get("/api/cron/usage/bulk");
+    expect(bulkUsageResponse.status).toBe(200);
+    expect(deps.cronService.getBulkJobUsage).toHaveBeenCalledWith({ sinceMs: 0 });
+
+    const bulkRunsResponse = await request(app).get("/api/cron/runs/bulk");
+    expect(bulkRunsResponse.status).toBe(200);
+    expect(deps.cronService.getBulkJobRuns).toHaveBeenCalledWith({
+      sinceMs: 0,
+      limitPerJob: 20,
+      status: "all",
+      deliveryStatus: "all",
+      sortDir: "desc",
+    });
+  });
+
+  it("falls back to raw output then empty object for command results", async () => {
+    const deps = createDeps();
+    deps.cronService.runJobNow = vi.fn(async () => ({ parsed: null, raw: "plain text" }));
+    deps.cronService.setJobEnabled = vi.fn(async () => ({ parsed: null, raw: "" }));
+    const app = createApp(deps);
+
+    const rawResponse = await request(app).post("/api/cron/jobs/job-a/run");
+    expect(rawResponse.status).toBe(200);
+    expect(rawResponse.body.result).toBe("plain text");
+
+    const emptyResponse = await request(app).post("/api/cron/jobs/job-a/enable");
+    expect(emptyResponse.status).toBe(200);
+    expect(emptyResponse.body.result).toEqual({});
+  });
+
+  it("maps service failures to error responses on every route", async () => {
+    const deps = createDeps();
+    const boom = () => {
+      throw new Error("service exploded");
+    };
+    const asyncBoom = async () => {
+      throw new Error("service exploded");
+    };
+    deps.cronService.listJobs = vi.fn(boom);
+    deps.cronService.getStatus = vi.fn(boom);
+    deps.cronService.getJobRuns = vi.fn(boom);
+    deps.cronService.runJobNow = vi.fn(asyncBoom);
+    deps.cronService.setJobEnabled = vi.fn(asyncBoom);
+    deps.cronService.updateJobPrompt = vi.fn(asyncBoom);
+    deps.cronService.updateJobRouting = vi.fn(asyncBoom);
+    deps.cronService.getJobUsage = vi.fn(boom);
+    deps.cronService.getJobRunTrends = vi.fn(boom);
+    deps.cronService.getBulkJobUsage = vi.fn(boom);
+    deps.cronService.getBulkJobRuns = vi.fn(boom);
+    const app = createApp(deps);
+
+    const expectations = [
+      { method: "get", url: "/api/cron/jobs", status: 500 },
+      { method: "get", url: "/api/cron/status", status: 500 },
+      { method: "get", url: "/api/cron/jobs/job-a/runs", status: 400 },
+      { method: "post", url: "/api/cron/jobs/job-a/run", status: 400 },
+      { method: "post", url: "/api/cron/jobs/job-a/enable", status: 400 },
+      { method: "post", url: "/api/cron/jobs/job-a/disable", status: 400 },
+      { method: "put", url: "/api/cron/jobs/job-a/prompt", status: 400 },
+      { method: "put", url: "/api/cron/jobs/job-a/routing", status: 400 },
+      { method: "get", url: "/api/cron/jobs/job-a/usage?days=7", status: 400 },
+      { method: "get", url: "/api/cron/jobs/job-a/trends", status: 400 },
+      { method: "get", url: "/api/cron/usage/bulk?days=7", status: 400 },
+      { method: "get", url: "/api/cron/runs/bulk", status: 400 },
+    ];
+    for (const { method, url, status } of expectations) {
+      const response = await request(app)[method](url);
+      expect(response.status).toBe(status);
+      expect(response.body).toEqual({ ok: false, error: "service exploded" });
+    }
+  });
+
+  it("handles prompt and routing requests with missing bodies", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const promptResponse = await request(app).put("/api/cron/jobs/job-a/prompt");
+    expect(promptResponse.status).toBe(200);
+    expect(deps.cronService.updateJobPrompt).toHaveBeenCalledWith({
+      jobId: "job-a",
+      message: "",
+    });
+
+    const routingResponse = await request(app).put("/api/cron/jobs/job-a/routing");
+    expect(routingResponse.status).toBe(200);
+    expect(deps.cronService.updateJobRouting).toHaveBeenCalledWith({
+      jobId: "job-a",
+      sessionTarget: "",
+      wakeMode: "",
+      deliveryMode: "",
+      deliveryChannel: "",
+      deliveryTo: "",
+    });
+  });
 });

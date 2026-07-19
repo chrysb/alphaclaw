@@ -137,6 +137,85 @@ describe("server/login-throttle", () => {
     expect(blocked.blocked).toBe(true);
   });
 
+  it("resets the attempt window when evaluating after the window elapses", () => {
+    const throttle = createLoginThrottle();
+    const now = 30_000;
+    const state = throttle.getOrCreateLoginAttemptState("client-window", now);
+
+    throttle.recordLoginFailure(state, now);
+    expect(state.client.attempts).toBe(1);
+
+    const result = throttle.evaluateLoginThrottle(state, now + kLoginWindowMs + 1);
+
+    expect(result.blocked).toBe(false);
+    expect(state.client.attempts).toBe(0);
+    expect(state.client.windowStart).toBe(now + kLoginWindowMs + 1);
+  });
+
+  it("reports remaining lock time when failures continue during a lock", () => {
+    const throttle = createLoginThrottle();
+    const now = 40_000;
+    const state = throttle.getOrCreateLoginAttemptState("client-locked", now);
+
+    let lockResult = null;
+    for (let i = 0; i < kLoginMaxAttempts; i += 1) {
+      lockResult = throttle.recordLoginFailure(state, now + i);
+    }
+    expect(lockResult.locked).toBe(true);
+
+    const repeatResult = throttle.recordLoginFailure(state, now + kLoginMaxAttempts);
+
+    expect(repeatResult.locked).toBe(true);
+    expect(repeatResult.lockMs).toBeGreaterThan(0);
+    expect(repeatResult.lockMs).toBeLessThanOrEqual(lockResult.lockMs);
+    expect(repeatResult.retryAfterSec).toBeGreaterThan(0);
+  });
+
+  it("works with stores that do not implement runExclusive", () => {
+    const states = new Map();
+    const store = {
+      get: (stateKey) => states.get(stateKey) || null,
+      set: (stateKey, state) => {
+        states.set(stateKey, { ...state });
+      },
+      delete: (stateKey) => {
+        states.delete(stateKey);
+      },
+      entries: () => Array.from(states.entries()),
+    };
+    const throttle = createLoginThrottle({ store });
+    const now = 50_000;
+
+    const state = throttle.getOrCreateLoginAttemptState("client-basic", now);
+    const failure = throttle.recordLoginFailure(state, now);
+    const evaluation = throttle.evaluateLoginThrottle(state, now + 1);
+
+    expect(failure.locked).toBe(false);
+    expect(evaluation.blocked).toBe(false);
+    expect(states.get("client:client-basic").attempts).toBe(1);
+  });
+
+  it("deletes malformed entries during cleanup", () => {
+    const states = new Map([["client:broken", null]]);
+    const store = {
+      get: (stateKey) => states.get(stateKey) || null,
+      set: (stateKey, state) => {
+        states.set(stateKey, { ...state });
+      },
+      delete: vi.fn((stateKey) => {
+        states.delete(stateKey);
+      }),
+      entries: () => Array.from(states.entries()),
+      runExclusive: (callback) => callback(),
+    };
+    const throttle = createLoginThrottle({ store });
+
+    throttle.cleanupLoginAttemptStates();
+
+    expect(store.delete).toHaveBeenCalledWith("client:broken");
+    expect(states.size).toBe(0);
+  });
+
   it("cleans up stale states past TTL", () => {
     const throttle = createLoginThrottle();
     const oldNow = 20_000;
