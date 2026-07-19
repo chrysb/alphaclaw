@@ -8,6 +8,10 @@ const createDeps = () => {
   const watchdog = {
     getStatus: vi.fn(() => ({ lifecycle: "running", health: "healthy" })),
     triggerRepair: vi.fn(async () => ({ ok: true })),
+    resumeChannels: vi.fn(async () => ({
+      ok: true,
+      results: [{ channel: "telegram", ok: true }],
+    })),
     getSettings: vi.fn(() => ({ autoRepair: true, notificationsEnabled: true })),
     updateSettings: vi.fn(({ autoRepair }) => ({ autoRepair, notificationsEnabled: true })),
   };
@@ -96,6 +100,39 @@ describe("server/routes/watchdog", () => {
         reason: "operation_in_progress",
       },
     });
+  });
+
+  it("resumes suppressed channels on POST /api/watchdog/resume-channels", async () => {
+    const deps = createDeps();
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/watchdog/resume-channels");
+
+    expect(res.status).toBe(200);
+    expect(deps.watchdog.resumeChannels).toHaveBeenCalledTimes(1);
+    expect(res.body).toEqual({
+      ok: true,
+      result: {
+        ok: true,
+        results: [{ channel: "telegram", ok: true }],
+      },
+    });
+  });
+
+  it("returns 409 when resume-channels has nothing to resume", async () => {
+    const deps = createDeps();
+    deps.watchdog.resumeChannels.mockResolvedValue({
+      ok: false,
+      skipped: true,
+      reason: "no_suppressed_channels",
+    });
+    const app = createApp(deps);
+
+    const res = await request(app).post("/api/watchdog/resume-channels");
+
+    expect(res.status).toBe(409);
+    expect(res.body.ok).toBe(false);
+    expect(res.body.error).toBe("no_suppressed_channels");
   });
 
   it("returns 400 when updateSettings throws", async () => {
