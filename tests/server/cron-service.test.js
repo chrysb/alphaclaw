@@ -1,6 +1,7 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 const { createCronService } = require("../../lib/server/cron-service");
 
 const createOpenclawDirWithCronJobs = (jobs = []) => {
@@ -14,7 +15,148 @@ const createOpenclawDirWithCronJobs = (jobs = []) => {
   return openclawDir;
 };
 
+const addSqliteCronStore = (openclawDir, jobs = []) => {
+  const databaseDir = path.join(openclawDir, "state");
+  const databasePath = path.join(databaseDir, "openclaw.sqlite");
+  const storeKey = path.join(openclawDir, "cron", "jobs.json");
+  fs.mkdirSync(databaseDir, { recursive: true });
+  const db = new DatabaseSync(databasePath);
+  try {
+    db.exec(`
+      CREATE TABLE cron_jobs (
+        store_key TEXT NOT NULL,
+        job_id TEXT NOT NULL,
+        job_json TEXT NOT NULL,
+        state_json TEXT NOT NULL DEFAULT '{}',
+        runtime_updated_at_ms INTEGER,
+        updated_at INTEGER NOT NULL,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        next_run_at_ms INTEGER,
+        running_at_ms INTEGER,
+        last_run_at_ms INTEGER,
+        last_run_status TEXT,
+        last_error TEXT,
+        last_duration_ms INTEGER,
+        consecutive_errors INTEGER,
+        consecutive_skipped INTEGER,
+        schedule_error_count INTEGER,
+        last_delivery_status TEXT,
+        last_delivery_error TEXT,
+        last_delivered INTEGER,
+        last_failure_alert_at_ms INTEGER,
+        PRIMARY KEY (store_key, job_id)
+      )
+    `);
+    const insert = db.prepare(`
+      INSERT INTO cron_jobs (
+        store_key,
+        job_id,
+        job_json,
+        state_json,
+        runtime_updated_at_ms,
+        updated_at,
+        sort_order,
+        next_run_at_ms,
+        last_run_status,
+        last_delivered
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+    jobs.forEach((job, index) => {
+      const { state = {}, ...jobConfig } = job;
+      insert.run(
+        storeKey,
+        job.id,
+        JSON.stringify(jobConfig),
+        JSON.stringify(state),
+        job.updatedAtMs || job.createdAtMs || 1,
+        job.updatedAtMs || job.createdAtMs || 1,
+        index,
+        state.nextRunAtMs ?? null,
+        state.lastRunStatus ?? null,
+        typeof state.lastDelivered === "boolean" ? Number(state.lastDelivered) : null,
+      );
+    });
+  } finally {
+    db.close();
+  }
+  return databasePath;
+};
+
 describe("server/cron-service", () => {
+  it("lists jobs from OpenClaw SQLite instead of stale legacy JSON", () => {
+    const openclawDir = createOpenclawDirWithCronJobs([
+      {
+        id: "stale-job",
+        name: "Stale Job",
+        enabled: true,
+      },
+    ]);
+    const databasePath = addSqliteCronStore(openclawDir, [
+      {
+        id: "sqlite-job",
+        name: "SQLite Job",
+        enabled: true,
+        createdAtMs: 1,
+        updatedAtMs: 4,
+        schedule: { kind: "cron", expr: "0 8 * * *" },
+        sessionTarget: "isolated",
+        wakeMode: "now",
+        payload: { kind: "agentTurn", message: "current prompt" },
+        state: {
+          nextRunAtMs: 500,
+          lastRunStatus: "ok",
+          lastDelivered: true,
+        },
+      },
+    ]);
+    try {
+      const cronService = createCronService({
+        clawCmd: vi.fn(),
+        OPENCLAW_DIR: openclawDir,
+        getSessionUsageByKeyPattern: vi.fn(() => ({})),
+      });
+
+      expect(cronService.listJobs()).toEqual({
+        storePath: databasePath,
+        jobs: [
+          expect.objectContaining({
+            id: "sqlite-job",
+            name: "SQLite Job",
+            updatedAtMs: 4,
+            state: expect.objectContaining({
+              nextRunAtMs: 500,
+              lastRunStatus: "ok",
+              lastDelivered: true,
+            }),
+          }),
+        ],
+      });
+    } finally {
+      fs.rmSync(openclawDir, { recursive: true, force: true });
+    }
+  });
+
+  it("does not resurrect legacy JSON jobs when the SQLite cron table is empty", () => {
+    const openclawDir = createOpenclawDirWithCronJobs([
+      { id: "stale-job", name: "Stale Job", enabled: true },
+    ]);
+    const databasePath = addSqliteCronStore(openclawDir, []);
+    try {
+      const cronService = createCronService({
+        clawCmd: vi.fn(),
+        OPENCLAW_DIR: openclawDir,
+        getSessionUsageByKeyPattern: vi.fn(() => ({})),
+      });
+
+      expect(cronService.listJobs()).toEqual({
+        storePath: databasePath,
+        jobs: [],
+      });
+    } finally {
+      fs.rmSync(openclawDir, { recursive: true, force: true });
+    }
+  });
+
   it("uses plain cron commands without --json for run/toggle/edit", async () => {
     const openclawDir = createOpenclawDirWithCronJobs([
       {
@@ -111,7 +253,8 @@ describe("server/cron-service", () => {
   });
 
   it("uses --system-event when editing main systemEvent job prompts", async () => {
-    const openclawDir = createOpenclawDirWithCronJobs([
+    const openclawDir = createOpenclawDirWithCronJobs([]);
+    addSqliteCronStore(openclawDir, [
       {
         id: "job-main",
         name: "Main Job",
