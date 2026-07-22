@@ -68,15 +68,15 @@ describe("frontend/cron-helpers", () => {
     ).toContain("At");
   });
 
-  it("builds optimization warnings for risky jobs", async () => {
+  it("builds optimization warnings for runtime failures", async () => {
     const { buildCronOptimizationWarnings } = await loadCronHelpers();
     const warnings = buildCronOptimizationWarnings(
       [
         {
           id: "job-1",
-          name: "Delivery Mismatch",
+          name: "Direct Message",
           delivery: { mode: "none" },
-          payload: { kind: "systemEvent", text: "Use message tool to send to telegram" },
+          payload: { kind: "agentTurn", message: "Use message tool to send to telegram" },
           state: { consecutiveErrors: 0 },
         },
         {
@@ -133,7 +133,7 @@ describe("frontend/cron-helpers", () => {
       },
     );
     expect(warnings.length).toBeGreaterThan(0);
-    expect(warnings.some((warning) => warning.title.includes("Delivery Mismatch"))).toBe(true);
+    expect(warnings.some((warning) => warning.title.includes("Direct Message"))).toBe(false);
     expect(warnings.some((warning) => warning.title.includes("Erroring Job"))).toBe(true);
     expect(warnings.some((warning) => warning.title.includes("Heartbeat Delivery"))).toBe(false);
     expect(warnings.some((warning) => warning.title.includes("Needs Delivery"))).toBe(true);
@@ -457,7 +457,8 @@ describe("frontend/cron-helpers", () => {
     expect(circularWarnings).toHaveLength(1);
     expect(circularWarnings[0].title).toContain("job-circular");
 
-    // agentTurn prompt mentioning the message tool with delivery mode none warns.
+    // The delivery-mismatch warning was removed upstream (delivery.mode=none
+    // with a message-tool prompt is valid); such jobs no longer warn.
     const mismatch = buildCronOptimizationWarnings(
       [
         {
@@ -470,8 +471,7 @@ describe("frontend/cron-helpers", () => {
       ],
       {},
     );
-    expect(mismatch).toHaveLength(1);
-    expect(mismatch[0].tone).toBe("warning");
+    expect(mismatch).toHaveLength(0);
 
     // A job without an id still evaluates safely.
     const anonymous = buildCronOptimizationWarnings(
