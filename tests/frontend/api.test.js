@@ -655,4 +655,31 @@ describe("frontend/api", () => {
     expectLastFetchHeaders("application/json");
     expect(result).toEqual({ ok: true });
   });
+
+  it("resumeWatchdogChannels posts to the resume endpoint and returns the result", async () => {
+    const payload = {
+      ok: true,
+      result: { ok: true, results: [{ channel: "telegram", ok: true }] },
+    };
+    global.fetch.mockResolvedValue(mockJsonResponse(200, payload));
+    const api = await loadApiModule();
+
+    const result = await api.resumeWatchdogChannels();
+
+    const [url, options] = global.fetch.mock.calls.at(-1);
+    expect(url).toBe("/api/watchdog/resume-channels");
+    expect(options.method).toBe("POST");
+    expect(result).toEqual(payload);
+  });
+
+  it("resumeWatchdogChannels surfaces server error messages", async () => {
+    global.fetch.mockResolvedValue(
+      mockJsonResponse(409, { ok: false, error: "no_suppressed_channels" }),
+    );
+    const api = await loadApiModule();
+
+    await expect(api.resumeWatchdogChannels()).rejects.toThrow(
+      "no_suppressed_channels",
+    );
+  });
 });
