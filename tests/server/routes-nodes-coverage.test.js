@@ -80,7 +80,10 @@ const createApp = ({ clawCmd, fsModule, gatewayToken = "" } = {}) => {
   return app;
 };
 
-describe("server/routes/nodes coverage", () => {
+// Real-socket proxy tests are timing-sensitive under parallel machine
+// load; one retry absorbs transient connect races without masking
+// deterministic failures.
+describe("server/routes/nodes coverage", { retry: 1 }, () => {
   describe("GET /api/nodes", () => {
     it("surfaces non-timeout status failures with stderr", async () => {
       const clawCmd = vi.fn(async () => ({

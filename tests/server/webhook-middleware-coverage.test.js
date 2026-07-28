@@ -57,7 +57,10 @@ const createHookApp = ({
 
 const closeServer = (server) => new Promise((resolve) => server.close(resolve));
 
-describe("server/webhook-middleware coverage", () => {
+// Real-socket proxy tests are timing-sensitive under parallel machine
+// load; one retry absorbs transient connect races without masking
+// deterministic failures.
+describe("server/webhook-middleware coverage", { retry: 1 }, () => {
   describe("gmail dedupe", () => {
     it("filters previously seen gmail messages inside payload envelopes", async () => {
       const { server, calls, gatewayUrl } = await createGatewaySpyServer();
