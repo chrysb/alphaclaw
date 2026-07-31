@@ -56,10 +56,6 @@ Present a draft to the user **before** publishing. Use this structure:
   (`Fixes #N`) and PRs (`(#N)`) inline. Credit external contributors
   (`Thanks @handle.`).
 
-### Internal
-* Refactoring, test coverage, and code health improvements that don't change
-  user-facing behavior.
-
 ### Contributors
 * @handle
 ```
@@ -70,13 +66,12 @@ Present a draft to the user **before** publishing. Use this structure:
 - Describe the *what and why*, not the implementation details.
 - Keep **What's New** and **Fixes** user-facing: describe behavior, not code
   structure (no "decomposed into folder-based components", "co-located hooks",
-  etc.). Save implementation details for the **Internal** section.
+  etc.). Omit implementation-only changes from the release notes.
 - Use active voice ("add", "fix", "remove"), not past tense.
 - Reference GitHub issues with `Fixes #N` (auto-closes) or `#N` (link only).
 - Reference PRs with `(#N)`.
 - Credit external contributors with `Thanks @handle.` at the end of the bullet.
 - List all credited contributors in a **Contributors** section at the bottom.
-- Keep the Internal section concise; one bullet per theme, not per commit.
 - Fold reverted commits into their replacement — don't list revert + re-land.
 
 #### Deciding what goes where
@@ -86,7 +81,7 @@ Present a draft to the user **before** publishing. Use this structure:
 | New user-facing capability | What's New |
 | Bug fix, regression fix | Fixes |
 | Dependency bump (OpenClaw, etc.) | What's New (last bullet) |
-| Refactor, test backfill, code split | Internal |
+| Refactor, test backfill, code split, tooling-only change | Skip |
 | Version bump commits (`0.6.0-beta.N`) | Skip |
 | Merge commits | Skip |
 
