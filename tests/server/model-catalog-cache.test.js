@@ -329,6 +329,83 @@ describe("server/model-catalog-cache", () => {
     expect(written.openclawVersion).toBe("2026.4.15");
   });
 
+  it("forces a fresh catalog load when requested", async () => {
+    const tempRoot = fs.mkdtempSync(
+      path.join(os.tmpdir(), "alphaclaw-model-catalog-force-refresh-"),
+    );
+    const cachePath = path.join(tempRoot, "cache", "model-catalog.json");
+    writeCacheFile({
+      cachePath,
+      fetchedAt: 444,
+      openclawVersion: "2026.4.15",
+      models: normalizeModels([{ key: "openai/gpt-cached", label: "Cached" }]),
+    });
+
+    let resolveRefresh;
+    const shellCmd = vi
+      .fn()
+      .mockResolvedValueOnce("{}")
+      .mockImplementationOnce(
+        () =>
+          new Promise((resolve) => {
+            resolveRefresh = resolve;
+          }),
+      );
+    const parseJsonFromNoisyOutput = vi
+      .fn()
+      .mockReturnValueOnce({
+        models: [{ key: "openai/gpt-cached", name: "Cached" }],
+      })
+      .mockReturnValueOnce({
+        models: [{ key: "moonshot/kimi-k2.5", name: "Kimi K2.5" }],
+      });
+    const cache = createModelCatalogCache({
+      cachePath,
+      shellCmd,
+      parseJsonFromNoisyOutput,
+      normalizeOnboardingModels: normalizeModels,
+      readOpenclawVersion: vi.fn(() => "2026.4.15"),
+    });
+
+    await cache.getCatalogResponse();
+    await flushPromises();
+    const initial = await cache.getCatalogResponse();
+    expect(initial).toEqual({
+      ok: true,
+      source: "openclaw",
+      fetchedAt: expect.any(Number),
+      stale: false,
+      refreshing: false,
+      models: normalizeModels([{ key: "openai/gpt-cached", label: "Cached" }]),
+    });
+
+    const refreshing = await cache.getCatalogResponse({ forceRefresh: true });
+    expect(refreshing).toEqual({
+      ok: true,
+      source: "cache",
+      fetchedAt: initial.fetchedAt,
+      stale: true,
+      refreshing: true,
+      models: normalizeModels([{ key: "openai/gpt-cached", label: "Cached" }]),
+    });
+    expect(shellCmd).toHaveBeenCalledTimes(2);
+
+    resolveRefresh("{}");
+    await flushPromises();
+
+    const refreshed = await cache.getCatalogResponse();
+    expect(refreshed).toEqual({
+      ok: true,
+      source: "openclaw",
+      fetchedAt: expect.any(Number),
+      stale: false,
+      refreshing: false,
+      models: normalizeModels([
+        { key: "moonshot/kimi-k2.5", name: "Kimi K2.5" },
+      ]),
+    });
+  });
+
   it("keeps serving cache after refresh failures and retries after backoff", async () => {
     vi.useFakeTimers();
     const tempRoot = fs.mkdtempSync(

@@ -39,6 +39,23 @@ describe("frontend/api", () => {
     expect(window.location.href).toBe("http://localhost/");
   });
 
+  it("refreshModels requests a server-side catalog refresh", async () => {
+    const payload = { ok: true, stale: true, refreshing: true, models: [] };
+    global.fetch.mockResolvedValue(mockJsonResponse(200, payload));
+    const api = await loadApiModule();
+
+    const result = await api.refreshModels();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/models/refresh",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.any(Headers),
+      }),
+    );
+    expect(result).toEqual(payload);
+  });
+
   it("redirects to /setup and throws on 401", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(401, { error: "Unauthorized" }));
     const api = await loadApiModule();
