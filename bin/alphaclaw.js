@@ -346,9 +346,11 @@ const runGitSync = () => {
       askPassPath,
       [
         "#!/usr/bin/env sh",
+        "# Scoped to github.com so GITHUB_TOKEN is never handed to another host's",
+        "# credential prompt (git's askpass prompt text includes the target host).",
         'case "$1" in',
-        '  *Username*) echo "x-access-token" ;;',
-        '  *Password*) echo "${GITHUB_TOKEN:-}" ;;',
+        '  *[Uu]sername*github.com*) echo "x-access-token" ;;',
+        '  *[Pp]assword*github.com*) echo "${GITHUB_TOKEN:-}" ;;',
         '  *) echo "" ;;',
         "esac",
         "",
