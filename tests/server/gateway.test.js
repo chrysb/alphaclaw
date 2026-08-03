@@ -17,6 +17,7 @@ const kAlphaclawConfigPath = path.join(OPENCLAW_DIR, "alphaclaw.json");
 const modulePath = require.resolve("../../lib/server/gateway");
 const originalSpawn = childProcess.spawn;
 const originalExecSync = childProcess.execSync;
+const originalExecFileSync = childProcess.execFileSync;
 const originalExistsSync = fs.existsSync;
 const originalMkdirSync = fs.mkdirSync;
 const originalReaddirSync = fs.readdirSync;
@@ -57,6 +58,7 @@ describe("server/gateway restart behavior", () => {
   afterEach(() => {
     childProcess.spawn = originalSpawn;
     childProcess.execSync = originalExecSync;
+    childProcess.execFileSync = originalExecFileSync;
     fs.existsSync = originalExistsSync;
     fs.mkdirSync = originalMkdirSync;
     fs.readdirSync = originalReaddirSync;
@@ -1274,5 +1276,75 @@ describe("server/gateway restart behavior", () => {
         process.env.WHATSAPP_OWNER_NUMBER = previousOwnerNumber;
       }
     }
+  });
+
+  it("passes a channel bot token containing shell metacharacters as a single argv entry, never through a shell", () => {
+    const maliciousToken = '123:ABC" ; touch /tmp/pwned ; echo "';
+    const execFileSyncMock = vi.fn(() => "");
+    childProcess.execFileSync = execFileSyncMock;
+    fs.readFileSync = vi.fn((targetPath, ...args) => {
+      if (String(targetPath) === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({ channels: {} });
+      }
+      return originalReadFileSync(targetPath, ...args);
+    });
+    fs.writeFileSync = vi.fn();
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    gateway.syncChannelConfig(
+      [{ key: "TELEGRAM_BOT_TOKEN", value: maliciousToken }],
+      "add",
+    );
+
+    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
+    const [command, args] = execFileSyncMock.mock.calls[0];
+    expect(command).toBe("openclaw");
+    expect(args).toEqual([
+      "channels",
+      "add",
+      "--channel",
+      "telegram",
+      "--token",
+      maliciousToken,
+    ]);
+  });
+
+  it("passes slack bot/app tokens as separate argv entries, never concatenated into a shell string", () => {
+    const maliciousBotToken = 'xoxb-1" ; touch /tmp/pwned ; echo "';
+    const maliciousAppToken = 'xapp-1" ; touch /tmp/pwned2 ; echo "';
+    const execFileSyncMock = vi.fn(() => "");
+    childProcess.execFileSync = execFileSyncMock;
+    fs.readFileSync = vi.fn((targetPath, ...args) => {
+      if (String(targetPath) === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify({ channels: {} });
+      }
+      return originalReadFileSync(targetPath, ...args);
+    });
+    fs.writeFileSync = vi.fn();
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+
+    gateway.syncChannelConfig(
+      [
+        { key: "SLACK_BOT_TOKEN", value: maliciousBotToken },
+        { key: "SLACK_APP_TOKEN", value: maliciousAppToken },
+      ],
+      "add",
+    );
+
+    expect(execFileSyncMock).toHaveBeenCalledTimes(1);
+    const [command, args] = execFileSyncMock.mock.calls[0];
+    expect(command).toBe("openclaw");
+    expect(args).toEqual([
+      "channels",
+      "add",
+      "--channel",
+      "slack",
+      "--bot-token",
+      maliciousBotToken,
+      "--app-token",
+      maliciousAppToken,
+    ]);
   });
 });
