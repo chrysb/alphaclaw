@@ -1954,6 +1954,43 @@ describe("server/agents/service", () => {
     });
   });
 
+  it("rejects a path-traversal-shaped accountId for whatsapp login status", () => {
+    const fsMock = buildFsMock({ initialConfig: {} });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+    });
+
+    expect(() =>
+      service.getChannelAccountLoginStatus({
+        provider: "whatsapp",
+        accountId: "../../../../etc/shadow",
+      }),
+    ).toThrow(/lowercase letters, numbers, and hyphens/);
+    // Must reject before ever touching the filesystem.
+    expect(fsMock.readFileSync).not.toHaveBeenCalled();
+  });
+
+  it("rejects a path-traversal-shaped accountId for whatsapp login", async () => {
+    const fsMock = buildFsMock({ initialConfig: {} });
+    const service = createAgentsService({
+      fs: fsMock,
+      OPENCLAW_DIR: "/test/.openclaw",
+      readEnvFile: vi.fn(() => []),
+      writeEnvFile: vi.fn(),
+      reloadEnv: vi.fn(),
+      restartGateway: vi.fn(async () => {}),
+      clawCmd: vi.fn(async () => ({ ok: true })),
+    });
+
+    await expect(
+      service.runChannelAccountLogin({
+        provider: "whatsapp",
+        accountId: "../../../../etc/shadow",
+      }),
+    ).rejects.toThrow(/lowercase letters, numbers, and hyphens/);
+  });
+
   it("rejects channel login for non-whatsapp providers", async () => {
     const fsMock = buildFsMock({ initialConfig: {} });
     const service = createAgentsService({
