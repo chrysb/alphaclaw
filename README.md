@@ -104,7 +104,7 @@ CMD ["alphaclaw", "start"]
 | **Cron**      | Cron job management, interactive rolling calendar, run-history drilldowns, trend analytics, and per-run usage breakdowns |
 | **Nodes**     | Guided local-node setup for VPS deployments, per-node browser attach, reconnect commands, and routing/pairing controls   |
 | **Watchdog**  | Health monitoring, crash-loop status, auto-repair toggle, notifications, event log, live log tail, interactive terminal  |
-| **Providers** | AI provider credentials (Anthropic, OpenAI, Gemini, Mistral, Voyage, Groq, Deepgram) and model selection                 |
+| **Providers** | AI provider credentials (Anthropic, OpenAI, Gemini, OrcaRouter, Mistral, Voyage, Groq, Deepgram) and model selection      |
 | **Envars**    | Environment variables — view, edit, add — with gateway restart prompts                                                   |
 | **Webhooks**  | Webhook endpoints, transform modules, request history, payload inspection, OAuth callbacks, Gmail watch delivery flows   |
 

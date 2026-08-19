@@ -25,6 +25,16 @@ describe("frontend/model-config", () => {
     expect(volcengineKeys.has("VOLCANO_ENGINE_API_KEY")).toBe(true);
   });
 
+  it("registers the named OrcaRouter provider with its auth key", async () => {
+    const modelConfig = await loadModelConfig();
+    const orcaKeys = modelConfig.getVisibleAiFieldKeys("orcarouter");
+    expect(orcaKeys.has("ORCAROUTER_API_KEY")).toBe(true);
+    expect(modelConfig.kProviderLabels.orcarouter).toBe("OrcaRouter");
+    expect(modelConfig.kProviderOrder).toContain("orcarouter");
+    expect(modelConfig.kCoreProviders.has("orcarouter")).toBe(true);
+    expect(modelConfig.kProviderFeatures.orcarouter).toEqual(["Agent Model"]);
+  });
+
   it("picks featured models in defined preference order", async () => {
     const modelConfig = await loadModelConfig();
     const featured = modelConfig.getFeaturedModels([
