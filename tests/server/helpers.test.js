@@ -72,6 +72,7 @@ describe("server/helpers", () => {
       { key: "anthropic/claude-opus-4-6", name: "Opus 4.6" },
       { key: "zai/glm-5", name: "GLM 5" },
       { key: "minimax/MiniMax-M2.5", name: "MiniMax M2.5" },
+      { key: "orcarouter/auto", name: "OrcaRouter Auto" },
       { key: "openai/gpt-5.1-codex", name: "Duplicate" },
       { key: "google/gemini-3.1-pro-preview" },
       { bad: "shape" },
@@ -103,6 +104,11 @@ describe("server/helpers", () => {
         provider: "openai",
         label: "GPT-5.4-Mini",
         agentRuntime: { id: "codex" },
+      },
+      {
+        key: "orcarouter/auto",
+        provider: "orcarouter",
+        label: "OrcaRouter Auto",
       },
       {
         key: "zai/glm-5",

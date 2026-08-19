@@ -448,4 +448,12 @@ describe("server/auth-profiles", () => {
     expect(config.auth?.profiles || {}).toEqual({});
     expect(config.gateway.port).toBe(18789);
   });
+
+  it("maps the named OrcaRouter provider to ORCAROUTER_API_KEY", () => {
+    const { getEnvVarForApiKeyProvider } = require("../../lib/server/auth-profiles");
+    expect(getEnvVarForApiKeyProvider("orcarouter")).toBe(
+      "ORCAROUTER_API_KEY",
+    );
+    expect(ap.listApiKeyProviders()).toContain("orcarouter");
+  });
 });

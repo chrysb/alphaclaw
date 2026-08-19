@@ -119,6 +119,7 @@ describe("secret-detector", () => {
             "kimi-coding": { apiKey: "kimi-secret-value-12345" },
             "vercel-ai-gateway": { apiKey: "gateway-secret-value-12345" },
             volcengine: { apiKey: "volcengine-secret-value-12345" },
+            orcarouter: { apiKey: "orcarouter-secret-value-12345" },
           },
         },
       };
@@ -162,6 +163,11 @@ describe("secret-detector", () => {
           (s) => s.configPath === "models.providers.volcengine.apiKey",
         )?.suggestedEnvVar,
       ).toBe("VOLCANO_ENGINE_API_KEY");
+      expect(
+        secrets.find(
+          (s) => s.configPath === "models.providers.orcarouter.apiKey",
+        )?.suggestedEnvVar,
+      ).toBe("ORCAROUTER_API_KEY");
     });
 
     it("falls back to provider-scoped env names for unmapped model providers", () => {

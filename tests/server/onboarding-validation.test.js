@@ -40,6 +40,27 @@ describe("onboarding/validation", () => {
     expect(res.error).toBe('Missing credentials for selected provider "openrouter"');
   });
 
+  it("accepts ORCAROUTER_API_KEY when the selected model uses the orcarouter provider", () => {
+    const res = validateOnboardingInput({
+      vars: [...kBaseVars(), { key: "ORCAROUTER_API_KEY", value: "sk-orca-test" }],
+      modelKey: "orcarouter/auto",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => false,
+    });
+    expect(res.ok).toBe(true);
+  });
+
+  it("rejects orcarouter model when only unrelated API keys are present", () => {
+    const res = validateOnboardingInput({
+      vars: [...kBaseVars(), { key: "OPENAI_API_KEY", value: "sk-test" }],
+      modelKey: "orcarouter/auto",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => false,
+    });
+    expect(res.ok).toBe(false);
+    expect(res.error).toBe('Missing credentials for selected provider "orcarouter"');
+  });
+
   it("accepts whatsapp owner number as the required channel credential", () => {
     const res = validateOnboardingInput({
       vars: [

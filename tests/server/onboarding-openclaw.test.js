@@ -4,6 +4,7 @@ const path = require("path");
 
 const {
   buildOnboardArgs,
+  ensureOrcaRouterProviderEntry,
   writeManagedImportOpenclawConfig,
   writeSanitizedOpenclawConfig,
 } = require("../../lib/server/onboarding/openclaw");
@@ -212,5 +213,75 @@ describe("server/onboarding/openclaw", () => {
     expect(next.channels.discord.enabled).toBe(true);
     expect(next.channels.discord.dmPolicy).toBe("pairing");
     expect(next.channels.discord.token).toBe("${DISCORD_BOT_TOKEN}");
+  });
+
+  it("writes the named OrcaRouter provider when ORCAROUTER_API_KEY is present", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: { entries: {} }, channels: {} }, null, 2),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: { ORCAROUTER_API_KEY: "sk-orca-test" },
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.models.providers.orcarouter).toEqual({
+      baseUrl: "https://api.orcarouter.ai/v1",
+      api: "openai-completions",
+      apiKey: "${ORCAROUTER_API_KEY}",
+      models: [
+        { id: "orcarouter/auto", name: "OrcaRouter Auto" },
+        { id: "orcarouter/fusion", name: "OrcaRouter Fusion" },
+        { id: "orcarouter/fusion-flash", name: "OrcaRouter Fusion Flash" },
+        { id: "orcarouter/fusion-mini", name: "OrcaRouter Fusion Mini" },
+      ],
+    });
+  });
+
+  it("does not write the OrcaRouter provider when the key is absent", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({ plugins: { entries: {} }, channels: {} }, null, 2),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({
+      fs,
+      openclawDir,
+      varMap: {},
+    });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.models).toBeUndefined();
+  });
+
+  it("ensureOrcaRouterProviderEntry preserves an existing orcarouter provider entry", () => {
+    const cfg = {
+      models: {
+        providers: {
+          orcarouter: {
+            baseUrl: "https://custom.example/v1",
+            api: "openai-completions",
+            apiKey: "${ORCAROUTER_API_KEY}",
+            models: [{ id: "orcarouter/auto", name: "Custom" }],
+          },
+        },
+      },
+    };
+    const next = ensureOrcaRouterProviderEntry({ cfg, hasOrcaRouterKey: true });
+    expect(next.models.providers.orcarouter.baseUrl).toBe(
+      "https://custom.example/v1",
+    );
+    expect(next.models.providers.orcarouter.models[0].id).toBe(
+      "orcarouter/auto",
+    );
   });
 });
