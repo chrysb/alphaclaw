@@ -4,6 +4,7 @@ const path = require("path");
 
 const {
   buildOnboardArgs,
+  reconcileBootstrapExtraFilesEntry,
   writeManagedImportOpenclawConfig,
   writeSanitizedOpenclawConfig,
 } = require("../../lib/server/onboarding/openclaw");
@@ -12,6 +13,24 @@ const createTempOpenclawDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-onboarding-openclaw-test-"));
 
 describe("server/onboarding/openclaw", () => {
+  it("migrates managed bootstrap paths while preserving user additions", () => {
+    expect(
+      reconcileBootstrapExtraFilesEntry({
+        enabled: false,
+        paths: ["hooks/bootstrap/TOOLS.md", "custom/USER.md"],
+        patterns: ["teams/*/AGENTS.md"],
+        files: ["custom/USER.md"],
+      }),
+    ).toEqual({
+      enabled: true,
+      paths: [
+        "hooks/bootstrap/AGENTS.md",
+        "custom/USER.md",
+        "teams/*/AGENTS.md",
+      ],
+    });
+  });
+
   it("builds onboarding args from submitted vars instead of stale process env auth", () => {
     process.env.ANTHROPIC_TOKEN = "sk-ant-oat01-stale-token";
 

@@ -547,7 +547,7 @@ describe("server/doctor-service", () => {
     );
   });
 
-  it("reports total Project Context truncation when active injected files exceed the total cap", () => {
+  it("models the OpenClaw 2.0 Project Context allowlist", () => {
     const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-total-limit-"));
     const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-bootstrap-total-limit-db-"));
     const activeProjectContextFiles = [
@@ -557,6 +557,7 @@ describe("server/doctor-service", () => {
       "IDENTITY.md",
       "USER.md",
       "HEARTBEAT.md",
+      "MEMORY.md",
       "hooks/bootstrap/AGENTS.md",
       "hooks/bootstrap/TOOLS.md",
     ];
@@ -588,18 +589,17 @@ describe("server/doctor-service", () => {
 
     const status = doctorService.buildStatus();
 
-    expect(status.bootstrapContext.hasActiveTruncation).toBe(true);
-    expect(status.bootstrapContext.hasTotalLimitTruncation).toBe(true);
-    expect(status.bootstrapContext.activeInjectedChars).toBe(
-      status.bootstrapContext.bootstrapTotalMaxChars,
+    expect(status.bootstrapContext.hasActiveTruncation).toBe(false);
+    expect(status.bootstrapContext.hasTotalLimitTruncation).toBe(false);
+    expect(status.bootstrapContext.activeRawChars).toBe(120000);
+    expect(status.bootstrapContext.files.map((file) => file.path)).not.toContain(
+      "TOOLS.md",
     );
-    expect(status.bootstrapContext.activeTruncatedFiles).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({
-          path: "hooks/bootstrap/TOOLS.md",
-          truncatedByTotalLimit: true,
-        }),
-      ]),
+    expect(status.bootstrapContext.files.map((file) => file.path)).not.toContain(
+      "HEARTBEAT.md",
+    );
+    expect(status.bootstrapContext.files.map((file) => file.path)).not.toContain(
+      "hooks/bootstrap/TOOLS.md",
     );
   });
 
