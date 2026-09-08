@@ -119,7 +119,7 @@ describe("server/onboarding/openclaw", () => {
     });
     expect(next.tools).toMatchObject({
       profile: "full",
-      sessions: { visibility: "agent" },
+      sessions: { visibility: "tree" },
       swarm: false,
     });
     expect(next.gateway.cliAgents).toEqual({ enabled: false });

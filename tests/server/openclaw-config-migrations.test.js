@@ -1,4 +1,5 @@
 const {
+  ensureLegacyCompatibilityDefaults,
   migrateLegacyTelegramStreamingConfig,
 } = require("../../lib/server/openclaw-config-migrations");
 
@@ -87,5 +88,41 @@ describe("server/openclaw-config-migrations", () => {
 
     expect(migrateLegacyTelegramStreamingConfig(cfg)).toBe(false);
     expect(migrateLegacyTelegramStreamingConfig(cfg)).toBe(false);
+  });
+
+  it("applies legacy-compatible 2026.7 defaults for existing configs", () => {
+    const cfg = {};
+
+    expect(ensureLegacyCompatibilityDefaults(cfg)).toBe(true);
+    expect(cfg).toMatchObject({
+      agents: { defaults: { subagents: { maxSpawnDepth: 1 } } },
+      gateway: { cliAgents: { enabled: false } },
+      tools: {
+        sessions: { visibility: "tree" },
+        swarm: false,
+      },
+    });
+    expect(ensureLegacyCompatibilityDefaults(cfg)).toBe(false);
+  });
+
+  it("preserves explicitly configured 2026.9 behavior", () => {
+    const cfg = {
+      agents: { defaults: { subagents: { maxSpawnDepth: 4 } } },
+      gateway: { cliAgents: { enabled: true } },
+      tools: {
+        sessions: { visibility: "all" },
+        swarm: { enabled: true, maxConcurrent: 3 },
+      },
+    };
+
+    expect(ensureLegacyCompatibilityDefaults(cfg)).toBe(false);
+    expect(cfg).toEqual({
+      agents: { defaults: { subagents: { maxSpawnDepth: 4 } } },
+      gateway: { cliAgents: { enabled: true } },
+      tools: {
+        sessions: { visibility: "all" },
+        swarm: { enabled: true, maxConcurrent: 3 },
+      },
+    });
   });
 });

@@ -1,0 +1,97 @@
+{
+  "meta": {
+    "lastTouchedVersion": "2026.7.1",
+    "lastTouchedAt": "2026-07-01T12:00:00.000Z"
+  },
+  "agents": {
+    "defaults": {
+      "workspace": "/tmp/alphaclaw-legacy-workspace"
+    },
+    "list": [
+      {
+        "id": "main",
+        "default": true,
+        "name": "Main"
+      },
+      {
+        "id": "ops",
+        "name": "Ops",
+        "workspace": "/tmp/alphaclaw-legacy-ops"
+      }
+    ]
+  },
+  "bindings": [
+    {
+      "agentId": "ops",
+      "match": {
+        "channel": "telegram",
+        "accountId": "alerts"
+      }
+    }
+  ],
+  "commands": {
+    "restart": true,
+    "ownerAllowFrom": [
+      "telegram:123456789"
+    ],
+    "ownerDisplay": "raw"
+  },
+  "tools": {
+    "profile": "full",
+    "exec": {
+      "host": "gateway",
+      "ask": "off"
+    }
+  },
+  "hooks": {
+    "enabled": true,
+    "token": "legacy-fixture-token",
+    "mappings": [
+      {
+        "id": "schwab",
+        "match": {
+          "path": "schwab"
+        },
+        "action": "agent",
+        "agentId": "ops",
+        "deliver": true,
+        "channel": "last"
+      }
+    ]
+  },
+  "plugins": {
+    "allow": [
+      "telegram"
+    ],
+    "load": {
+      "paths": []
+    },
+    "entries": {
+      "telegram": {
+        "enabled": true
+      }
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": true,
+      "accounts": {
+        "alerts": {
+          "botToken": "legacy-fixture-token"
+        }
+      }
+    }
+  },
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "auth": {
+      "mode": "token",
+      "token": "legacy-fixture-token"
+    },
+    "tailscale": {
+      "mode": "off",
+      "resetOnExit": false
+    }
+  }
+}

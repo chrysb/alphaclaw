@@ -28,6 +28,7 @@
     "test:watch": "vitest",
     "test:watchdog": "vitest run tests/server/watchdog.test.js tests/server/watchdog-db.test.js tests/server/routes-watchdog.test.js",
     "test:coverage": "vitest run --coverage",
+    "preinstall": "node lib/scripts/check-node-runtime.js",
     "prepack": "npm run build:ui"
   },
   "dependencies": {

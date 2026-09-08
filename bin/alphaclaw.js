@@ -21,8 +21,12 @@ const {
 } = require("../lib/cli/openclaw-config-restore");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
+  ensureLegacyCompatibilityDefaults,
   migrateLegacyTelegramStreamingConfig,
 } = require("../lib/server/openclaw-config-migrations");
+const {
+  runOpenclawDoctorPreflight,
+} = require("../lib/server/openclaw-doctor-preflight");
 const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
@@ -807,8 +811,28 @@ if (fs.existsSync(path.join(openclawDir, ".git"))) {
 // that prevents the CLI from starting.
 if (fs.existsSync(configPath)) {
   try {
+    const result = runOpenclawDoctorPreflight({
+      configPath,
+      stateDir: openclawDir,
+      env: process.env,
+    });
+    if (result.changed) {
+      console.log(
+        `[alphaclaw] Migrated OpenClaw config from ${result.fromVersion} to ${result.toVersion}`,
+      );
+    }
+  } catch (error) {
+    console.error(`[alphaclaw] Fatal preflight error: ${error.message}`);
+    process.exit(1);
+  }
+}
+
+if (fs.existsSync(configPath)) {
+  try {
     const cfg = JSON.parse(fs.readFileSync(configPath, "utf8"));
-    if (migrateLegacyTelegramStreamingConfig(cfg)) {
+    const migratedTelegram = migrateLegacyTelegramStreamingConfig(cfg);
+    const appliedCompatibilityDefaults = ensureLegacyCompatibilityDefaults(cfg);
+    if (migratedTelegram || appliedCompatibilityDefaults) {
       let content = `${JSON.stringify(cfg, null, 2)}\n`;
       for (const [secret, envRef] of buildSecretReplacements(process.env)) {
         if (!secret) continue;
@@ -817,12 +841,18 @@ if (fs.existsSync(configPath)) {
           .join(JSON.stringify(envRef));
       }
       fs.writeFileSync(configPath, content, "utf8");
-      console.log("[alphaclaw] Migrated legacy Telegram streaming config");
+      if (migratedTelegram) {
+        console.log("[alphaclaw] Migrated legacy Telegram streaming config");
+      }
+      if (appliedCompatibilityDefaults) {
+        console.log("[alphaclaw] Applied legacy-compatible OpenClaw defaults");
+      }
     }
   } catch (error) {
     console.error(
       `[alphaclaw] Preflight config migration failed: ${error.message}`,
     );
+    process.exit(1);
   }
 }
 

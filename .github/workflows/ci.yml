@@ -24,6 +24,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Validate dependency tree
+        run: npm ls openclaw express p-limit --all
+
       - run: npm run build:ui
 
       - run: npm test

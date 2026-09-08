@@ -52,13 +52,27 @@ describe("server/cost-utils", () => {
     const breakdown = deriveCostBreakdown({
       provider: "openai",
       model: "openai/gpt-6-astra",
-      inputTokens: 1_000_000,
-      outputTokens: 1_000_000,
-      cacheReadTokens: 1_000_000,
-      cacheWriteTokens: 1_000_000,
+      inputTokens: 50_000,
+      outputTokens: 50_000,
+      cacheReadTokens: 50_000,
+      cacheWriteTokens: 50_000,
     });
 
     expect(breakdown.pricingFound).toBe(true);
-    expect(breakdown.totalCost).toBeCloseTo(73.5, 8);
+    expect(breakdown.totalCost).toBeCloseTo(3.675, 8);
+  });
+
+  it("uses GPT-6 Astra long-context rates above 272k prompt tokens", () => {
+    const breakdown = deriveCostBreakdown({
+      provider: "openai",
+      model: "openai/gpt-6-astra",
+      inputTokens: 300_000,
+      outputTokens: 100_000,
+    });
+
+    expect(breakdown.pricingFound).toBe(true);
+    expect(breakdown.inputCost).toBeCloseTo(6, 8);
+    expect(breakdown.outputCost).toBeCloseTo(7.5, 8);
+    expect(breakdown.totalCost).toBeCloseTo(13.5, 8);
   });
 });
