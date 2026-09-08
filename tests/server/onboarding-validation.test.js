@@ -79,8 +79,9 @@ describe("onboarding/validation", () => {
     expect(res.data.selectedProvider).toBe("openai-codex");
   });
 
-  it("accepts GPT-5.6 Codex tiers with Codex OAuth", () => {
+  it("accepts current canonical Codex models with Codex OAuth", () => {
     for (const modelKey of [
+      "openai/gpt-6-astra",
       "openai/gpt-5.6-sol",
       "openai/gpt-5.6-terra",
       "openai/gpt-5.6-luna",

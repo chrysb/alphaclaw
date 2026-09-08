@@ -12,7 +12,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [22]
+        node-version: [24.16.0, 26.1.0]
 
     steps:
       - uses: actions/checkout@v4
@@ -23,6 +23,9 @@ jobs:
           cache: npm
 
       - run: npm ci
+
+      - name: Validate dependency tree
+        run: npm ls openclaw express p-limit --all
 
       - run: npm run build:ui
 

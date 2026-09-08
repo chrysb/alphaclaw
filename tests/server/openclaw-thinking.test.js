@@ -11,9 +11,14 @@ describe("server/openclaw-thinking", () => {
     expect(normalizeThinkingLevel("unknown")).toBeNull();
   });
 
-  it("exposes Ultra for Codex Sol and Terra but not Luna", async () => {
+  it("exposes Ultra for Codex Astra, Sol, and Terra but not Luna", async () => {
     const optionsByModel = {};
-    for (const model of ["gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna"]) {
+    for (const model of [
+      "gpt-6-astra",
+      "gpt-5.6-sol",
+      "gpt-5.6-terra",
+      "gpt-5.6-luna",
+    ]) {
       optionsByModel[model] = await resolveThinkingOptionsForModel({
         modelKey: `openai/${model}`,
         agentRuntime: "codex",
@@ -21,6 +26,9 @@ describe("server/openclaw-thinking", () => {
     }
 
     expect(optionsByModel["gpt-5.6-sol"].levels.map((entry) => entry.id)).toContain(
+      "ultra",
+    );
+    expect(optionsByModel["gpt-6-astra"].levels.map((entry) => entry.id)).toContain(
       "ultra",
     );
     expect(optionsByModel["gpt-5.6-terra"].levels.map((entry) => entry.id)).toContain(

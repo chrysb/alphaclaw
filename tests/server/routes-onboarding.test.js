@@ -445,15 +445,16 @@ describe("server/routes/onboarding", () => {
       "sk-test-123456789",
     );
     expect(deps.authProfiles.syncConfigAuthReferencesForAgent).toHaveBeenCalledTimes(1);
-    expect(deps.fs.copyFileSync).toHaveBeenCalledWith(
-      path.join(kSetupDir, "core-prompts", "AGENTS.md"),
-      "/tmp/openclaw/workspace/hooks/bootstrap/AGENTS.md",
+    const agentsWriteCall = deps.fs.writeFileSync.mock.calls.find(
+      ([path]) => path === "/tmp/openclaw/workspace/hooks/bootstrap/AGENTS.md",
     );
-    const toolsWriteCall = deps.fs.writeFileSync.mock.calls.find(
-      ([path]) => path === "/tmp/openclaw/workspace/hooks/bootstrap/TOOLS.md",
-    );
-    expect(toolsWriteCall).toBeTruthy();
-    expect(toolsWriteCall[1]).toContain("https://example.com");
+    expect(agentsWriteCall).toBeTruthy();
+    expect(agentsWriteCall[1]).toContain("https://example.com");
+    expect(
+      deps.fs.writeFileSync.mock.calls.some(
+        ([path]) => path === "/tmp/openclaw/workspace/hooks/bootstrap/TOOLS.md",
+      ),
+    ).toBe(false);
 
     expect(deps.fs.writeFileSync).toHaveBeenCalledWith(
       "/tmp/openclaw/.alphaclaw/hourly-git-sync.sh",
@@ -493,7 +494,7 @@ describe("server/routes/onboarding", () => {
     expect(writtenConfig.hooks.internal.enabled).toBe(true);
     expect(writtenConfig.hooks.internal.entries["bootstrap-extra-files"]).toEqual({
       enabled: true,
-      paths: ["hooks/bootstrap/AGENTS.md", "hooks/bootstrap/TOOLS.md"],
+      paths: ["hooks/bootstrap/AGENTS.md"],
     });
   });
 

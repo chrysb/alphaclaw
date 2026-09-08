@@ -23,7 +23,7 @@ Runtime model:
 
 ### Key Technologies
 
-- Node.js 22.22.3+ runtime (or a supported Node 24.15+/25.9+ release).
+- Node.js 26.1+ runtime (or a supported Node 24.16+ release).
 - Express-based HTTP API server.
 - `http-proxy` for gateway proxy behavior.
 - OpenClaw CLI/gateway process orchestration.
@@ -92,14 +92,14 @@ Use this release flow when promoting tested beta builds to production:
    - `@chrysb/alphaclaw: "latest"`
 6. Optionally keep beta branch/tag flows active for next release cycle.
 
-### Runtime Dependency Guardrails (Express 4 vs 5)
+### Runtime Dependency Guardrails (Express 5)
 
-AlphaClaw currently expects Express 4 semantics in its setup API layer. A broken container dependency tree can accidentally resolve `express@5` at `/app/node_modules/express`, which causes subtle request handling regressions (for example body parsing behavior on certain methods).
+AlphaClaw and OpenClaw both use Express 5. A broken container dependency tree can still resolve an Express version that differs from the package lock, causing subtle request handling regressions (for example body parsing or route matching behavior).
 
 Known root cause pattern:
 
 - Mutating `/app/node_modules` in-place (for example copy-over installs used for emergency package swaps) can leave the runtime tree inconsistent with `/app/package.json`.
-- This can hoist `express@5` to the app root, so `require("express")` inside AlphaClaw resolves the wrong major version.
+- This can hoist an unintended Express version to the app root, so `require("express")` inside AlphaClaw does not resolve the locked version.
 
 Preferred fix/recovery:
 
@@ -109,8 +109,8 @@ Preferred fix/recovery:
    - `docker compose build --no-cache openclaw`
    - `docker compose up -d openclaw`
 3. Verify runtime resolution inside the container:
-   - `node -p "require('express/package.json').version"` should be `4.x`
-   - `npm ls express` should show `@chrysb/alphaclaw` on `express@4.x` (OpenClaw can still carry its own `express@5` subtree).
+   - `node -p "require('express/package.json').version"` should be `5.x`
+   - `npm ls express` should show both `@chrysb/alphaclaw` and OpenClaw resolving compatible Express 5 releases without an unexpected legacy major at the app root.
 
 ### Telegram Notice Format (AlphaClaw)
 
