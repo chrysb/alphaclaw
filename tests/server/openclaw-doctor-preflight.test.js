@@ -29,15 +29,17 @@ describe("server/openclaw-doctor-preflight", () => {
       meta: { lastTouchedVersion: "2026.7.1" },
       agents: { list: [{ id: "main", default: true }] },
     });
-    const execFileSyncImpl = vi.fn(() => {
-      fs.writeFileSync(
-        configPath,
-        `${JSON.stringify({
-          meta: { lastTouchedVersion: "2026.9.3" },
-          agents: { entries: { main: {} } },
-        })}\n`,
-        "utf8",
-      );
+    const execFileSyncImpl = vi.fn((_executable, args) => {
+      if (args[0].endsWith("openclaw.mjs") && args[1] === "doctor") {
+        fs.writeFileSync(
+          configPath,
+          `${JSON.stringify({
+            meta: { lastTouchedVersion: "2026.9.3" },
+            agents: { entries: { main: {} } },
+          })}\n`,
+          "utf8",
+        );
+      }
     });
 
     const first = runOpenclawDoctorPreflight({
@@ -60,8 +62,9 @@ describe("server/openclaw-doctor-preflight", () => {
       toVersion: "2026.9.3",
     });
     expect(second).toMatchObject({ ran: false, changed: false });
-    expect(execFileSyncImpl).toHaveBeenCalledTimes(1);
-    expect(execFileSyncImpl).toHaveBeenCalledWith(
+    expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
+    expect(execFileSyncImpl).toHaveBeenNthCalledWith(
+      1,
       process.execPath,
       [
         "/tmp/openclaw/openclaw.mjs",
@@ -75,6 +78,18 @@ describe("server/openclaw-doctor-preflight", () => {
           OPENCLAW_CONFIG_PATH: configPath,
           OPENCLAW_STATE_DIR: stateDir,
         }),
+      }),
+    );
+    expect(execFileSyncImpl).toHaveBeenNthCalledWith(
+      2,
+      process.execPath,
+      ["/tmp/openclaw/openclaw.mjs", "config", "validate", "--json"],
+      expect.objectContaining({
+        env: expect.objectContaining({
+          OPENCLAW_CONFIG_PATH: configPath,
+          OPENCLAW_STATE_DIR: stateDir,
+        }),
+        stdio: "ignore",
       }),
     );
   });
@@ -100,6 +115,102 @@ describe("server/openclaw-doctor-preflight", () => {
     ).toThrow("restored the original config");
     expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(original);
   });
+
+  it("restores the original config when post-Doctor validation fails", () => {
+    const original = {
+      meta: { lastTouchedVersion: "2026.7.1" },
+      commands: { ownerDisplay: "raw" },
+    };
+    const { configPath, stateDir } = createConfig(original);
+    const execFileSyncImpl = vi.fn((_executable, args) => {
+      if (args[1] === "doctor") {
+        fs.writeFileSync(
+          configPath,
+          `${JSON.stringify({
+            meta: { lastTouchedVersion: "2026.9.3" },
+            plugins: { load: { paths: ["/missing/plugin"] } },
+          })}\n`,
+          "utf8",
+        );
+        return;
+      }
+      throw new Error("config validation failed");
+    });
+
+    expect(() =>
+      runOpenclawDoctorPreflight({
+        configPath,
+        stateDir,
+        execFileSyncImpl,
+        packageInfo: kPackageInfo,
+      }),
+    ).toThrow("restored the original config");
+    expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
+    expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(original);
+  });
+
+  it(
+    "migrates a versionless valid 2026.7.1 config and validates it with OpenClaw 2026.9.3",
+    () => {
+      const stateDir = fs.mkdtempSync(
+        path.join(os.tmpdir(), "alphaclaw-versionless-config-"),
+      );
+      const configPath = path.join(stateDir, "openclaw.json");
+      const fixture = JSON.parse(
+        fs.readFileSync(
+          path.join(
+            __dirname,
+            "..",
+            "fixtures",
+            "openclaw-2026.7.1-config.json",
+          ),
+          "utf8",
+        ),
+      );
+      delete fixture.meta.lastTouchedVersion;
+      fs.writeFileSync(
+        configPath,
+        `${JSON.stringify(fixture, null, 2)}\n`,
+        "utf8",
+      );
+
+      const result = runOpenclawDoctorPreflight({
+        configPath,
+        stateDir,
+        stdio: "ignore",
+        env: {
+          ...process.env,
+          HOME: stateDir,
+          OPENCLAW_HOME: stateDir,
+        },
+      });
+      const migrated = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      expect(result).toMatchObject({
+        ran: true,
+        changed: true,
+        fromVersion: "unknown",
+        toVersion: "2026.9.3",
+      });
+      expect(migrated.meta.lastTouchedVersion).toBe("2026.9.3");
+      expect(migrated.meta.lastTouchedAt).toBeUndefined();
+      expect(migrated.commands.ownerDisplay).toBeUndefined();
+      expect(migrated.gateway.tailscale.resetOnExit).toBeUndefined();
+      expect(migrated.agents.entries).toMatchObject({ main: {}, ops: {} });
+      expect(migrated.bindings).toContainEqual({
+        agentId: "ops",
+        match: { channel: "telegram", accountId: "alerts" },
+      });
+      expect(migrated.hooks.mappings[0]).toMatchObject({
+        id: "schwab",
+        agentId: "ops",
+      });
+      expect(
+        runOpenclawDoctorPreflight({ configPath, stateDir }),
+      ).toMatchObject({ ran: false, changed: false });
+    },
+    180_000,
+  );
 
   it(
     "migrates a valid 2026.7.1 config and validates it with OpenClaw 2026.9.3",
