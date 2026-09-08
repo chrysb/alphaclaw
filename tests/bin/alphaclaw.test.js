@@ -31,7 +31,7 @@ describe("bin/alphaclaw port check", () => {
     const preloadPath = path.join(tmpDir, "override-node-version.js");
     fs.writeFileSync(
       preloadPath,
-      `Object.defineProperty(process.versions, "node", { value: "22.22.2" });`,
+      `Object.defineProperty(process.versions, "node", { value: "22.22.3" });`,
     );
 
     let output = "";
@@ -49,7 +49,7 @@ describe("bin/alphaclaw port check", () => {
 
     expect(status).toBe(1);
     expect(output).toContain("Missing --message for git-sync");
-    expect(output).not.toContain("Node.js 22.22.2 is not supported");
+    expect(output).not.toContain("Node.js 22.22.3 is not supported");
   });
 
   it("exits with error if PORT env var is 18789", () => {

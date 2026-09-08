@@ -47,4 +47,18 @@ describe("server/cost-utils", () => {
       expect(breakdown.totalCost).toBeCloseTo(total, 8);
     }
   });
+
+  it("prices GPT-6 Astra including prompt cache tokens", () => {
+    const breakdown = deriveCostBreakdown({
+      provider: "openai",
+      model: "openai/gpt-6-astra",
+      inputTokens: 1_000_000,
+      outputTokens: 1_000_000,
+      cacheReadTokens: 1_000_000,
+      cacheWriteTokens: 1_000_000,
+    });
+
+    expect(breakdown.pricingFound).toBe(true);
+    expect(breakdown.totalCost).toBeCloseTo(73.5, 8);
+  });
 });

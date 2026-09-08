@@ -117,7 +117,41 @@ describe("server/onboarding/openclaw", () => {
       enabled: true,
       hooks: { allowConversationAccess: true },
     });
+    expect(next.tools).toMatchObject({
+      profile: "full",
+      sessions: { visibility: "agent" },
+      swarm: false,
+    });
+    expect(next.gateway.cliAgents).toEqual({ enabled: false });
+    expect(next.agents.defaults.subagents).toEqual({ maxSpawnDepth: 1 });
     expect(next.gateway.http).toBeUndefined();
+  });
+
+  it("preserves explicit OpenClaw 2026.9 delegation and session settings", () => {
+    const openclawDir = createTempOpenclawDir();
+    const configPath = path.join(openclawDir, "openclaw.json");
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        agents: { defaults: { subagents: { maxSpawnDepth: 4 } } },
+        channels: {},
+        gateway: { cliAgents: { enabled: true } },
+        plugins: { allow: [], load: { paths: [] }, entries: {} },
+        tools: {
+          sessions: { visibility: "all" },
+          swarm: { enabled: true, maxConcurrent: 3 },
+        },
+      }),
+      "utf8",
+    );
+
+    writeSanitizedOpenclawConfig({ fs, openclawDir, varMap: {} });
+
+    const next = JSON.parse(fs.readFileSync(configPath, "utf8"));
+    expect(next.tools.sessions.visibility).toBe("all");
+    expect(next.tools.swarm).toEqual({ enabled: true, maxConcurrent: 3 });
+    expect(next.gateway.cliAgents.enabled).toBe(true);
+    expect(next.agents.defaults.subagents.maxSpawnDepth).toBe(4);
   });
 
   it("keeps the Codex runtime usable when onboarding creates a plugin allowlist", () => {
