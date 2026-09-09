@@ -1550,6 +1550,11 @@
       "label": "MiniMax-M2.7-highspeed"
     },
     {
+      "key": "minimax/MiniMax-M3",
+      "provider": "minimax",
+      "label": "MiniMax-M3"
+    },
+    {
       "key": "minimax-cn/MiniMax-M2.7",
       "provider": "minimax-cn",
       "label": "MiniMax-M2.7"
@@ -1558,6 +1563,11 @@
       "key": "minimax-cn/MiniMax-M2.7-highspeed",
       "provider": "minimax-cn",
       "label": "MiniMax-M2.7-highspeed"
+    },
+    {
+      "key": "minimax-cn/MiniMax-M3",
+      "provider": "minimax-cn",
+      "label": "MiniMax-M3"
     },
     {
       "key": "mistral/codestral-latest",
