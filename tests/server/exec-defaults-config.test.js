@@ -1,10 +1,33 @@
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 
 const {
   ensureManagedExecDefaults,
 } = require("../../lib/server/exec-defaults-config");
+
+const createExecApprovalsTable = (openclawDir) => {
+  const stateDir = path.join(openclawDir, "state");
+  fs.mkdirSync(stateDir, { recursive: true });
+  const db = new DatabaseSync(path.join(stateDir, "openclaw.sqlite"));
+  db.exec(`
+    CREATE TABLE exec_approvals_config (
+      config_key TEXT NOT NULL PRIMARY KEY,
+      raw_json TEXT NOT NULL,
+      socket_path TEXT,
+      has_socket_token INTEGER NOT NULL,
+      default_security TEXT,
+      default_ask TEXT,
+      default_ask_fallback TEXT,
+      auto_allow_skills INTEGER,
+      agent_count INTEGER NOT NULL,
+      allowlist_count INTEGER NOT NULL,
+      updated_at_ms INTEGER NOT NULL
+    ) STRICT;
+  `);
+  return db;
+};
 
 const createTempOpenclawDir = () =>
   fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-exec-defaults-test-"));
@@ -193,5 +216,82 @@ describe("server/exec-defaults-config", () => {
       approvalsChanged: false,
     });
     expect(fs.readFileSync(approvalsPath, "utf8")).toBe(approvalsContent);
+  });
+
+  it("writes missing managed defaults to SQLite without recreating the retired JSON file", () => {
+    const openclawDir = createTempOpenclawDir();
+    fs.writeFileSync(
+      path.join(openclawDir, "openclaw.json"),
+      JSON.stringify({ tools: { exec: { host: "gateway" } } }),
+      "utf8",
+    );
+    const db = createExecApprovalsTable(openclawDir);
+    db.close();
+
+    const result = ensureManagedExecDefaults({ fsModule: fs, openclawDir });
+
+    expect(result.approvalsChanged).toBe(true);
+    expect(fs.existsSync(path.join(openclawDir, "exec-approvals.json"))).toBe(false);
+    const verifyDb = new DatabaseSync(
+      path.join(openclawDir, "state", "openclaw.sqlite"),
+      { readOnly: true },
+    );
+    const row = verifyDb
+      .prepare(
+        "SELECT raw_json, default_security, default_ask, default_ask_fallback " +
+          "FROM exec_approvals_config WHERE config_key = 'current'",
+      )
+      .get();
+    verifyDb.close();
+    expect(JSON.parse(row.raw_json)).toEqual({
+      version: 1,
+      defaults: {
+        security: "full",
+        ask: "off",
+        askFallback: "full",
+      },
+      agents: {},
+    });
+    expect(row).toMatchObject({
+      default_security: "full",
+      default_ask: "off",
+      default_ask_fallback: "full",
+    });
+  });
+
+  it("preserves an existing SQLite approvals policy", () => {
+    const openclawDir = createTempOpenclawDir();
+    fs.writeFileSync(
+      path.join(openclawDir, "openclaw.json"),
+      JSON.stringify({ tools: { exec: { host: "gateway" } } }),
+      "utf8",
+    );
+    const existing = {
+      version: 1,
+      defaults: { security: "allowlist", ask: "always", askFallback: "deny" },
+      agents: { main: { security: "allowlist", allowlist: [{ pattern: "ls" }] } },
+    };
+    const db = createExecApprovalsTable(openclawDir);
+    db.prepare(
+      "INSERT INTO exec_approvals_config VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    ).run(
+      "current",
+      `${JSON.stringify(existing, null, 2)}\n`,
+      null,
+      0,
+      "allowlist",
+      "always",
+      "deny",
+      null,
+      1,
+      1,
+      Date.now(),
+    );
+    db.close();
+
+    const result = ensureManagedExecDefaults({ fsModule: fs, openclawDir });
+
+    expect(result.approvalsChanged).toBe(false);
+    expect(fs.existsSync(path.join(openclawDir, "exec-approvals.json"))).toBe(false);
   });
 });

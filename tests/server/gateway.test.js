@@ -904,7 +904,9 @@ describe("server/gateway restart behavior", () => {
   });
 
   it("reports channel status per account while preserving provider summary", () => {
-    fs.existsSync = vi.fn(() => true);
+    fs.existsSync = vi.fn(
+      (targetPath) => targetPath !== `${OPENCLAW_DIR}/state/openclaw.sqlite`,
+    );
     fs.readdirSync = vi.fn((targetPath) => {
       if (targetPath === `${OPENCLAW_DIR}/credentials`) {
         return ["telegram-default-allowFrom.json", "telegram-alerts-allowFrom.json"];
@@ -949,7 +951,9 @@ describe("server/gateway restart behavior", () => {
   });
 
   it("treats legacy single-account telegram config as default account status", () => {
-    fs.existsSync = vi.fn(() => true);
+    fs.existsSync = vi.fn(
+      (targetPath) => targetPath !== `${OPENCLAW_DIR}/state/openclaw.sqlite`,
+    );
     fs.readdirSync = vi.fn((targetPath) => {
       if (targetPath === `${OPENCLAW_DIR}/credentials`) {
         return ["telegram-allowFrom.json"];

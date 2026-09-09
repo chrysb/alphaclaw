@@ -28,6 +28,9 @@ const {
   runOpenclawDoctorPreflight,
 } = require("../lib/server/openclaw-doctor-preflight");
 const {
+  reconcileOpenclawChannelPlugins,
+} = require("../lib/server/openclaw-channel-plugin-preflight");
+const {
   migrateManagedInternalFiles,
 } = require("../lib/server/internal-files-migration");
 const { assertSupportedNodeVersion } = require("../lib/node-runtime");
@@ -824,6 +827,21 @@ if (fs.existsSync(configPath)) {
   } catch (error) {
     console.error(`[alphaclaw] Fatal preflight error: ${error.message}`);
     process.exit(1);
+  }
+}
+
+if (fs.existsSync(configPath)) {
+  try {
+    const result = reconcileOpenclawChannelPlugins({ env: process.env });
+    for (const update of result.updated) {
+      console.log(
+        `[alphaclaw] Aligned ${update.id} channel plugin from ${update.fromVersion} to ${update.toVersion}`,
+      );
+    }
+  } catch (error) {
+    console.error(
+      `[alphaclaw] Channel plugin preflight skipped: ${error.message}`,
+    );
   }
 }
 

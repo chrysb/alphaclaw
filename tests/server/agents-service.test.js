@@ -1,3 +1,7 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 const { createAgentsService } = require("../../lib/server/agents/service");
 
 const buildFsMock = ({ initialConfig = {}, fileContents = {} } = {}) => {
@@ -625,6 +629,61 @@ describe("server/agents/service", () => {
             paired: 1,
             status: "paired",
           },
+        ],
+      },
+    ]);
+  });
+
+  it("includes paired status from OpenClaw SQLite channel state", () => {
+    const openclawDir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-agent-pairing-"));
+    fs.mkdirSync(path.join(openclawDir, "state"), { recursive: true });
+    fs.writeFileSync(
+      path.join(openclawDir, "openclaw.json"),
+      JSON.stringify({
+        channels: {
+          telegram: {
+            enabled: true,
+            botToken: "${TELEGRAM_BOT_TOKEN}",
+            dmPolicy: "pairing",
+          },
+        },
+      }),
+      "utf8",
+    );
+    const db = new DatabaseSync(path.join(openclawDir, "state", "openclaw.sqlite"));
+    db.exec(`
+      CREATE TABLE channel_pairing_allow_entries (
+        channel_key TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        entry TEXT NOT NULL,
+        sort_order INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE TABLE channel_pairing_requests (
+        channel_key TEXT NOT NULL,
+        account_id TEXT NOT NULL,
+        request_id TEXT NOT NULL,
+        code TEXT NOT NULL,
+        created_at TEXT NOT NULL,
+        last_seen_at TEXT NOT NULL,
+        meta_json TEXT
+      ) STRICT;
+      INSERT INTO channel_pairing_allow_entries
+        VALUES ('telegram', 'default', '1050628644', 0, 1);
+    `);
+    db.close();
+
+    const service = createAgentsService({ fs, OPENCLAW_DIR: openclawDir });
+
+    expect(service.listConfiguredChannelAccounts()).toEqual([
+      {
+        channel: "telegram",
+        accounts: [
+          expect.objectContaining({
+            id: "default",
+            paired: 1,
+            status: "paired",
+          }),
         ],
       },
     ]);

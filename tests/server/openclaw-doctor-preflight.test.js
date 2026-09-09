@@ -2,6 +2,7 @@ const childProcess = require("child_process");
 const fs = require("fs");
 const os = require("os");
 const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 const {
   findOpenclawPackage,
   resolveOpenclawCliPath,
@@ -115,6 +116,90 @@ describe("server/openclaw-doctor-preflight", () => {
     ).toThrow("restored the original config");
     expect(JSON.parse(fs.readFileSync(configPath, "utf8"))).toEqual(original);
   });
+
+  it("runs Doctor for a legacy state blocker even when the config version is current", () => {
+    const { configPath, stateDir } = createConfig({
+      meta: { lastTouchedVersion: "2026.9.3" },
+    });
+    const approvalsPath = path.join(stateDir, "exec-approvals.json");
+    fs.writeFileSync(
+      approvalsPath,
+      JSON.stringify({
+        version: 1,
+        defaults: { security: "full", ask: "off", askFallback: "full" },
+        agents: {},
+      }),
+      "utf8",
+    );
+    const execFileSyncImpl = vi.fn((_executable, args) => {
+      if (args[1] === "doctor") fs.rmSync(approvalsPath);
+    });
+
+    const result = runOpenclawDoctorPreflight({
+      configPath,
+      stateDir,
+      execFileSyncImpl,
+      packageInfo: kPackageInfo,
+    });
+
+    expect(result).toMatchObject({
+      ran: true,
+      changed: false,
+      fromVersion: "2026.9.3",
+      toVersion: "2026.9.3",
+    });
+    expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
+    expect(fs.existsSync(approvalsPath)).toBe(false);
+  });
+
+  it(
+    "migrates current-version legacy exec approvals into OpenClaw SQLite state",
+    () => {
+      const { configPath, stateDir } = createConfig({
+        meta: { lastTouchedVersion: "2026.9.3" },
+      });
+      const approvalsPath = path.join(stateDir, "exec-approvals.json");
+      fs.writeFileSync(
+        approvalsPath,
+        `${JSON.stringify({
+          version: 1,
+          defaults: { security: "full", ask: "off", askFallback: "full" },
+          agents: {},
+        }, null, 2)}\n`,
+        "utf8",
+      );
+
+      const result = runOpenclawDoctorPreflight({
+        configPath,
+        stateDir,
+        stdio: "ignore",
+        env: {
+          ...process.env,
+          HOME: stateDir,
+          OPENCLAW_HOME: stateDir,
+        },
+      });
+
+      expect(result.ran).toBe(true);
+      expect(fs.existsSync(approvalsPath)).toBe(false);
+      const db = new DatabaseSync(path.join(stateDir, "state", "openclaw.sqlite"), {
+        readOnly: true,
+      });
+      const row = db
+        .prepare(
+          "SELECT default_security, default_ask, default_ask_fallback " +
+            "FROM exec_approvals_config WHERE config_key = 'current'",
+        )
+        .get();
+      db.close();
+      expect(row).toEqual({
+        default_security: "full",
+        default_ask: "off",
+        default_ask_fallback: "full",
+      });
+    },
+    180_000,
+  );
 
   it("restores the original config when post-Doctor validation fails", () => {
     const original = {

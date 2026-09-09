@@ -1,9 +1,19 @@
 const express = require("express");
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
+const { DatabaseSync } = require("node:sqlite");
 const request = require("supertest");
 
 const { registerPairingRoutes } = require("../../lib/server/routes/pairings");
 
-const createApp = ({ clawCmd, isOnboarded, fsModule, approveDevicePairingDirect }) => {
+const createApp = ({
+  clawCmd,
+  isOnboarded,
+  fsModule,
+  approveDevicePairingDirect,
+  openclawDir = "/tmp/openclaw",
+}) => {
   const app = express();
   app.use(express.json());
   registerPairingRoutes({
@@ -11,7 +21,7 @@ const createApp = ({ clawCmd, isOnboarded, fsModule, approveDevicePairingDirect 
     clawCmd,
     isOnboarded,
     fsModule,
-    openclawDir: "/tmp/openclaw",
+    openclawDir,
     approveDevicePairingDirect,
   });
   return app;
@@ -420,6 +430,54 @@ describe("server/routes/pairings", () => {
         2,
       ),
     );
+  });
+
+  it("rejects a pending pairing from OpenClaw SQLite state", async () => {
+    const openclawDir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-pairing-route-"));
+    fs.mkdirSync(path.join(openclawDir, "state"), { recursive: true });
+    fs.writeFileSync(
+      path.join(openclawDir, "openclaw.json"),
+      JSON.stringify({ channels: { telegram: { enabled: true } } }),
+      "utf8",
+    );
+    const databasePath = path.join(openclawDir, "state", "openclaw.sqlite");
+    const db = new DatabaseSync(databasePath);
+    db.exec(`
+      CREATE TABLE channel_pairing_allow_entries (
+        channel_key TEXT NOT NULL, account_id TEXT NOT NULL, entry TEXT NOT NULL,
+        sort_order INTEGER NOT NULL, updated_at INTEGER NOT NULL
+      ) STRICT;
+      CREATE TABLE channel_pairing_requests (
+        channel_key TEXT NOT NULL, account_id TEXT NOT NULL, request_id TEXT NOT NULL,
+        code TEXT NOT NULL, created_at TEXT NOT NULL, last_seen_at TEXT NOT NULL,
+        meta_json TEXT
+      ) STRICT;
+      INSERT INTO channel_pairing_requests VALUES (
+        'telegram', 'default', '1050628644', 'ABCD1234',
+        '2026-09-08T00:00:00.000Z', '2026-09-08T00:00:00.000Z', NULL
+      );
+    `);
+    db.close();
+    const app = createApp({
+      clawCmd: vi.fn(),
+      isOnboarded: () => true,
+      fsModule: fs,
+      openclawDir,
+    });
+
+    const res = await request(app).post("/api/pairings/ABCD1234/reject").send({
+      channel: "telegram",
+      accountId: "default",
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.body).toMatchObject({ ok: true, removed: true });
+    const verifyDb = new DatabaseSync(databasePath, { readOnly: true });
+    expect(
+      verifyDb.prepare("SELECT COUNT(*) AS count FROM channel_pairing_requests").get()
+        .count,
+    ).toBe(0);
+    verifyDb.close();
   });
 
   it("returns not found when reject target does not exist", async () => {
