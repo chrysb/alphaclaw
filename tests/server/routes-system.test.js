@@ -155,13 +155,20 @@ describe("server/routes/system", () => {
         { signal: controller.signal },
       );
       const reader = response.body.getReader();
-      const { value } = await reader.read();
+      const decoder = new TextDecoder();
+      let eventText = "";
+      while (!eventText.includes("\n\n")) {
+        const { value, done } = await reader.read();
+        if (done) break;
+        eventText += decoder.decode(value, { stream: true });
+      }
+      eventText += decoder.decode();
       controller.abort();
-      const eventText = new TextDecoder().decode(value);
       const dataLine = eventText
         .split("\n")
         .find((line) => line.startsWith("data: "));
 
+      expect(dataLine).toBeDefined();
       expect(JSON.parse(dataLine.slice("data: ".length))).toEqual({
         status: {
           gateway: "running",
