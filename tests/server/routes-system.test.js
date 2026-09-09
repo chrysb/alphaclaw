@@ -1,7 +1,10 @@
 const express = require("express");
 const request = require("supertest");
 
-const { registerSystemRoutes } = require("../../lib/server/routes/system");
+const {
+  buildLiveStatusPayload,
+  registerSystemRoutes,
+} = require("../../lib/server/routes/system");
 
 const createSystemDeps = () => {
   const deps = {
@@ -112,6 +115,67 @@ const createApp = (deps) => {
 };
 
 describe("server/routes/system", () => {
+  it("limits live status events to the fields consumed by Nexus", () => {
+    expect(
+      buildLiveStatusPayload({
+        gateway: "running",
+        openclawVersion: "2026.9.3",
+        alphaclawVersion: "0.9.35-beta.0",
+        channels: { telegram: { status: "paired" } },
+        doctorStatus: {
+          latestRun: { workspaceManifest: { "large/file.txt": "hash" } },
+          changeSummary: { changedPaths: ["large/file.txt"] },
+        },
+      }),
+    ).toEqual({
+      gateway: "running",
+      openclawVersion: "2026.9.3",
+      alphaclawVersion: "0.9.35-beta.0",
+    });
+  });
+
+  it("streams only the compact Nexus status without evaluating Doctor state", async () => {
+    const deps = createSystemDeps();
+    deps.watchdog = { getStatus: vi.fn(() => ({ uptimeMs: 123 })) };
+    deps.doctorService = {
+      buildStatus: vi.fn(() => ({
+        latestRun: { workspaceManifest: { "large/file.txt": "hash" } },
+        changeSummary: { changedPaths: ["large/file.txt"] },
+      })),
+    };
+    const app = createApp(deps);
+    const server = app.listen(0, "127.0.0.1");
+
+    try {
+      await new Promise((resolve) => server.once("listening", resolve));
+      const address = server.address();
+      const controller = new AbortController();
+      const response = await fetch(
+        `http://127.0.0.1:${address.port}/api/events/status`,
+        { signal: controller.signal },
+      );
+      const reader = response.body.getReader();
+      const { value } = await reader.read();
+      controller.abort();
+      const eventText = new TextDecoder().decode(value);
+      const dataLine = eventText
+        .split("\n")
+        .find((line) => line.startsWith("data: "));
+
+      expect(JSON.parse(dataLine.slice("data: ".length))).toEqual({
+        status: {
+          gateway: "running",
+          openclawVersion: "1.2.3",
+          alphaclawVersion: "0.1.5",
+        },
+      });
+      expect(deps.watchdog.getStatus).not.toHaveBeenCalled();
+      expect(deps.doctorService.buildStatus).not.toHaveBeenCalled();
+    } finally {
+      await new Promise((resolve) => server.close(resolve));
+    }
+  });
+
   it("merges known vars and custom vars on GET /api/env", async () => {
     const deps = createSystemDeps();
     deps.readEnvFile.mockReturnValue([
