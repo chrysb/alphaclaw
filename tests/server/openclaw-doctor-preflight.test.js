@@ -5,6 +5,7 @@ const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
 const {
   findOpenclawPackage,
+  isValidExecApprovalsPolicy,
   resolveOpenclawCliPath,
   runOpenclawDoctorPreflight,
 } = require("../../lib/server/openclaw-doctor-preflight");
@@ -25,6 +26,30 @@ const kPackageInfo = {
 };
 
 describe("server/openclaw-doctor-preflight", () => {
+  it("validates persisted exec approvals policies before trusting SQLite", () => {
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        defaults: { security: "full", ask: "off", askFallback: "full" },
+        agents: { main: { allowlist: [{ pattern: "ls" }] } },
+      }),
+    ).toBe(true);
+    expect(isValidExecApprovalsPolicy({ version: 2, agents: {} })).toBe(false);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        defaults: { security: "unrestricted" },
+        agents: {},
+      }),
+    ).toBe(false);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        agents: { main: { allowlist: [{ pattern: "" }] } },
+      }),
+    ).toBe(false);
+  });
+
   it("runs Doctor once when the config predates the installed OpenClaw", () => {
     const { configPath, stateDir } = createConfig({
       meta: { lastTouchedVersion: "2026.7.1" },
@@ -257,6 +282,52 @@ describe("server/openclaw-doctor-preflight", () => {
         packageInfo: kPackageInfo,
       }),
     ).toThrow("conflicting policies");
+    expect(fs.existsSync(approvalsPath)).toBe(true);
+    expect(
+      fs.readdirSync(stateDir).some((name) =>
+        name.startsWith("exec-approvals.json.alphaclaw-retired-"),
+      ),
+    ).toBe(false);
+  });
+
+  it("does not archive the managed stub when SQLite policy is malformed", () => {
+    const { configPath, stateDir } = createConfig({
+      meta: { lastTouchedVersion: "2026.9.3" },
+    });
+    const approvalsPath = path.join(stateDir, "exec-approvals.json");
+    fs.writeFileSync(
+      approvalsPath,
+      JSON.stringify({
+        version: 1,
+        defaults: { security: "full", ask: "off", askFallback: "full" },
+        agents: {},
+      }),
+      "utf8",
+    );
+    const sqliteDir = path.join(stateDir, "state");
+    fs.mkdirSync(sqliteDir, { recursive: true });
+    const db = new DatabaseSync(path.join(sqliteDir, "openclaw.sqlite"));
+    db.exec(`
+      CREATE TABLE exec_approvals_config (
+        config_key TEXT PRIMARY KEY,
+        raw_json TEXT NOT NULL
+      );
+      INSERT INTO exec_approvals_config (config_key, raw_json)
+      VALUES ('current', '{"version":2,"defaults":{},"agents":{}}');
+    `);
+    db.close();
+    const execFileSyncImpl = vi.fn(() => {
+      throw new Error("malformed canonical policy");
+    });
+
+    expect(() =>
+      runOpenclawDoctorPreflight({
+        configPath,
+        stateDir,
+        execFileSyncImpl,
+        packageInfo: kPackageInfo,
+      }),
+    ).toThrow("malformed canonical policy");
     expect(fs.existsSync(approvalsPath)).toBe(true);
     expect(
       fs.readdirSync(stateDir).some((name) =>
