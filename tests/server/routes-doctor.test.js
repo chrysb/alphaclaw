@@ -70,6 +70,43 @@ describe("server/routes/doctor", () => {
     expect(doctorService.buildStatus).toHaveBeenCalledTimes(1);
   });
 
+  it("returns a bounded Doctor summary without large diagnostic fields", async () => {
+    const doctorService = createDoctorService();
+    doctorService.buildStatus.mockReturnValue({
+      activeRunId: 42,
+      runInProgress: false,
+      stale: true,
+      needsInitialRun: false,
+      latestRun: { workspaceManifest: { "large-file": { hash: "abc" } } },
+      bootstrapContext: { activeTruncatedFiles: [{ path: "AGENTS.md" }] },
+      changeSummary: {
+        changedFilesCount: 2,
+        changedPaths: ["AGENTS.md", "README.md"],
+        deltaScore: 4,
+        hasMeaningfulChanges: true,
+      },
+    });
+    const app = createApp(doctorService);
+
+    const res = await request(app).get("/api/doctor/status?summary=true");
+
+    expect(res.status).toBe(200);
+    expect(res.body.status).toMatchObject({
+      activeRunId: 42,
+      stale: true,
+      needsInitialRun: false,
+      changeSummary: {
+        changedFilesCount: 2,
+        deltaScore: 4,
+        hasMeaningfulChanges: true,
+      },
+    });
+    expect(res.body.status).not.toHaveProperty("latestRun");
+    expect(res.body.status).not.toHaveProperty("bootstrapContext");
+    expect(res.body.status.changeSummary).not.toHaveProperty("changedPaths");
+    expect(JSON.stringify(res.body).length).toBeLessThan(600);
+  });
+
   it("starts a Doctor run", async () => {
     const doctorService = createDoctorService();
     const app = createApp(doctorService);

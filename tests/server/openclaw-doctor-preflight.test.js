@@ -45,9 +45,38 @@ describe("server/openclaw-doctor-preflight", () => {
     expect(
       isValidExecApprovalsPolicy({
         version: 1,
-        agents: { main: { allowlist: [{ pattern: "" }] } },
+        agents: { main: { allowlist: ["ls", { pattern: "pwd", lastUsedAt: 1 }] } },
+      }),
+    ).toBe(true);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        agents: { main: { allowlist: [{ pattern: "ls", lastUsedAt: "bad" }] } },
       }),
     ).toBe(false);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        agents: { main: { mcpTools: "bad" } },
+      }),
+    ).toBe(false);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
+        agents: {
+          main: {
+            mcpTools: [
+              {
+                server: "filesystem",
+                tool: "read_file",
+                source: "allow-always",
+                addedAt: 1,
+              },
+            ],
+          },
+        },
+      }),
+    ).toBe(true);
   });
 
   it("runs Doctor once when the config predates the installed OpenClaw", () => {
