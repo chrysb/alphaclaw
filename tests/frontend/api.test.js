@@ -276,6 +276,19 @@ describe("frontend/api", () => {
     expect(result).toEqual({ ok: true, status: { stale: true } });
   });
 
+  it("fetchDoctorStatusSummary calls the bounded Doctor status endpoint", async () => {
+    global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, status: { stale: true } }));
+    const api = await loadApiModule();
+
+    const result = await api.fetchDoctorStatusSummary();
+
+    expect(global.fetch).toHaveBeenCalledWith(
+      "/api/doctor/status?summary=true",
+      expect.objectContaining({ headers: expect.any(Headers) }),
+    );
+    expect(result).toEqual({ ok: true, status: { stale: true } });
+  });
+
   it("fetchDoctorCards calls aggregated Doctor cards endpoint", async () => {
     global.fetch.mockResolvedValue(mockJsonResponse(200, { ok: true, cards: [] }));
     const api = await loadApiModule();

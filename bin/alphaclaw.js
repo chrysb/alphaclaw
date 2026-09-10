@@ -819,6 +819,11 @@ if (fs.existsSync(configPath)) {
       stateDir: openclawDir,
       env: process.env,
     });
+    if (result.retiredManagedExecApprovals?.retired) {
+      console.log(
+        `[alphaclaw] Archived retired exec approvals stub at ${result.retiredManagedExecApprovals.archivePath}`,
+      );
+    }
     if (result.changed) {
       console.log(
         `[alphaclaw] Migrated OpenClaw config from ${result.fromVersion} to ${result.toVersion}`,
