@@ -57,6 +57,12 @@ describe("server/openclaw-doctor-preflight", () => {
     expect(
       isValidExecApprovalsPolicy({
         version: 1,
+        defaults: { allowlist: [], mcpTools: "ignored" },
+      }),
+    ).toBe(true);
+    expect(
+      isValidExecApprovalsPolicy({
+        version: 1,
         agents: { main: { mcpTools: "bad" } },
       }),
     ).toBe(false);
