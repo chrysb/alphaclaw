@@ -664,4 +664,68 @@ describe("server/doctor-service", () => {
       ]),
     );
   });
+
+  it("does not read files outside the workspace root for evidence with a path-traversal path", () => {
+    const workspaceRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-traversal-workspace-"));
+    const dbRoot = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-traversal-db-"));
+    fs.writeFileSync(path.join(workspaceRoot, "AGENTS.md"), "# Guidance\nLine two\n", "utf8");
+
+    const secretsDir = fs.mkdtempSync(path.join(os.tmpdir(), "doctor-traversal-secret-"));
+    const secretPath = path.join(secretsDir, "secret.txt");
+    fs.writeFileSync(secretPath, "TOP_SECRET_HOST_FILE_CONTENTS\n", "utf8");
+    const traversalPath = path
+      .relative(workspaceRoot, secretPath)
+      .split(path.sep)
+      .join("/");
+
+    const doctorDb = loadManagedDoctorDb();
+    doctorDb.initDoctorDb({ rootDir: dbRoot });
+    const { createDoctorService } = loadDoctorService();
+    const doctorService = createDoctorService({
+      clawCmd: vi.fn(),
+      listDoctorRuns: doctorDb.listDoctorRuns,
+      listDoctorCards: doctorDb.listDoctorCards,
+      getInitialWorkspaceBaseline: doctorDb.getInitialWorkspaceBaseline,
+      setInitialWorkspaceBaseline: doctorDb.setInitialWorkspaceBaseline,
+      createDoctorRun: doctorDb.createDoctorRun,
+      completeDoctorRun: doctorDb.completeDoctorRun,
+      insertDoctorCards: doctorDb.insertDoctorCards,
+      getDoctorRun: doctorDb.getDoctorRun,
+      getDoctorCardsByRunId: doctorDb.getDoctorCardsByRunId,
+      getDoctorCard: doctorDb.getDoctorCard,
+      updateDoctorCardStatus: doctorDb.updateDoctorCardStatus,
+      workspaceRoot,
+      managedRoot: workspaceRoot,
+    });
+
+    const imported = doctorService.importDoctorResult({
+      rawOutput: JSON.stringify({
+        summary: "Findings with a traversal evidence path",
+        cards: [
+          {
+            priority: "P1",
+            category: "security",
+            title: "Traversal attempt",
+            summary: "Evidence path escapes the workspace",
+            recommendation: "n/a",
+            evidence: [
+              { type: "path", path: traversalPath, startLine: 1, endLine: 1 },
+              { type: "path", path: "AGENTS.md", startLine: 1, endLine: 1 },
+            ],
+            targetPaths: ["AGENTS.md"],
+            fixPrompt: "n/a",
+            status: "open",
+          },
+        ],
+      }),
+    });
+
+    const [card] = doctorDb.getDoctorCardsByRunId(imported.runId);
+    const [traversalEvidence, inWorkspaceEvidence] = card.evidence;
+
+    // The out-of-workspace path must not be read at all.
+    expect(traversalEvidence.snippet).toBeUndefined();
+    // A legitimate in-workspace path with startLine still gets its snippet.
+    expect(inWorkspaceEvidence.snippet?.text).toBe("# Guidance");
+  });
 });
