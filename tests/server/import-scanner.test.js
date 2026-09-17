@@ -1,7 +1,21 @@
+const fs = require("fs");
+const os = require("os");
 const path = require("path");
 const {
   scanWorkspace,
 } = require("../../lib/server/onboarding/import/import-scanner");
+
+const kTempDirs = [];
+const createTempDir = () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-import-scanner-"));
+  kTempDirs.push(tempDir);
+  return tempDir;
+};
+afterEach(() => {
+  while (kTempDirs.length > 0) {
+    fs.rmSync(kTempDirs.pop(), { recursive: true, force: true });
+  }
+});
 
 const createMockFs = (files = {}, dirs = []) => {
   const fileMap = new Map(Object.entries(files));
@@ -344,5 +358,33 @@ describe("import-scanner", () => {
       supported: true,
       promoteSourceSubdir: "workspace",
     });
+  });
+
+  it("does not follow a $include that traverses outside baseDir, even if the target exists", () => {
+    const baseDir = createTempDir();
+    const outsideDir = createTempDir();
+
+    // A real, existing host file the malicious repo's $include points at.
+    fs.writeFileSync(
+      path.join(outsideDir, "real-secrets.json"),
+      JSON.stringify({ apiKey: "sk-ant-realsecretvalue0000" }),
+      "utf8",
+    );
+
+    const traversal = path
+      .relative(baseDir, path.join(outsideDir, "real-secrets.json"))
+      .split(path.sep)
+      .join("/");
+
+    fs.writeFileSync(
+      path.join(baseDir, "openclaw.json"),
+      JSON.stringify({ auth: { $include: traversal } }),
+      "utf8",
+    );
+
+    const result = scanWorkspace({ fs, baseDir });
+
+    expect(result.gatewayConfig.files).toEqual(["openclaw.json"]);
+    expect(result.gatewayConfig.files).not.toContain(traversal);
   });
 });
