@@ -212,6 +212,79 @@ describe("server/openclaw-doctor-preflight", () => {
     expect(fs.existsSync(approvalsPath)).toBe(false);
   });
 
+  it("runs Doctor for a credential-bearing legacy auth store even when config is current", () => {
+    const { configPath, stateDir } = createConfig({
+      meta: { lastTouchedVersion: "2026.9.3" },
+    });
+    const agentDir = path.join(stateDir, "agents", "main", "agent");
+    fs.mkdirSync(agentDir, { recursive: true });
+    const legacyPath = path.join(agentDir, "auth-profiles.json");
+    fs.writeFileSync(
+      legacyPath,
+      JSON.stringify({
+        version: 1,
+        profiles: {
+          "anthropic:default": {
+            type: "api_key",
+            provider: "anthropic",
+            key: "test-key",
+          },
+        },
+      }),
+      "utf8",
+    );
+    const execFileSyncImpl = vi.fn((_executable, args) => {
+      if (args[1] !== "doctor") return;
+      fs.rmSync(legacyPath);
+      fs.writeFileSync(path.join(agentDir, "openclaw-agent.sqlite"), "migrated");
+    });
+
+    const result = runOpenclawDoctorPreflight({
+      configPath,
+      stateDir,
+      execFileSyncImpl,
+      packageInfo: kPackageInfo,
+    });
+
+    expect(result).toMatchObject({
+      ran: true,
+      changed: false,
+      fromVersion: "2026.9.3",
+      toVersion: "2026.9.3",
+    });
+    expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
+    expect(fs.existsSync(legacyPath)).toBe(false);
+    expect(fs.existsSync(path.join(agentDir, "openclaw-agent.sqlite"))).toBe(true);
+  });
+
+  it("ignores an empty legacy auth store on a current config", () => {
+    const { configPath, stateDir } = createConfig({
+      meta: { lastTouchedVersion: "2026.9.3" },
+    });
+    const agentDir = path.join(stateDir, "agents", "main", "agent");
+    fs.mkdirSync(agentDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(agentDir, "auth-profiles.json"),
+      JSON.stringify({ version: 1, profiles: {} }),
+      "utf8",
+    );
+    const execFileSyncImpl = vi.fn();
+
+    const result = runOpenclawDoctorPreflight({
+      configPath,
+      stateDir,
+      execFileSyncImpl,
+      packageInfo: kPackageInfo,
+    });
+
+    expect(result).toMatchObject({
+      ran: false,
+      changed: false,
+      reason: "current-config",
+    });
+    expect(execFileSyncImpl).not.toHaveBeenCalled();
+  });
+
   it("archives an AlphaClaw default stub when SQLite already owns exec policy", () => {
     const { configPath, stateDir } = createConfig({
       meta: { lastTouchedVersion: "2026.9.3" },

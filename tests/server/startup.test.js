@@ -24,6 +24,9 @@ describe("server/startup", () => {
       callOrder.push("resolveSetupUrl");
       return "https://setup.example.com";
     });
+    const ensureOpenclawAuthStoreMigration = vi.fn(() =>
+      callOrder.push("ensureOpenclawAuthStoreMigration"),
+    );
     const ensureGatewayProxyConfig = vi.fn(() => callOrder.push("ensureGatewayProxyConfig"));
     const startGateway = vi.fn(() => callOrder.push("startGateway"));
     const watchdog = {
@@ -42,6 +45,7 @@ describe("server/startup", () => {
       syncChannelConfig,
       readEnvFile,
       ensureGatewayProxyConfig,
+      ensureOpenclawAuthStoreMigration,
       resolveSetupUrl,
       startGateway,
       watchdog,
@@ -57,6 +61,7 @@ describe("server/startup", () => {
       "reloadEnv",
       "readEnvFile",
       "syncChannelConfig",
+      "ensureOpenclawAuthStoreMigration",
       "resolveSetupUrl",
       "ensureGatewayProxyConfig",
       "startGateway",
