@@ -94,6 +94,10 @@ ENTRYPOINT ["/usr/bin/tini", "--"]
 CMD ["alphaclaw", "start"]
 ```
 
+At startup, AlphaClaw also exposes the bundled OpenClaw CLI at
+`/usr/local/bin/openclaw`. This keeps the command available to gateway-spawned
+agent shells whose minimal `PATH` may not include `/app/node_modules/.bin`.
+
 ## Setup UI
 
 | Tab           | What it manages                                                                                                          |

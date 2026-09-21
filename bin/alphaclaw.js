@@ -19,6 +19,9 @@ const {
   ensureMainUpstream,
   restoreMissingOpenclawConfigFromRemote,
 } = require("../lib/cli/openclaw-config-restore");
+const {
+  ensureOpenclawCliShim,
+} = require("../lib/cli/openclaw-runtime");
 const { buildSecretReplacements } = require("../lib/server/helpers");
 const {
   ensureLegacyCompatibilityDefaults,
@@ -986,7 +989,24 @@ if (fs.existsSync(configPath)) {
 }
 
 // ---------------------------------------------------------------------------
-// 12. Install systemctl shim if in Docker (no real systemd)
+// 12. Expose the bundled OpenClaw CLI to gateway-spawned agent shells
+// ---------------------------------------------------------------------------
+
+try {
+  const result = ensureOpenclawCliShim();
+  const version = execFileSync(result.shimPath, ["--version"], {
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "pipe"],
+  }).trim();
+  console.log(
+    `[alphaclaw] OpenClaw CLI ${result.action} at ${result.shimPath} (${version})`,
+  );
+} catch (e) {
+  console.warn(`[alphaclaw] OpenClaw CLI shim unavailable: ${e.message}`);
+}
+
+// ---------------------------------------------------------------------------
+// 13. Install systemctl shim if in Docker (no real systemd)
 // ---------------------------------------------------------------------------
 
 try {
@@ -1004,7 +1024,7 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 13. Install git auth shim
+// 14. Install git auth shim
 // ---------------------------------------------------------------------------
 
 try {
@@ -1044,7 +1064,7 @@ try {
 }
 
 // ---------------------------------------------------------------------------
-// 14. Start Express server
+// 15. Start Express server
 // ---------------------------------------------------------------------------
 
 console.log("[alphaclaw] Setup complete -- starting server");
