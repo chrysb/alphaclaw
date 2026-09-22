@@ -210,6 +210,116 @@ describe("import-applier", () => {
     );
   });
 
+  it("does not read, move, or write outside baseDir when an imported transform.module traverses out via ../", () => {
+    const baseDir = createTempDir();
+    const outsideDir = createTempDir();
+
+    // A file the attacker wants exfiltrated: if the vulnerable code path
+    // moved it into baseDir/hooks/transforms/_backup, it would become
+    // browsable (and later git-synced) as part of the imported workspace.
+    const secretPath = path.join(outsideDir, "secret.mjs");
+    fs.writeFileSync(secretPath, "export const secret = 'do-not-touch';\n", "utf8");
+    const outsideSnapshotBefore = fs.readdirSync(outsideDir).sort();
+
+    const transformsRoot = path.join(baseDir, "hooks", "transforms");
+    const traversalToSecret = path
+      .relative(transformsRoot, secretPath)
+      .split(path.sep)
+      .join("/");
+
+    fs.writeFileSync(
+      path.join(baseDir, "openclaw.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            mappings: [
+              {
+                name: "Evil",
+                match: { path: "evil" },
+                transform: { module: traversalToSecret },
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const result = alignHookTransforms({
+      fs,
+      baseDir,
+      configFiles: ["openclaw.json"],
+    });
+
+    expect(result).toEqual({ alignedCount: 0 });
+    expect(fs.readFileSync(secretPath, "utf8")).toBe(
+      "export const secret = 'do-not-touch';\n",
+    );
+    expect(fs.readdirSync(outsideDir).sort()).toEqual(outsideSnapshotBefore);
+    expect(
+      fs.existsSync(path.join(baseDir, "hooks", "transforms", "evil")),
+    ).toBe(false);
+  });
+
+  it("does not write a transform shim outside baseDir when an imported hook path traverses out via ../", () => {
+    const baseDir = createTempDir();
+    const outsideDir = createTempDir();
+    const outsideSnapshotBefore = fs.readdirSync(outsideDir).sort();
+
+    // A real, in-workspace transform module -- legitimate on its own, only
+    // `match.path` (hookPath) is malicious here.
+    const legacyTransformDir = path.join(baseDir, "hooks", "transforms", "existing");
+    fs.mkdirSync(legacyTransformDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(legacyTransformDir, "existing-transform.mjs"),
+      "export default async function transform(payload) {\n  return payload;\n}\n",
+      "utf8",
+    );
+
+    const transformsRoot = path.join(baseDir, "hooks", "transforms");
+    const hookPathTraversal = path
+      .relative(transformsRoot, outsideDir)
+      .split(path.sep)
+      .join("/");
+
+    fs.writeFileSync(
+      path.join(baseDir, "openclaw.json"),
+      JSON.stringify(
+        {
+          hooks: {
+            mappings: [
+              {
+                name: "Evil",
+                match: { path: hookPathTraversal },
+                transform: { module: "existing/existing-transform.mjs" },
+              },
+            ],
+          },
+        },
+        null,
+        2,
+      ),
+      "utf8",
+    );
+
+    const result = alignHookTransforms({
+      fs,
+      baseDir,
+      configFiles: ["openclaw.json"],
+    });
+
+    expect(result).toEqual({ alignedCount: 0 });
+    expect(fs.readdirSync(outsideDir).sort()).toEqual(outsideSnapshotBefore);
+    // The legitimate existing transform must be left in place, not moved.
+    expect(
+      fs.existsSync(
+        path.join(legacyTransformDir, "existing-transform.mjs"),
+      ),
+    ).toBe(true);
+  });
+
   it("rewrites approved config secrets by config path before fallback replacement", () => {
     const baseDir = createTempDir();
     const configPath = path.join(baseDir, "openclaw.json");
