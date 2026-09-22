@@ -220,7 +220,39 @@ describe("server git shim scripts", () => {
   it("contains valid shell syntax for git askpass script", () => {
     execFileSync("sh", ["-n", kGitAskPassPath], { stdio: "pipe" });
     const content = fs.readFileSync(kGitAskPassPath, "utf8");
-    expect(content).toContain("*Username*)");
-    expect(content).toContain("*Password*)");
+    expect(content).toContain("*[Uu]sername*github.com*)");
+    expect(content).toContain("*[Pp]assword*github.com*)");
+  });
+
+  it("only answers askpass prompts scoped to github.com", () => {
+    execFileSync("sh", ["-n", kGitAskPassPath], { stdio: "pipe" });
+    const runAskPass = (prompt, env = {}) =>
+      execFileSync("sh", [kGitAskPassPath, prompt], {
+        env: { ...process.env, ...env },
+      })
+        .toString()
+        .trim();
+
+    expect(
+      runAskPass("Username for 'https://github.com'", {
+        GITHUB_TOKEN: "ghp_test_token",
+      }),
+    ).toBe("x-access-token");
+    expect(
+      runAskPass("Password for 'https://x-access-token@github.com'", {
+        GITHUB_TOKEN: "ghp_test_token",
+      }),
+    ).toBe("ghp_test_token");
+
+    expect(
+      runAskPass("Username for 'https://attacker.example'", {
+        GITHUB_TOKEN: "ghp_test_token",
+      }),
+    ).toBe("");
+    expect(
+      runAskPass("Password for 'https://attacker.example'", {
+        GITHUB_TOKEN: "ghp_test_token",
+      }),
+    ).toBe("");
   });
 });

