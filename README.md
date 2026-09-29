@@ -68,6 +68,8 @@ Render sponsors AlphaClaw. Use code **`RENDER-ALPHACLAW`** to redeem **$50 in Re
 
 [![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic)
 
+[![Deploy on ZopDay](https://zop.dev/deploytozopday-inkhard.svg)](https://zop.dev/zopday/app/deploy?repo=https://github.com/chrysb/alphaclaw&port=3000)
+
 Set `SETUP_PASSWORD` at deploy time and visit your deployment URL. The welcome wizard handles the rest.
 
 > **Railway users:** after deploying, upgrade to the **Hobby plan** and redeploy to ensure your service has at least **8 GB of RAM**. The Trial plan's memory limit can cause out-of-memory crashes during normal operation.
