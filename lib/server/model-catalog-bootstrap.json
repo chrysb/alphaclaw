@@ -565,6 +565,11 @@
       "label": "Claude Opus 4.7"
     },
     {
+      "key": "anthropic/claude-opus-5-5",
+      "provider": "anthropic",
+      "label": "Claude Opus 5.5"
+    },
+    {
       "key": "anthropic/claude-sonnet-4-0",
       "provider": "anthropic",
       "label": "Claude Sonnet 4 (latest)"

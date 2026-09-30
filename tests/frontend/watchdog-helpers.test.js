@@ -2,6 +2,34 @@ const loadWatchdogHelpers = async () =>
   import("../../lib/public/js/components/watchdog-tab/helpers.js");
 
 describe("frontend/watchdog-helpers", () => {
+  it("classifies error and warning log lines", async () => {
+    const {
+      getWatchdogLogLineTone,
+      kWatchdogLogToneError,
+      kWatchdogLogToneWarning,
+    } = await loadWatchdogHelpers();
+
+    expect(getWatchdogLogLineTone("[error] gateway failed")).toBe(
+      kWatchdogLogToneError,
+    );
+    expect(getWatchdogLogLineTone("prefix [WARN] retrying")).toBe(
+      kWatchdogLogToneWarning,
+    );
+    expect(getWatchdogLogLineTone("[warning] migration deferred")).toBe(
+      kWatchdogLogToneWarning,
+    );
+    expect(getWatchdogLogLineTone("[info] gateway ready")).toBeNull();
+  });
+
+  it("gives error precedence when a log line contains both markers", async () => {
+    const { getWatchdogLogLineTone, kWatchdogLogToneError } =
+      await loadWatchdogHelpers();
+
+    expect(getWatchdogLogLineTone("[warn] escalated to [error]")).toBe(
+      kWatchdogLogToneError,
+    );
+  });
+
   it("formats a watchdog export with logs", async () => {
     const { formatWatchdogCopyAllText } = await loadWatchdogHelpers();
 

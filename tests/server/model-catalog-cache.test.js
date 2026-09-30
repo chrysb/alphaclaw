@@ -51,6 +51,10 @@ describe("server/model-catalog-cache", () => {
     expect(kFallbackOnboardingModels).toEqual(
       expect.arrayContaining([
         expect.objectContaining({
+          key: "anthropic/claude-opus-5-5",
+          label: "Claude Opus 5.5",
+        }),
+        expect.objectContaining({
           key: "anthropic/claude-opus-4-7",
           label: "Claude Opus 4.7",
         }),
