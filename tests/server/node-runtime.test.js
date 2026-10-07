@@ -10,7 +10,7 @@ describe("node-runtime", () => {
     expect(parseNodeVersion("v24.15.0")).toBeNull();
   });
 
-  it("enforces the OpenClaw 2026.9.7 Node floor", () => {
+  it("enforces the OpenClaw 2026.9.8 Node floor", () => {
     expect(isSupportedNodeVersion("22.22.3")).toBe(false);
     expect(isSupportedNodeVersion("23.9.0")).toBe(false);
     expect(isSupportedNodeVersion("24.15.9")).toBe(false);
