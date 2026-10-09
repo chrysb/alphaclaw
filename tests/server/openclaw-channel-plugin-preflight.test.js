@@ -4,7 +4,7 @@ const {
 
 const kPackageInfo = {
   dir: "/tmp/openclaw",
-  pkg: { name: "openclaw", version: "2026.9.3", bin: "openclaw.mjs" },
+  pkg: { name: "openclaw", version: "2026.9.6", bin: "openclaw.mjs" },
 };
 
 describe("server/openclaw-channel-plugin-preflight", () => {
@@ -22,7 +22,7 @@ describe("server/openclaw-channel-plugin-preflight", () => {
             },
             {
               id: "telegram",
-              version: "2026.9.3",
+              version: "2026.9.6",
               enabled: true,
               trustedOfficialInstall: true,
               channelIds: ["telegram"],
@@ -47,7 +47,7 @@ describe("server/openclaw-channel-plugin-preflight", () => {
 
     expect(result).toEqual({
       updated: [
-        { id: "slack", fromVersion: "2026.5.28", toVersion: "2026.9.3" },
+        { id: "slack", fromVersion: "2026.5.28", toVersion: "2026.9.6" },
       ],
     });
     expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
@@ -72,7 +72,7 @@ describe("server/openclaw-channel-plugin-preflight", () => {
         plugins: [
           {
             id: "slack",
-            version: "2026.9.3",
+            version: "2026.9.6",
             enabled: true,
             trustedOfficialInstall: true,
             channelIds: ["slack"],

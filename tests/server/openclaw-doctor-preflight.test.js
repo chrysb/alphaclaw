@@ -5,6 +5,7 @@ const path = require("path");
 const { DatabaseSync } = require("node:sqlite");
 const {
   findOpenclawPackage,
+  hasLegacyAuthState,
   isValidExecApprovalsPolicy,
   resolveOpenclawCliPath,
   runOpenclawDoctorPreflight,
@@ -22,7 +23,7 @@ const createConfig = (value) => {
 
 const kPackageInfo = {
   dir: "/tmp/openclaw",
-  pkg: { name: "openclaw", version: "2026.9.3", bin: "openclaw.mjs" },
+  pkg: { name: "openclaw", version: "2026.9.6", bin: "openclaw.mjs" },
 };
 
 describe("server/openclaw-doctor-preflight", () => {
@@ -95,7 +96,7 @@ describe("server/openclaw-doctor-preflight", () => {
         fs.writeFileSync(
           configPath,
           `${JSON.stringify({
-            meta: { lastTouchedVersion: "2026.9.3" },
+            meta: { lastTouchedVersion: "2026.9.6" },
             agents: { entries: { main: {} } },
           })}\n`,
           "utf8",
@@ -120,7 +121,7 @@ describe("server/openclaw-doctor-preflight", () => {
       ran: true,
       changed: true,
       fromVersion: "2026.7.1",
-      toVersion: "2026.9.3",
+      toVersion: "2026.9.6",
     });
     expect(second).toMatchObject({ ran: false, changed: false });
     expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
@@ -179,7 +180,7 @@ describe("server/openclaw-doctor-preflight", () => {
 
   it("runs Doctor for a legacy state blocker even when the config version is current", () => {
     const { configPath, stateDir } = createConfig({
-      meta: { lastTouchedVersion: "2026.9.3" },
+      meta: { lastTouchedVersion: "2026.9.6" },
     });
     const approvalsPath = path.join(stateDir, "exec-approvals.json");
     fs.writeFileSync(
@@ -205,16 +206,51 @@ describe("server/openclaw-doctor-preflight", () => {
     expect(result).toMatchObject({
       ran: true,
       changed: false,
-      fromVersion: "2026.9.3",
-      toVersion: "2026.9.3",
+      fromVersion: "2026.9.6",
+      toVersion: "2026.9.6",
     });
     expect(execFileSyncImpl).toHaveBeenCalledTimes(2);
     expect(fs.existsSync(approvalsPath)).toBe(false);
   });
 
+  it("detects legacy per-agent auth state and gives Doctor enough time to migrate it", () => {
+    const { configPath, stateDir } = createConfig({
+      meta: { lastTouchedVersion: "2026.9.6" },
+    });
+    const agentDir = path.join(stateDir, "agents", "main", "agent");
+    fs.mkdirSync(agentDir, { recursive: true });
+    const authPath = path.join(agentDir, "auth-profiles.json");
+    fs.writeFileSync(authPath, '{"version":1,"profiles":{}}', "utf8");
+    const execFileSyncImpl = vi.fn((_executable, args) => {
+      if (args[1] === "doctor") fs.rmSync(authPath);
+    });
+
+    expect(hasLegacyAuthState({ stateDir })).toBe(true);
+    const result = runOpenclawDoctorPreflight({
+      configPath,
+      stateDir,
+      env: { ALPHACLAW_OPENCLAW_DOCTOR_TIMEOUT_MS: "720000" },
+      execFileSyncImpl,
+      packageInfo: kPackageInfo,
+    });
+
+    expect(result).toMatchObject({
+      ran: true,
+      fromVersion: "2026.9.6",
+      toVersion: "2026.9.6",
+    });
+    expect(execFileSyncImpl).toHaveBeenNthCalledWith(
+      1,
+      process.execPath,
+      expect.arrayContaining(["doctor"]),
+      expect.objectContaining({ timeout: 720_000 }),
+    );
+    expect(hasLegacyAuthState({ stateDir })).toBe(false);
+  });
+
   it("archives an AlphaClaw default stub when SQLite already owns exec policy", () => {
     const { configPath, stateDir } = createConfig({
-      meta: { lastTouchedVersion: "2026.9.3" },
+      meta: { lastTouchedVersion: "2026.9.6" },
     });
     const approvalsPath = path.join(stateDir, "exec-approvals.json");
     fs.writeFileSync(
@@ -281,7 +317,7 @@ describe("server/openclaw-doctor-preflight", () => {
 
   it("leaves customized legacy exec policy for OpenClaw to reconcile", () => {
     const { configPath, stateDir } = createConfig({
-      meta: { lastTouchedVersion: "2026.9.3" },
+      meta: { lastTouchedVersion: "2026.9.6" },
     });
     const approvalsPath = path.join(stateDir, "exec-approvals.json");
     fs.writeFileSync(
@@ -327,7 +363,7 @@ describe("server/openclaw-doctor-preflight", () => {
 
   it("does not archive the managed stub when SQLite policy is malformed", () => {
     const { configPath, stateDir } = createConfig({
-      meta: { lastTouchedVersion: "2026.9.3" },
+      meta: { lastTouchedVersion: "2026.9.6" },
     });
     const approvalsPath = path.join(stateDir, "exec-approvals.json");
     fs.writeFileSync(
@@ -375,7 +411,7 @@ describe("server/openclaw-doctor-preflight", () => {
     "migrates current-version legacy exec approvals into OpenClaw SQLite state",
     () => {
       const { configPath, stateDir } = createConfig({
-        meta: { lastTouchedVersion: "2026.9.3" },
+        meta: { lastTouchedVersion: "2026.9.6" },
       });
       const approvalsPath = path.join(stateDir, "exec-approvals.json");
       fs.writeFileSync(
@@ -420,6 +456,96 @@ describe("server/openclaw-doctor-preflight", () => {
     180_000,
   );
 
+  it(
+    "uses supported Doctor migrations for legacy Codex routes and OAuth state",
+    () => {
+      const { configPath, stateDir } = createConfig({
+        meta: { lastTouchedVersion: "2026.9.3" },
+        agents: {
+          defaults: {
+            model: { primary: "openai-codex/gpt-5.5" },
+            models: { "openai-codex/gpt-5.5": {} },
+          },
+        },
+        auth: {
+          profiles: {
+            "openai-codex:codex-cli": {
+              provider: "openai-codex",
+              mode: "oauth",
+            },
+          },
+        },
+      });
+      const agentDir = path.join(stateDir, "agents", "main", "agent");
+      fs.mkdirSync(agentDir, { recursive: true });
+      const authPath = path.join(agentDir, "auth-profiles.json");
+      fs.writeFileSync(
+        authPath,
+        JSON.stringify({
+          version: 1,
+          profiles: {
+            "openai-codex:codex-cli": {
+              type: "oauth",
+              provider: "openai-codex",
+              access: "test-access",
+              refresh: "test-refresh",
+              expires: Date.now() + 3_600_000,
+            },
+          },
+        }),
+        "utf8",
+      );
+
+      const result = runOpenclawDoctorPreflight({
+        configPath,
+        stateDir,
+        stdio: "ignore",
+        env: {
+          ...process.env,
+          HOME: stateDir,
+          OPENCLAW_HOME: stateDir,
+        },
+      });
+      const migrated = JSON.parse(fs.readFileSync(configPath, "utf8"));
+
+      expect(result).toMatchObject({ ran: true, toVersion: "2026.9.9" });
+      expect(migrated.agents.defaults.model.primary).toBe("openai/gpt-5.5");
+      expect(migrated.agents.defaults.models["openai/gpt-5.5"]).toMatchObject({
+        agentRuntime: { id: "codex" },
+      });
+      expect(fs.existsSync(authPath)).toBe(false);
+      expect(
+        fs.readdirSync(agentDir).some((name) =>
+          name.startsWith("auth-profiles.json.migrated-"),
+        ),
+      ).toBe(true);
+      const packageInfo = findOpenclawPackage();
+      const status = JSON.parse(
+        childProcess.execFileSync(
+          process.execPath,
+          [resolveOpenclawCliPath(packageInfo), "models", "status", "--json"],
+          {
+            env: {
+              PATH: process.env.PATH,
+              TMPDIR: process.env.TMPDIR,
+              HOME: stateDir,
+              OPENCLAW_HOME: stateDir,
+              OPENCLAW_CONFIG_PATH: configPath,
+              OPENCLAW_STATE_DIR: stateDir,
+            },
+            encoding: "utf8",
+            timeout: 30_000,
+          },
+        ),
+      );
+      expect(status.auth.providersWithOAuth).toContain("openai (1)");
+      expect(status.auth.providers[0].profiles.labels).toContain(
+        "openai:chatgpt-codex-cli=OAuth",
+      );
+    },
+    300_000,
+  );
+
   it("restores the original config when post-Doctor validation fails", () => {
     const original = {
       meta: { lastTouchedVersion: "2026.7.1" },
@@ -431,7 +557,7 @@ describe("server/openclaw-doctor-preflight", () => {
         fs.writeFileSync(
           configPath,
           `${JSON.stringify({
-            meta: { lastTouchedVersion: "2026.9.3" },
+            meta: { lastTouchedVersion: "2026.9.6" },
             plugins: { load: { paths: ["/missing/plugin"] } },
           })}\n`,
           "utf8",
@@ -454,7 +580,7 @@ describe("server/openclaw-doctor-preflight", () => {
   });
 
   it(
-    "migrates a versionless valid 2026.7.1 config and validates it with OpenClaw 2026.9.3",
+    "migrates a versionless valid 2026.7.1 config and validates it with OpenClaw 2026.9.9",
     () => {
       const stateDir = fs.mkdtempSync(
         path.join(os.tmpdir(), "alphaclaw-versionless-config-"),
@@ -494,9 +620,9 @@ describe("server/openclaw-doctor-preflight", () => {
         ran: true,
         changed: true,
         fromVersion: "unknown",
-        toVersion: "2026.9.3",
+        toVersion: "2026.9.9",
       });
-      expect(migrated.meta.lastTouchedVersion).toBe("2026.9.3");
+      expect(migrated.meta.lastTouchedVersion).toBe("2026.9.9");
       expect(migrated.meta.lastTouchedAt).toBeUndefined();
       expect(migrated.commands.ownerDisplay).toBeUndefined();
       expect(migrated.gateway.tailscale.resetOnExit).toBeUndefined();
@@ -517,7 +643,7 @@ describe("server/openclaw-doctor-preflight", () => {
   );
 
   it(
-    "migrates a valid 2026.7.1 config and validates it with OpenClaw 2026.9.3",
+    "migrates a valid 2026.7.1 config and validates it with OpenClaw 2026.9.9",
     () => {
       const stateDir = fs.mkdtempSync(
         path.join(os.tmpdir(), "alphaclaw-legacy-config-"),
@@ -549,7 +675,7 @@ describe("server/openclaw-doctor-preflight", () => {
         ran: true,
         changed: true,
         fromVersion: "2026.7.1",
-        toVersion: "2026.9.3",
+        toVersion: "2026.9.9",
       });
       expect(fs.existsSync(`${configPath}.bak`)).toBe(true);
       expect(migrated.meta.lastTouchedAt).toBeUndefined();

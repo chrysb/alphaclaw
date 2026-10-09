@@ -1,6 +1,24 @@
 const { deriveCostBreakdown } = require("../../lib/server/cost-utils");
 
 describe("server/cost-utils", () => {
+  it("prices Claude Opus 5.5 including prompt cache tokens", () => {
+    const breakdown = deriveCostBreakdown({
+      provider: "anthropic",
+      model: "anthropic/claude-opus-5-5",
+      inputTokens: 100_000,
+      outputTokens: 10_000,
+      cacheReadTokens: 800_000,
+      cacheWriteTokens: 20_000,
+    });
+
+    expect(breakdown.pricingFound).toBe(true);
+    expect(breakdown.inputCost).toBeCloseTo(0.4, 8);
+    expect(breakdown.outputCost).toBeCloseTo(0.2, 8);
+    expect(breakdown.cacheReadCost).toBeCloseTo(0.16, 8);
+    expect(breakdown.cacheWriteCost).toBeCloseTo(0.1, 8);
+    expect(breakdown.totalCost).toBeCloseTo(0.86, 8);
+  });
+
   it("prices Claude Opus 4.7 including prompt cache tokens", () => {
     const breakdown = deriveCostBreakdown({
       provider: "anthropic",

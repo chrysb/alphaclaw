@@ -784,6 +784,14 @@ textarea:focus {
   resize: vertical;
 }
 
+.watchdog-log-line-error {
+  color: var(--status-error);
+}
+
+.watchdog-log-line-warning {
+  color: var(--status-warning);
+}
+
 .watchdog-terminal-host {
   position: relative;
 }

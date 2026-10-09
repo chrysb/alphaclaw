@@ -27,6 +27,41 @@ describe("bin/alphaclaw port check", () => {
 
   const binPath = path.resolve(__dirname, "../../bin/alphaclaw.js");
 
+  it("applies --root-dir before loading project modules", () => {
+    const preloadPath = path.join(tmpDir, "capture-bootstrap-root.js");
+    const capturePath = path.join(tmpDir, "captured-bootstrap-root.txt");
+    fs.writeFileSync(
+      preloadPath,
+      `
+const fs = require("fs");
+const Module = require("module");
+const path = require("path");
+const capturePath = process.env.ALPHACLAW_CAPTURE_ROOT_PATH;
+const realLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (String(request || "").endsWith(path.join("lib", "cli", "git-runtime"))) {
+    fs.writeFileSync(capturePath, process.env.ALPHACLAW_ROOT_DIR || "");
+  }
+  return realLoad.apply(this, arguments);
+};
+      `.trim(),
+    );
+
+    const env = {
+      ...process.env,
+      ALPHACLAW_CAPTURE_ROOT_PATH: capturePath,
+      NODE_OPTIONS: `--require=${preloadPath}`,
+    };
+    delete env.ALPHACLAW_ROOT_DIR;
+    execSync(`node "${binPath}" --root-dir "${tmpDir}" --version`, {
+      stdio: "pipe",
+      encoding: "utf8",
+      env,
+    });
+
+    expect(fs.readFileSync(capturePath, "utf8")).toBe(tmpDir);
+  });
+
   it("allows git-sync on Node versions below OpenClaw's runtime minimum", () => {
     const preloadPath = path.join(tmpDir, "override-node-version.js");
     fs.writeFileSync(
