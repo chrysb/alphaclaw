@@ -508,7 +508,7 @@ describe("server/openclaw-doctor-preflight", () => {
       });
       const migrated = JSON.parse(fs.readFileSync(configPath, "utf8"));
 
-      expect(result).toMatchObject({ ran: true, toVersion: "2026.9.8" });
+      expect(result).toMatchObject({ ran: true, toVersion: "2026.9.9" });
       expect(migrated.agents.defaults.model.primary).toBe("openai/gpt-5.5");
       expect(migrated.agents.defaults.models["openai/gpt-5.5"]).toMatchObject({
         agentRuntime: { id: "codex" },
@@ -580,7 +580,7 @@ describe("server/openclaw-doctor-preflight", () => {
   });
 
   it(
-    "migrates a versionless valid 2026.7.1 config and validates it with OpenClaw 2026.9.8",
+    "migrates a versionless valid 2026.7.1 config and validates it with OpenClaw 2026.9.9",
     () => {
       const stateDir = fs.mkdtempSync(
         path.join(os.tmpdir(), "alphaclaw-versionless-config-"),
@@ -620,9 +620,9 @@ describe("server/openclaw-doctor-preflight", () => {
         ran: true,
         changed: true,
         fromVersion: "unknown",
-        toVersion: "2026.9.8",
+        toVersion: "2026.9.9",
       });
-      expect(migrated.meta.lastTouchedVersion).toBe("2026.9.8");
+      expect(migrated.meta.lastTouchedVersion).toBe("2026.9.9");
       expect(migrated.meta.lastTouchedAt).toBeUndefined();
       expect(migrated.commands.ownerDisplay).toBeUndefined();
       expect(migrated.gateway.tailscale.resetOnExit).toBeUndefined();
@@ -643,7 +643,7 @@ describe("server/openclaw-doctor-preflight", () => {
   );
 
   it(
-    "migrates a valid 2026.7.1 config and validates it with OpenClaw 2026.9.8",
+    "migrates a valid 2026.7.1 config and validates it with OpenClaw 2026.9.9",
     () => {
       const stateDir = fs.mkdtempSync(
         path.join(os.tmpdir(), "alphaclaw-legacy-config-"),
@@ -675,7 +675,7 @@ describe("server/openclaw-doctor-preflight", () => {
         ran: true,
         changed: true,
         fromVersion: "2026.7.1",
-        toVersion: "2026.9.8",
+        toVersion: "2026.9.9",
       });
       expect(fs.existsSync(`${configPath}.bak`)).toBe(true);
       expect(migrated.meta.lastTouchedAt).toBeUndefined();

@@ -34,7 +34,7 @@
   "dependencies": {
     "express": "^5.2.1",
     "http-proxy": "^1.18.1",
-    "openclaw": "2026.9.8",
+    "openclaw": "2026.9.9",
     "ws": "^8.19.0"
   },
   "devDependencies": {
