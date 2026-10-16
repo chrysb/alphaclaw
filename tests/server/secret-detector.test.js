@@ -1,3 +1,6 @@
+const fs = require("fs");
+const os = require("os");
+const path = require("path");
 const {
   detectSecrets,
   extractPreFillValues,
@@ -6,6 +9,18 @@ const {
   maskValue,
   parseEnvFileSecrets,
 } = require("../../lib/server/onboarding/import/secret-detector");
+
+const kTempDirs = [];
+const createTempDir = () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "alphaclaw-secret-detector-"));
+  kTempDirs.push(tempDir);
+  return tempDir;
+};
+afterEach(() => {
+  while (kTempDirs.length > 0) {
+    fs.rmSync(kTempDirs.pop(), { recursive: true, force: true });
+  }
+});
 
 const createMockFs = (files = {}) => ({
   readFileSync: (p) => {
@@ -390,6 +405,78 @@ describe("secret-detector", () => {
       const content = "\n# header\n\nKEY=value\n";
       const secrets = parseEnvFileSecrets(content, ".env");
       expect(secrets.length).toBe(1);
+    });
+  });
+
+  describe("path containment (configFiles/envFiles must stay within baseDir)", () => {
+    it("does not read or disclose a config file outside baseDir via a ../ traversal entry", () => {
+      const baseDir = createTempDir();
+      const outsideDir = createTempDir();
+
+      // A real host config file the attacker wants disclosed -- shaped like a
+      // real secret so it would trip walkConfig's key/value heuristics.
+      fs.writeFileSync(
+        path.join(outsideDir, "real-secrets.json"),
+        JSON.stringify({ apiKey: "sk-ant-realsecretvalue0000" }),
+        "utf8",
+      );
+      fs.writeFileSync(path.join(baseDir, "openclaw.json"), JSON.stringify({}), "utf8");
+
+      const traversal = path
+        .relative(baseDir, path.join(outsideDir, "real-secrets.json"))
+        .split(path.sep)
+        .join("/");
+
+      const secrets = detectSecrets({
+        fs,
+        baseDir,
+        configFiles: ["openclaw.json", traversal],
+        envFiles: [],
+      });
+
+      expect(secrets.some((s) => s.value === "sk-ant-realsecretvalue0000")).toBe(false);
+    });
+
+    it("does not read a prefill config file outside baseDir via a ../ traversal entry", () => {
+      const baseDir = createTempDir();
+      const outsideDir = createTempDir();
+
+      fs.writeFileSync(
+        path.join(outsideDir, "real-secrets.json"),
+        JSON.stringify({ models: { providers: { anthropic: { apiKey: "sk-ant-realsecret" } } } }),
+        "utf8",
+      );
+
+      const traversal = path
+        .relative(baseDir, path.join(outsideDir, "real-secrets.json"))
+        .split(path.sep)
+        .join("/");
+
+      const preFill = extractPreFillValues({
+        fs,
+        baseDir,
+        configFiles: [traversal],
+      });
+
+      expect(preFill.ANTHROPIC_API_KEY).toBeUndefined();
+    });
+
+    it("still reads legitimate in-workspace config files normally", () => {
+      const baseDir = createTempDir();
+      fs.writeFileSync(
+        path.join(baseDir, "openclaw.json"),
+        JSON.stringify({ channels: { telegram: { botToken: "123456:AAHreal" } } }),
+        "utf8",
+      );
+
+      const secrets = detectSecrets({
+        fs,
+        baseDir,
+        configFiles: ["openclaw.json"],
+        envFiles: [],
+      });
+
+      expect(secrets.some((s) => s.suggestedEnvVar === "TELEGRAM_BOT_TOKEN")).toBe(true);
     });
   });
 });
