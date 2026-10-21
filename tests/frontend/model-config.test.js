@@ -62,6 +62,51 @@ describe("frontend/model-config", () => {
     expect(featured[5]?.featuredLabel).toBe("Gemini 3.1 Pro");
   });
 
+  it("orders current MiniMax text models and filters obsolete ordinary choices", async () => {
+    const modelConfig = await loadModelConfig();
+    const catalog = [
+      { key: "minimax/MiniMax-M2.7", provider: "minimax" },
+      { key: "minimax/MiniMax-M3", provider: "minimax" },
+      { key: "minimax/MiniMax-M3.1-Flash", provider: "minimax" },
+      { key: "minimax/MiniMax-Image-01", provider: "minimax" },
+      { key: "anthropic/claude-sonnet-4-6", provider: "anthropic" },
+    ];
+
+    expect(
+      modelConfig
+        .getOrdinaryModelOptions(catalog)
+        .map((model) => model.key),
+    ).toEqual([
+      "minimax/MiniMax-M3.1-Flash",
+      "minimax/MiniMax-M3",
+      "minimax/MiniMax-Image-01",
+      "anthropic/claude-sonnet-4-6",
+    ]);
+    expect(modelConfig.getMiniMaxTextModelRank(catalog[2])).toBe(0);
+    expect(modelConfig.getMiniMaxTextModelRank(catalog[1])).toBe(1);
+  });
+
+  it("preserves a saved legacy MiniMax model while filtering new onboarding choices", async () => {
+    const modelConfig = await loadModelConfig();
+    const catalog = [
+      { key: "minimax/MiniMax-M2.7", provider: "minimax" },
+      { key: "minimax/MiniMax-M3", provider: "minimax" },
+      { key: "minimax/MiniMax-M3.1-Flash", provider: "minimax" },
+    ];
+
+    expect(
+      modelConfig
+        .getOnboardingModels(catalog, {
+          currentModelKey: "minimax/MiniMax-M2.7",
+        })
+        .map((model) => model.key),
+    ).toEqual([
+      "minimax/MiniMax-M3.1-Flash",
+      "minimax/MiniMax-M3",
+      "minimax/MiniMax-M2.7",
+    ]);
+  });
+
   it("removes deprecated Codex 5.3 models from onboarding", async () => {
     const modelConfig = await loadModelConfig();
     const models = modelConfig.getOnboardingModels([
