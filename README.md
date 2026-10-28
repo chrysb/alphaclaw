@@ -20,6 +20,7 @@
 <p align="center">
   <a href="https://render.com/templates/alphaclaw"><img height="40" src="https://render.com/images/deploy-to-render-button.svg" alt="Deploy to Render" /></a>
   <a href="https://railway.com/deploy/openclaw-fast-start?referralCode=jcFhp_&utm_medium=integration&utm_source=template&utm_campaign=generic"><img height="40" src="https://railway.com/button.svg" alt="Deploy on Railway" /></a>
+  <a href="https://console.light-cloud.com/new?repo=https://github.com/chrysb/alphaclaw"><img height="40" src="https://light-cloud.com/button.svg" alt="Deploy to Light Cloud" /></a>
   <a href="https://updates.alphaclaw.md/desktop/prod/alphaclaw-mac-latest.dmg"><img height="40" src="https://img.shields.io/badge/Download%20for%20macOS-000000?style=for-the-badge&logo=apple&logoColor=white" alt="Download for macOS" /></a>
 </p>
 
