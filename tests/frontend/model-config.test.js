@@ -62,7 +62,7 @@ describe("frontend/model-config", () => {
     expect(featured[5]?.featuredLabel).toBe("Gemini 3.1 Pro");
   });
 
-  it("orders current MiniMax text models and filters obsolete ordinary choices", async () => {
+  it("orders current MiniMax text models and retains older discovered choices", async () => {
     const modelConfig = await loadModelConfig();
     const catalog = [
       { key: "minimax/MiniMax-M2.7", provider: "minimax" },
@@ -79,6 +79,7 @@ describe("frontend/model-config", () => {
     ).toEqual([
       "minimax/MiniMax-M3.1-Flash",
       "minimax/MiniMax-M3",
+      "minimax/MiniMax-M2.7",
       "minimax/MiniMax-Image-01",
       "anthropic/claude-sonnet-4-6",
     ]);
@@ -86,7 +87,7 @@ describe("frontend/model-config", () => {
     expect(modelConfig.getMiniMaxTextModelRank(catalog[1])).toBe(1);
   });
 
-  it("preserves a saved legacy MiniMax model while filtering new onboarding choices", async () => {
+  it("preserves a saved legacy MiniMax model among onboarding choices", async () => {
     const modelConfig = await loadModelConfig();
     const catalog = [
       { key: "minimax/MiniMax-M2.7", provider: "minimax" },

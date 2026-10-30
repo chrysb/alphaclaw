@@ -20,7 +20,7 @@ describe("MiniMax model selection", () => {
   it.each(routes)("prefers discovered %s without synthesizing a route", (flash, m3, legacy) => {
     const catalog = [legacy, m3, flash].map(entry);
     const options = getOnboardingModels(catalog);
-    expect(options.map((model) => model.key)).toEqual([flash, m3]);
+    expect(options.map((model) => model.key)).toEqual([flash, m3, legacy]);
     expect(getInitialOnboardingModelKey({ catalog: options })).toBe(flash);
     expect(getOnboardingModels([entry(m3)]).map((model) => model.key)).toEqual([m3]);
     expect(withAlwaysAvailableModels([entry(m3)]).some((model) => model.key === flash)).toBe(false);
@@ -52,13 +52,23 @@ describe("MiniMax model selection", () => {
     }
   });
 
-  it("does not substitute an unverified preview or paid gateway alias", () => {
-    const unknown = [
+  it.each(routes)("keeps a discovered legacy-only %s catalog selectable", (_flash, _m3, legacy) => {
+    expect(getOrdinaryModelOptions([entry(legacy)])).toEqual([entry(legacy)]);
+    expect(getOnboardingModels([entry(legacy)])).toEqual([entry(legacy)]);
+  });
+
+  it("keeps discovered custom and future model IDs without treating them as aliases", () => {
+    const discovered = [
+      "minimax/MiniMax-M4",
+      "minimax-cn/MiniMax-M4",
+      "openrouter/minimax/minimax-m4",
+      "opencode/minimax-m4",
+      "minimax/custom-model",
       "minimax/MiniMax-M3.1-Flash-Preview",
       "openrouter/minimax/minimax-m3.1-flash",
       "opencode/minimax-m3.1-flash",
     ].map(entry);
-    expect(getOrdinaryModelOptions(unknown)).toEqual([]);
+    expect(getOrdinaryModelOptions(discovered)).toEqual(discovered);
   });
 
   it("serializes default, saved and custom selections unchanged at the setup HTTP boundary", async () => {
