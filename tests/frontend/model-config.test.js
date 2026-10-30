@@ -11,7 +11,16 @@ describe("frontend/model-config", () => {
     expect(modelConfig.getAuthProviderFromModelProvider("byteplus-plan")).toBe(
       "byteplus",
     );
+    expect(modelConfig.getAuthProviderFromModelProvider("minimax-cn")).toBe(
+      "minimax",
+    );
     expect(modelConfig.getAuthProviderFromModelProvider("google")).toBe("google");
+  });
+
+  it("lets CN model selections reuse the MiniMax API key", async () => {
+    const modelConfig = await loadModelConfig();
+    const keys = modelConfig.getVisibleAiFieldKeys("minimax-cn");
+    expect(keys.has("MINIMAX_API_KEY")).toBe(true);
   });
 
   it("returns visible AI field keys for provider", async () => {
@@ -61,6 +70,52 @@ describe("frontend/model-config", () => {
     expect(featured[4]?.featuredLabel).toBe("GPT-6 Astra");
     expect(featured[5]?.featuredLabel).toBe("GPT-6 Luna");
     expect(featured[6]?.featuredLabel).toBe("Gemini 3.8 Flash");
+  });
+
+  it("orders current MiniMax text models and retains older discovered choices", async () => {
+    const modelConfig = await loadModelConfig();
+    const catalog = [
+      { key: "minimax/MiniMax-M2.7", provider: "minimax" },
+      { key: "minimax/MiniMax-M3", provider: "minimax" },
+      { key: "minimax/MiniMax-M3.1-Flash", provider: "minimax" },
+      { key: "minimax/MiniMax-Image-01", provider: "minimax" },
+      { key: "anthropic/claude-sonnet-4-6", provider: "anthropic" },
+    ];
+
+    expect(
+      modelConfig
+        .getOrdinaryModelOptions(catalog)
+        .map((model) => model.key),
+    ).toEqual([
+      "minimax/MiniMax-M3.1-Flash",
+      "minimax/MiniMax-M3",
+      "minimax/MiniMax-M2.7",
+      "minimax/MiniMax-Image-01",
+      "anthropic/claude-sonnet-4-6",
+    ]);
+    expect(modelConfig.getMiniMaxTextModelRank(catalog[2])).toBe(0);
+    expect(modelConfig.getMiniMaxTextModelRank(catalog[1])).toBe(1);
+  });
+
+  it("preserves a saved legacy MiniMax model among onboarding choices", async () => {
+    const modelConfig = await loadModelConfig();
+    const catalog = [
+      { key: "minimax/MiniMax-M2.7", provider: "minimax" },
+      { key: "minimax/MiniMax-M3", provider: "minimax" },
+      { key: "minimax/MiniMax-M3.1-Flash", provider: "minimax" },
+    ];
+
+    expect(
+      modelConfig
+        .getOnboardingModels(catalog, {
+          currentModelKey: "minimax/MiniMax-M2.7",
+        })
+        .map((model) => model.key),
+    ).toEqual([
+      "minimax/MiniMax-M3.1-Flash",
+      "minimax/MiniMax-M3",
+      "minimax/MiniMax-M2.7",
+    ]);
   });
 
   it("removes deprecated Codex 5.3 models from onboarding", async () => {

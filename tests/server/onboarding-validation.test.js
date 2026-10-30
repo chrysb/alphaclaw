@@ -29,6 +29,18 @@ describe("onboarding/validation", () => {
     expect(res.ok).toBe(true);
   });
 
+  it("accepts MINIMAX_API_KEY when the selected model uses the MiniMax CN provider", () => {
+    const res = validateOnboardingInput({
+      vars: [...kBaseVars(), { key: "MINIMAX_API_KEY", value: "minimax-test" }],
+      modelKey: "minimax-cn/MiniMax-M3",
+      resolveModelProvider: kResolveProvider,
+      hasCodexOauthProfile: () => false,
+    });
+
+    expect(res.ok).toBe(true);
+    expect(res.data.selectedProvider).toBe("minimax-cn");
+  });
+
   it("rejects openrouter model when only unrelated API keys are present", () => {
     const res = validateOnboardingInput({
       vars: [...kBaseVars(), { key: "MOONSHOT_API_KEY", value: "sk-ms" }],
