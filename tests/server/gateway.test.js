@@ -518,7 +518,35 @@ describe("server/gateway restart behavior", () => {
     expect(currentConfig.gateway.controlUi.allowedOrigins).toEqual([
       "https://setup.example.com",
     ]);
+    expect(currentConfig.gateway.controlUi.basePath).toBe("/openclaw");
     expect(currentConfig.gateway.http).toBeUndefined();
+  });
+
+  it("serves the Control UI under the /openclaw proxy prefix", () => {
+    let currentConfig = {
+      gateway: {
+        trustedProxies: ["127.0.0.1"],
+        controlUi: { basePath: "/" },
+      },
+    };
+    fs.existsSync = vi.fn((targetPath) => targetPath === kOnboardingMarkerPath);
+    fs.writeFileSync = vi.fn((targetPath, contents) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        currentConfig = JSON.parse(contents);
+      }
+    });
+    delete require.cache[modulePath];
+    const gateway = require(modulePath);
+    fs.readFileSync = vi.fn((targetPath) => {
+      if (targetPath === `${OPENCLAW_DIR}/openclaw.json`) {
+        return JSON.stringify(currentConfig);
+      }
+      return "{}";
+    });
+
+    expect(gateway.ensureGatewayProxyConfig(undefined)).toBe(true);
+    expect(currentConfig.gateway.controlUi.basePath).toBe("/openclaw");
+    expect(gateway.ensureGatewayProxyConfig(undefined)).toBe(false);
   });
 
   it("preserves existing allowed origins and remains idempotent", () => {
