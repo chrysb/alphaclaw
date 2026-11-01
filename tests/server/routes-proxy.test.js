@@ -389,3 +389,50 @@ describe("server/routes/proxy OpenAI compatibility", () => {
     expect(seenUrls).toEqual(["/v1/models/openclaw%2Fdefault"]);
   });
 });
+
+describe("server/routes/proxy Control UI", () => {
+  const createControlUiApp = () => {
+    const proxiedUrls = [];
+    const app = express();
+    registerProxyRoutes({
+      app,
+      proxy: {
+        web: vi.fn((req, res) => {
+          proxiedUrls.push(req.url);
+          res.status(204).end();
+        }),
+      },
+      getGatewayUrl: () => "http://127.0.0.1:18789",
+      getGatewayToken: () => "gateway-token",
+      SETUP_API_PREFIXES: [],
+      requireAuth: (_req, _res, next) => next(),
+      oauthCallbackMiddleware: (_req, res) => res.status(204).end(),
+      webhookMiddleware: (_req, res) => res.status(204).end(),
+    });
+    return { app, proxiedUrls };
+  };
+
+  it("keeps the /openclaw prefix so the gateway base path matches", async () => {
+    const { app, proxiedUrls } = createControlUiApp();
+
+    await request(app).get("/openclaw").expect(204);
+    await request(app).get("/openclaw/").expect(204);
+    await request(app).get("/openclaw/chat/main?draft=hi").expect(204);
+    await request(app).get("/openclaw/sw.js").expect(204);
+
+    expect(proxiedUrls).toEqual([
+      "/openclaw",
+      "/openclaw/",
+      "/openclaw/chat/main?draft=hi",
+      "/openclaw/sw.js",
+    ]);
+  });
+
+  it("does not treat lookalike paths as Control UI routes", async () => {
+    const { app, proxiedUrls } = createControlUiApp();
+
+    await request(app).get("/openclawish").expect(404);
+
+    expect(proxiedUrls).toEqual([]);
+  });
+});
